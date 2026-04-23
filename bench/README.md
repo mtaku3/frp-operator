@@ -24,8 +24,7 @@ bench/
 ├── lib/
 │   ├── collect.sh        # samples docker stats → CSV
 │   └── common.sh         # shared helpers
-├── results/              # CSVs + markdown reports (gitignored)
-└── report.py             # aggregate CSVs → table.md
+└── results/              # CSVs + markdown reports (gitignored)
 ```
 
 ## Backends under test
@@ -63,9 +62,6 @@ See `../docs/` (TBD) or the top-level brainstorm. Short version:
 
 # full sweep
 ./scenarios/run_all.sh
-
-# aggregate
-python3 report.py results/ > results/table.md
 ```
 
 ## Resource caps
@@ -81,8 +77,7 @@ Set `BENCH_WAN=1` to apply `tc netem` (50ms RTT, 1% loss, 100Mbps) on the
 ## Status
 
 - [x] S0 baseline, S1 single-stream — all three backends
-- [ ] S2, S3 — wrk/iperf parallel
-- [ ] S5 idle scaling
-- [ ] S7 dynamic add (the key one)
-- [ ] S9 reconnect
-- [ ] report.py
+- [x] S2, S3 — wrk/iperf parallel
+- [x] S5 idle scaling
+- [x] S7 dynamic add (the key one)
+- [x] S9 reconnect

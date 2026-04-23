@@ -1,0 +1,52 @@
+# gost v3 backend (github.com/go-gost/gost). CLI-driven, no config files.
+# Server runs a relay listener. Client uses rtcp (reverse TCP) to register
+# two public bind ports on the server, proxied back through the relay.
+name: tbench-go
+
+networks:
+  wan-net:
+    driver: bridge
+  internal-net:
+    driver: bridge
+    internal: true
+
+services:
+  origin:
+    image: networkstatic/iperf3
+    container_name: tbench-go-origin
+    command: ["-s", "-p", "5201"]
+    networks: [internal-net]
+
+  origin-http:
+    image: nginx:alpine
+    container_name: tbench-go-origin-http
+    networks: [internal-net]
+
+  tunnel-server:
+    image: gogost/gost:latest
+    container_name: tbench-go-server
+    command:
+      - "-L"
+      - "relay+grpc://bench:benchpw@:2443?bind=true&keepalive=true&keepalive.time=20s&keepalive.permitWithoutStream=true&keepalive.maxConnectionIdle=1h"
+    networks: [wan-net]
+    cpus: ${BENCH_CPUS:-1.0}
+    mem_limit: ${BENCH_MEM:-512m}
+
+  tunnel-client:
+    image: gogost/gost:latest
+    container_name: tbench-go-client
+    command:
+      - "-L"
+      - "rtcp://:15200/origin:5201"
+      - "-L"
+      - "rtcp://:18080/origin-http:80"
+      - "-F"
+      - "relay+grpc://bench:benchpw@tunnel-server:2443?keepalive=true&keepalive.time=20s&keepalive.permitWithoutStream=true"
+    networks: [wan-net, internal-net]
+    depends_on: [tunnel-server, origin, origin-http]
+
+  probe:
+    image: networkstatic/iperf3
+    container_name: tbench-go-probe
+    entrypoint: ["sleep", "infinity"]
+    networks: [wan-net]

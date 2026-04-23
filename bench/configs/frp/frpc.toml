@@ -1,0 +1,20 @@
+serverAddr = "tunnel-server"
+serverPort = 7000
+auth.method = "token"
+auth.token = "benchtoken"
+
+log.level = "warn"
+
+[[proxies]]
+name = "iperf"
+type = "tcp"
+localIP = "origin"
+localPort = 5201
+remotePort = 15200
+
+[[proxies]]
+name = "http"
+type = "tcp"
+localIP = "origin-http"
+localPort = 80
+remotePort = 18080

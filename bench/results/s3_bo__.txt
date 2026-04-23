@@ -1,0 +1,13 @@
+Running 30s test @ http://tunnel-server:18080/
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    24.28ms   20.15ms  77.92ms   58.50%
+    Req/Sec   661.43     92.02     1.49k    73.67%
+  Latency Distribution
+     50%   40.75ms
+     75%   41.15ms
+     90%   41.96ms
+     99%   42.30ms
+  79013 requests in 30.02s, 85.46MB read
+Requests/sec:   2631.93
+Transfer/sec:      2.85MB

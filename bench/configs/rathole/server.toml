@@ -1,0 +1,309 @@
+[server]
+bind_addr = "0.0.0.0:2333"
+default_token = "benchtoken"
+
+[server.services.iperf]
+bind_addr = "0.0.0.0:15200"
+
+[server.services.http]
+bind_addr = "0.0.0.0:18080"
+
+[server.services.idle1]
+bind_addr = "0.0.0.0:16001"
+
+[server.services.idle2]
+bind_addr = "0.0.0.0:16002"
+
+[server.services.idle3]
+bind_addr = "0.0.0.0:16003"
+
+[server.services.idle4]
+bind_addr = "0.0.0.0:16004"
+
+[server.services.idle5]
+bind_addr = "0.0.0.0:16005"
+
+[server.services.idle6]
+bind_addr = "0.0.0.0:16006"
+
+[server.services.idle7]
+bind_addr = "0.0.0.0:16007"
+
+[server.services.idle8]
+bind_addr = "0.0.0.0:16008"
+
+[server.services.idle9]
+bind_addr = "0.0.0.0:16009"
+
+[server.services.idle10]
+bind_addr = "0.0.0.0:16010"
+
+[server.services.idle11]
+bind_addr = "0.0.0.0:16011"
+
+[server.services.idle12]
+bind_addr = "0.0.0.0:16012"
+
+[server.services.idle13]
+bind_addr = "0.0.0.0:16013"
+
+[server.services.idle14]
+bind_addr = "0.0.0.0:16014"
+
+[server.services.idle15]
+bind_addr = "0.0.0.0:16015"
+
+[server.services.idle16]
+bind_addr = "0.0.0.0:16016"
+
+[server.services.idle17]
+bind_addr = "0.0.0.0:16017"
+
+[server.services.idle18]
+bind_addr = "0.0.0.0:16018"
+
+[server.services.idle19]
+bind_addr = "0.0.0.0:16019"
+
+[server.services.idle20]
+bind_addr = "0.0.0.0:16020"
+
+[server.services.idle21]
+bind_addr = "0.0.0.0:16021"
+
+[server.services.idle22]
+bind_addr = "0.0.0.0:16022"
+
+[server.services.idle23]
+bind_addr = "0.0.0.0:16023"
+
+[server.services.idle24]
+bind_addr = "0.0.0.0:16024"
+
+[server.services.idle25]
+bind_addr = "0.0.0.0:16025"
+
+[server.services.idle26]
+bind_addr = "0.0.0.0:16026"
+
+[server.services.idle27]
+bind_addr = "0.0.0.0:16027"
+
+[server.services.idle28]
+bind_addr = "0.0.0.0:16028"
+
+[server.services.idle29]
+bind_addr = "0.0.0.0:16029"
+
+[server.services.idle30]
+bind_addr = "0.0.0.0:16030"
+
+[server.services.idle31]
+bind_addr = "0.0.0.0:16031"
+
+[server.services.idle32]
+bind_addr = "0.0.0.0:16032"
+
+[server.services.idle33]
+bind_addr = "0.0.0.0:16033"
+
+[server.services.idle34]
+bind_addr = "0.0.0.0:16034"
+
+[server.services.idle35]
+bind_addr = "0.0.0.0:16035"
+
+[server.services.idle36]
+bind_addr = "0.0.0.0:16036"
+
+[server.services.idle37]
+bind_addr = "0.0.0.0:16037"
+
+[server.services.idle38]
+bind_addr = "0.0.0.0:16038"
+
+[server.services.idle39]
+bind_addr = "0.0.0.0:16039"
+
+[server.services.idle40]
+bind_addr = "0.0.0.0:16040"
+
+[server.services.idle41]
+bind_addr = "0.0.0.0:16041"
+
+[server.services.idle42]
+bind_addr = "0.0.0.0:16042"
+
+[server.services.idle43]
+bind_addr = "0.0.0.0:16043"
+
+[server.services.idle44]
+bind_addr = "0.0.0.0:16044"
+
+[server.services.idle45]
+bind_addr = "0.0.0.0:16045"
+
+[server.services.idle46]
+bind_addr = "0.0.0.0:16046"
+
+[server.services.idle47]
+bind_addr = "0.0.0.0:16047"
+
+[server.services.idle48]
+bind_addr = "0.0.0.0:16048"
+
+[server.services.idle49]
+bind_addr = "0.0.0.0:16049"
+
+[server.services.idle50]
+bind_addr = "0.0.0.0:16050"
+
+[server.services.idle51]
+bind_addr = "0.0.0.0:16051"
+
+[server.services.idle52]
+bind_addr = "0.0.0.0:16052"
+
+[server.services.idle53]
+bind_addr = "0.0.0.0:16053"
+
+[server.services.idle54]
+bind_addr = "0.0.0.0:16054"
+
+[server.services.idle55]
+bind_addr = "0.0.0.0:16055"
+
+[server.services.idle56]
+bind_addr = "0.0.0.0:16056"
+
+[server.services.idle57]
+bind_addr = "0.0.0.0:16057"
+
+[server.services.idle58]
+bind_addr = "0.0.0.0:16058"
+
+[server.services.idle59]
+bind_addr = "0.0.0.0:16059"
+
+[server.services.idle60]
+bind_addr = "0.0.0.0:16060"
+
+[server.services.idle61]
+bind_addr = "0.0.0.0:16061"
+
+[server.services.idle62]
+bind_addr = "0.0.0.0:16062"
+
+[server.services.idle63]
+bind_addr = "0.0.0.0:16063"
+
+[server.services.idle64]
+bind_addr = "0.0.0.0:16064"
+
+[server.services.idle65]
+bind_addr = "0.0.0.0:16065"
+
+[server.services.idle66]
+bind_addr = "0.0.0.0:16066"
+
+[server.services.idle67]
+bind_addr = "0.0.0.0:16067"
+
+[server.services.idle68]
+bind_addr = "0.0.0.0:16068"
+
+[server.services.idle69]
+bind_addr = "0.0.0.0:16069"
+
+[server.services.idle70]
+bind_addr = "0.0.0.0:16070"
+
+[server.services.idle71]
+bind_addr = "0.0.0.0:16071"
+
+[server.services.idle72]
+bind_addr = "0.0.0.0:16072"
+
+[server.services.idle73]
+bind_addr = "0.0.0.0:16073"
+
+[server.services.idle74]
+bind_addr = "0.0.0.0:16074"
+
+[server.services.idle75]
+bind_addr = "0.0.0.0:16075"
+
+[server.services.idle76]
+bind_addr = "0.0.0.0:16076"
+
+[server.services.idle77]
+bind_addr = "0.0.0.0:16077"
+
+[server.services.idle78]
+bind_addr = "0.0.0.0:16078"
+
+[server.services.idle79]
+bind_addr = "0.0.0.0:16079"
+
+[server.services.idle80]
+bind_addr = "0.0.0.0:16080"
+
+[server.services.idle81]
+bind_addr = "0.0.0.0:16081"
+
+[server.services.idle82]
+bind_addr = "0.0.0.0:16082"
+
+[server.services.idle83]
+bind_addr = "0.0.0.0:16083"
+
+[server.services.idle84]
+bind_addr = "0.0.0.0:16084"
+
+[server.services.idle85]
+bind_addr = "0.0.0.0:16085"
+
+[server.services.idle86]
+bind_addr = "0.0.0.0:16086"
+
+[server.services.idle87]
+bind_addr = "0.0.0.0:16087"
+
+[server.services.idle88]
+bind_addr = "0.0.0.0:16088"
+
+[server.services.idle89]
+bind_addr = "0.0.0.0:16089"
+
+[server.services.idle90]
+bind_addr = "0.0.0.0:16090"
+
+[server.services.idle91]
+bind_addr = "0.0.0.0:16091"
+
+[server.services.idle92]
+bind_addr = "0.0.0.0:16092"
+
+[server.services.idle93]
+bind_addr = "0.0.0.0:16093"
+
+[server.services.idle94]
+bind_addr = "0.0.0.0:16094"
+
+[server.services.idle95]
+bind_addr = "0.0.0.0:16095"
+
+[server.services.idle96]
+bind_addr = "0.0.0.0:16096"
+
+[server.services.idle97]
+bind_addr = "0.0.0.0:16097"
+
+[server.services.idle98]
+bind_addr = "0.0.0.0:16098"
+
+[server.services.idle99]
+bind_addr = "0.0.0.0:16099"
+
+[server.services.idle100]
+bind_addr = "0.0.0.0:16100"

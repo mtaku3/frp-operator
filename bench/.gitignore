@@ -1,0 +1,2 @@
+configs/wireguard/*.key
+configs/wireguard/*.pub

@@ -1,0 +1,13 @@
+Running 30s test @ http://origin-http:80/100k
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     2.89ms    2.09ms  47.62ms   74.63%
+    Req/Sec     4.93k   685.35     6.86k    65.72%
+  Latency Distribution
+     50%    2.43ms
+     75%    3.90ms
+     90%    5.57ms
+     99%    9.73ms
+  588683 requests in 30.02s, 75.98GB read
+Requests/sec:  19610.41
+Transfer/sec:      2.53GB

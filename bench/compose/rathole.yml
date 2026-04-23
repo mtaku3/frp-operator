@@ -1,0 +1,48 @@
+# rathole backend (github.com/rapiz1/rathole). Rust, TOML-driven.
+# Server pre-declares iperf/http + 100 idle slots (see server-entrypoint.sh).
+# Clients register by name for the slots they want to forward.
+name: tbench-ra
+
+networks:
+  wan-net:
+    driver: bridge
+  internal-net:
+    driver: bridge
+    internal: true
+
+services:
+  origin:
+    image: networkstatic/iperf3
+    container_name: tbench-ra-origin
+    command: ["-s", "-p", "5201"]
+    networks: [internal-net]
+
+  origin-http:
+    image: nginx:alpine
+    container_name: tbench-ra-origin-http
+    networks: [internal-net]
+
+  tunnel-server:
+    image: rapiz1/rathole:latest
+    container_name: tbench-ra-server
+    command: ["/etc/rathole/server.toml"]
+    volumes:
+      - ../configs/rathole/server.toml:/etc/rathole/server.toml:ro
+    networks: [wan-net]
+    cpus: ${BENCH_CPUS:-1.0}
+    mem_limit: ${BENCH_MEM:-512m}
+
+  tunnel-client:
+    image: rapiz1/rathole:latest
+    container_name: tbench-ra-client
+    command: ["/etc/rathole/client.toml"]
+    volumes:
+      - ../configs/rathole/client.toml:/etc/rathole/client.toml:ro
+    networks: [wan-net, internal-net]
+    depends_on: [tunnel-server, origin, origin-http]
+
+  probe:
+    image: networkstatic/iperf3
+    container_name: tbench-ra-probe
+    entrypoint: ["sleep", "infinity"]
+    networks: [wan-net]

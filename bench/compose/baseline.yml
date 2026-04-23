@@ -1,0 +1,25 @@
+# Baseline: probe -> origin directly on wan-net. No tunnel.
+# Establishes the ceiling we compare tunnel backends against.
+name: tbench-b0
+
+networks:
+  wan-net:
+    driver: bridge
+
+services:
+  origin:
+    image: networkstatic/iperf3
+    container_name: tbench-b0-origin
+    command: ["-s", "-p", "5201"]
+    networks: [wan-net]
+
+  origin-http:
+    image: nginx:alpine
+    container_name: tbench-b0-origin-http
+    networks: [wan-net]
+
+  probe:
+    image: networkstatic/iperf3
+    container_name: tbench-b0-probe
+    entrypoint: ["sleep", "infinity"]
+    networks: [wan-net]

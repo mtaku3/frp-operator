@@ -1,0 +1,63 @@
+# bore backend (github.com/ekzhang/bore). Control channel on :7835.
+# Server allows clients to request any port in 15000-19999.
+# Two tunnels set up at startup: iperf (5201->15200), http (80->18080).
+name: tbench-bo
+
+networks:
+  wan-net:
+    driver: bridge
+  internal-net:
+    driver: bridge
+    internal: true
+
+services:
+  origin:
+    image: networkstatic/iperf3
+    container_name: tbench-bo-origin
+    command: ["-s", "-p", "5201"]
+    networks: [internal-net]
+
+  origin-http:
+    image: nginx:alpine
+    container_name: tbench-bo-origin-http
+    networks: [internal-net]
+
+  tunnel-server:
+    image: tbench/bore:local
+    build:
+      context: ../images/bore
+    container_name: tbench-bo-server
+    entrypoint: ["bore"]
+    command:
+      - "server"
+      - "--min-port=15000"
+      - "--max-port=19999"
+      - "--secret=benchsecret"
+    networks: [wan-net]
+    cpus: ${BENCH_CPUS:-1.0}
+    mem_limit: ${BENCH_MEM:-512m}
+
+  # One client container runs two bore processes via a shell wrapper.
+  tunnel-client:
+    image: tbench/bore:local
+    container_name: tbench-bo-client
+    entrypoint: ["/bin/sh", "-c"]
+    # Exit as soon as either bore dies so S9's restart sees a clean exit
+    # rather than one survivor keeping the container alive.
+    command:
+      - |
+        bore local 5201 --local-host origin      --to tunnel-server --port 15200 --secret benchsecret &
+        P1=$$!
+        bore local 80   --local-host origin-http --to tunnel-server --port 18080 --secret benchsecret &
+        P2=$$!
+        while kill -0 $$P1 2>/dev/null && kill -0 $$P2 2>/dev/null; do sleep 1; done
+        kill $$P1 $$P2 2>/dev/null || true
+        exit 1
+    networks: [wan-net, internal-net]
+    depends_on: [tunnel-server, origin, origin-http]
+
+  probe:
+    image: networkstatic/iperf3
+    container_name: tbench-bo-probe
+    entrypoint: ["sleep", "infinity"]
+    networks: [wan-net]

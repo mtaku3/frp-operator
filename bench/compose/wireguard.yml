@@ -1,0 +1,67 @@
+# WireGuard backend. Requires WG kernel module on host (modern kernels).
+# Peer keys must be generated first: `make -C bench wg-keys`.
+#
+# Server: wg0 = 10.200.0.1/24, UDP :51820. DNATs wan-net :15200/:18080
+#         -> client wg IP :5201/:80.
+# Client: wg0 = 10.200.0.2/24. DNATs wg inbound -> origin on internal-net.
+#
+# Dynamic peer add for S7 is done via `docker exec ... wg set wg0 peer ...`.
+name: tbench-wg
+
+networks:
+  wan-net:
+    driver: bridge
+  internal-net:
+    driver: bridge
+    internal: true
+
+services:
+  origin:
+    image: networkstatic/iperf3
+    container_name: tbench-wg-origin
+    command: ["-s", "-p", "5201"]
+    networks: [internal-net]
+
+  origin-http:
+    image: nginx:alpine
+    container_name: tbench-wg-origin-http
+    networks: [internal-net]
+
+  tunnel-server:
+    image: tbench/wireguard:local
+    build:
+      context: ../images/wireguard
+    container_name: tbench-wg-server
+    cap_add: [NET_ADMIN, SYS_MODULE]
+    sysctls:
+      net.ipv4.ip_forward: "1"
+      net.ipv4.conf.all.src_valid_mark: "1"
+    volumes:
+      - ../configs/wireguard:/etc/wireguard:ro
+      - ../configs/wireguard/server-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    networks: [wan-net]
+    cpus: ${BENCH_CPUS:-1.0}
+    mem_limit: ${BENCH_MEM:-512m}
+
+  tunnel-client:
+    image: tbench/wireguard:local
+    build:
+      context: ../images/wireguard
+    container_name: tbench-wg-client
+    cap_add: [NET_ADMIN, SYS_MODULE]
+    sysctls:
+      net.ipv4.ip_forward: "1"
+      net.ipv4.conf.all.src_valid_mark: "1"
+    volumes:
+      - ../configs/wireguard:/etc/wireguard:ro
+      - ../configs/wireguard/client-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    networks: [wan-net, internal-net]
+    depends_on: [tunnel-server, origin, origin-http]
+
+  probe:
+    image: networkstatic/iperf3
+    container_name: tbench-wg-probe
+    entrypoint: ["sleep", "infinity"]
+    networks: [wan-net]

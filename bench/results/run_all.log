@@ -1,0 +1,1343 @@
+bash scenarios/run_all.sh
+=== s1_throughput.sh b0 ===
+ Network tbench-b0_wan-net  Creating
+ Network tbench-b0_wan-net  Created
+ Container tbench-b0-origin  Creating
+ Container tbench-b0-origin-http  Creating
+ Container tbench-b0-probe  Creating
+ Container tbench-b0-origin  Created
+ Container tbench-b0-probe  Created
+ Container tbench-b0-origin-http  Created
+ Container tbench-b0-origin-http  Starting
+ Container tbench-b0-origin  Starting
+ Container tbench-b0-probe  Starting
+ Container tbench-b0-probe  Started
+ Container tbench-b0-origin-http  Started
+ Container tbench-b0-origin  Started
+ Container tbench-b0-probe  Waiting
+ Container tbench-b0-origin  Waiting
+ Container tbench-b0-origin-http  Waiting
+ Container tbench-b0-origin-http  Healthy
+ Container tbench-b0-origin  Healthy
+ Container tbench-b0-probe  Healthy
+S1/b0: iperf3 -c origin:5201 -t 60
+S1/b0: 24710.86 Mbps
+=== s1_throughput.sh wg ===
+ Network tbench-wg_internal-net  Creating
+ Network tbench-wg_internal-net  Created
+ Network tbench-wg_wan-net  Creating
+ Network tbench-wg_wan-net  Created
+ Container tbench-wg-origin-http  Creating
+ Container tbench-wg-probe  Creating
+ Container tbench-wg-origin  Creating
+ Container tbench-wg-server  Creating
+ Container tbench-wg-probe  Created
+ Container tbench-wg-origin  Created
+ Container tbench-wg-origin-http  Created
+ Container tbench-wg-server  Created
+ Container tbench-wg-client  Creating
+ Container tbench-wg-client  Created
+ Container tbench-wg-probe  Starting
+ Container tbench-wg-origin-http  Starting
+ Container tbench-wg-server  Starting
+ Container tbench-wg-origin  Starting
+ Container tbench-wg-origin  Started
+ Container tbench-wg-origin-http  Started
+ Container tbench-wg-server  Started
+ Container tbench-wg-client  Starting
+ Container tbench-wg-probe  Started
+ Container tbench-wg-client  Started
+ Container tbench-wg-server  Waiting
+ Container tbench-wg-client  Waiting
+ Container tbench-wg-probe  Waiting
+ Container tbench-wg-origin  Waiting
+ Container tbench-wg-origin-http  Waiting
+ Container tbench-wg-origin-http  Healthy
+ Container tbench-wg-probe  Healthy
+ Container tbench-wg-server  Healthy
+ Container tbench-wg-client  Healthy
+ Container tbench-wg-origin  Healthy
+S1/wg: iperf3 -c tunnel-server:15200 -t 60
+S1/wg: 1322.67 Mbps
+=== s1_throughput.sh fr ===
+ Network tbench-fr_internal-net  Creating
+ Network tbench-fr_internal-net  Created
+ Network tbench-fr_wan-net  Creating
+ Network tbench-fr_wan-net  Created
+ Container tbench-fr-origin  Creating
+ Container tbench-fr-origin-http  Creating
+ Container tbench-fr-server  Creating
+ Container tbench-fr-probe  Creating
+ Container tbench-fr-probe  Created
+ Container tbench-fr-origin-http  Created
+ Container tbench-fr-origin  Created
+ Container tbench-fr-server  Created
+ Container tbench-fr-client  Creating
+ Container tbench-fr-client  Created
+ Container tbench-fr-server  Starting
+ Container tbench-fr-origin  Starting
+ Container tbench-fr-origin-http  Starting
+ Container tbench-fr-probe  Starting
+ Container tbench-fr-origin  Started
+ Container tbench-fr-origin-http  Started
+ Container tbench-fr-probe  Started
+ Container tbench-fr-server  Started
+ Container tbench-fr-client  Starting
+ Container tbench-fr-client  Started
+ Container tbench-fr-origin  Waiting
+ Container tbench-fr-origin-http  Waiting
+ Container tbench-fr-server  Waiting
+ Container tbench-fr-client  Waiting
+ Container tbench-fr-probe  Waiting
+ Container tbench-fr-origin  Healthy
+ Container tbench-fr-probe  Healthy
+ Container tbench-fr-origin-http  Healthy
+ Container tbench-fr-client  Healthy
+ Container tbench-fr-server  Healthy
+S1/fr: iperf3 -c tunnel-server:15200 -t 60
+S1/fr: 2734.88 Mbps
+=== s1_throughput.sh ch ===
+ Network tbench-ch_wan-net  Creating
+ Network tbench-ch_wan-net  Created
+ Network tbench-ch_internal-net  Creating
+ Network tbench-ch_internal-net  Created
+ Container tbench-ch-server  Creating
+ Container tbench-ch-origin-http  Creating
+ Container tbench-ch-probe  Creating
+ Container tbench-ch-origin  Creating
+ Container tbench-ch-origin-http  Created
+ Container tbench-ch-server  Created
+ Container tbench-ch-origin  Created
+ Container tbench-ch-client  Creating
+ Container tbench-ch-probe  Created
+ Container tbench-ch-client  Created
+ Container tbench-ch-server  Starting
+ Container tbench-ch-probe  Starting
+ Container tbench-ch-origin  Starting
+ Container tbench-ch-origin-http  Starting
+ Container tbench-ch-server  Started
+ Container tbench-ch-origin-http  Started
+ Container tbench-ch-origin  Started
+ Container tbench-ch-client  Starting
+ Container tbench-ch-probe  Started
+ Container tbench-ch-client  Started
+ Container tbench-ch-origin-http  Waiting
+ Container tbench-ch-server  Waiting
+ Container tbench-ch-client  Waiting
+ Container tbench-ch-probe  Waiting
+ Container tbench-ch-origin  Waiting
+ Container tbench-ch-probe  Healthy
+ Container tbench-ch-client  Healthy
+ Container tbench-ch-server  Healthy
+ Container tbench-ch-origin-http  Healthy
+ Container tbench-ch-origin  Healthy
+S1/ch: iperf3 -c tunnel-server:15200 -t 60
+S1/ch: 2454.89 Mbps
+=== s1_throughput.sh bo ===
+ Network tbench-bo_wan-net  Creating
+ Network tbench-bo_wan-net  Created
+ Network tbench-bo_internal-net  Creating
+ Network tbench-bo_internal-net  Created
+ Container tbench-bo-probe  Creating
+ Container tbench-bo-origin-http  Creating
+ Container tbench-bo-origin  Creating
+ Container tbench-bo-server  Creating
+ Container tbench-bo-probe  Created
+ Container tbench-bo-server  Created
+ Container tbench-bo-origin  Created
+ Container tbench-bo-origin-http  Created
+ Container tbench-bo-client  Creating
+ Container tbench-bo-client  Created
+ Container tbench-bo-probe  Starting
+ Container tbench-bo-origin  Starting
+ Container tbench-bo-origin-http  Starting
+ Container tbench-bo-server  Starting
+ Container tbench-bo-probe  Started
+ Container tbench-bo-origin  Started
+ Container tbench-bo-origin-http  Started
+ Container tbench-bo-server  Started
+ Container tbench-bo-client  Starting
+ Container tbench-bo-client  Started
+ Container tbench-bo-origin-http  Waiting
+ Container tbench-bo-server  Waiting
+ Container tbench-bo-client  Waiting
+ Container tbench-bo-probe  Waiting
+ Container tbench-bo-origin  Waiting
+ Container tbench-bo-origin  Healthy
+ Container tbench-bo-origin-http  Healthy
+ Container tbench-bo-probe  Healthy
+ Container tbench-bo-client  Healthy
+ Container tbench-bo-server  Healthy
+S1/bo: iperf3 -c tunnel-server:15200 -t 60
+S1/bo: 3117.59 Mbps
+=== s1_throughput.sh ra ===
+ Network tbench-ra_internal-net  Creating
+ Network tbench-ra_internal-net  Created
+ Container tbench-ra-origin-http  Creating
+ Container tbench-ra-probe  Creating
+ Container tbench-ra-server  Creating
+ Container tbench-ra-origin  Creating
+ Container tbench-ra-origin  Created
+ Container tbench-ra-probe  Created
+ Container tbench-ra-server  Created
+ Container tbench-ra-origin-http  Created
+ Container tbench-ra-client  Creating
+ Container tbench-ra-client  Created
+ Container tbench-ra-probe  Starting
+ Container tbench-ra-origin  Starting
+ Container tbench-ra-origin-http  Starting
+ Container tbench-ra-server  Starting
+ Container tbench-ra-origin  Started
+ Container tbench-ra-origin-http  Started
+ Container tbench-ra-server  Started
+ Container tbench-ra-client  Starting
+ Container tbench-ra-probe  Started
+ Container tbench-ra-client  Started
+ Container tbench-ra-origin-http  Waiting
+ Container tbench-ra-server  Waiting
+ Container tbench-ra-client  Waiting
+ Container tbench-ra-probe  Waiting
+ Container tbench-ra-origin  Waiting
+ Container tbench-ra-origin-http  Healthy
+ Container tbench-ra-server  Healthy
+ Container tbench-ra-client  Healthy
+ Container tbench-ra-probe  Healthy
+ Container tbench-ra-origin  Healthy
+S1/ra: iperf3 -c tunnel-server:15200 -t 60
+S1/ra: 3124.24 Mbps
+=== s2_parallel.sh b0 ===
+ Network tbench-b0_wan-net  Creating
+ Network tbench-b0_wan-net  Created
+ Container tbench-b0-origin-http  Creating
+ Container tbench-b0-probe  Creating
+ Container tbench-b0-origin  Creating
+ Container tbench-b0-origin  Created
+ Container tbench-b0-probe  Created
+ Container tbench-b0-origin-http  Created
+ Container tbench-b0-origin-http  Starting
+ Container tbench-b0-probe  Starting
+ Container tbench-b0-origin  Starting
+ Container tbench-b0-probe  Started
+ Container tbench-b0-origin-http  Started
+ Container tbench-b0-origin  Started
+ Container tbench-b0-probe  Waiting
+ Container tbench-b0-origin  Waiting
+ Container tbench-b0-origin-http  Waiting
+ Container tbench-b0-probe  Healthy
+ Container tbench-b0-origin  Healthy
+ Container tbench-b0-origin-http  Healthy
+S2/b0: iperf3 -P 32 -t 60
+S2/b0: 25475.87 Mbps (P=32)
+=== s2_parallel.sh wg ===
+ Network tbench-wg_wan-net  Creating
+ Network tbench-wg_wan-net  Created
+ Network tbench-wg_internal-net  Creating
+ Network tbench-wg_internal-net  Created
+ Container tbench-wg-origin  Creating
+ Container tbench-wg-server  Creating
+ Container tbench-wg-probe  Creating
+ Container tbench-wg-origin-http  Creating
+ Container tbench-wg-origin  Created
+ Container tbench-wg-server  Created
+ Container tbench-wg-probe  Created
+ Container tbench-wg-origin-http  Created
+ Container tbench-wg-client  Creating
+ Container tbench-wg-client  Created
+ Container tbench-wg-server  Starting
+ Container tbench-wg-probe  Starting
+ Container tbench-wg-origin  Starting
+ Container tbench-wg-origin-http  Starting
+ Container tbench-wg-origin-http  Started
+ Container tbench-wg-origin  Started
+ Container tbench-wg-server  Started
+ Container tbench-wg-client  Starting
+ Container tbench-wg-probe  Started
+ Container tbench-wg-client  Started
+ Container tbench-wg-probe  Waiting
+ Container tbench-wg-origin  Waiting
+ Container tbench-wg-origin-http  Waiting
+ Container tbench-wg-server  Waiting
+ Container tbench-wg-client  Waiting
+ Container tbench-wg-probe  Healthy
+ Container tbench-wg-origin-http  Healthy
+ Container tbench-wg-client  Healthy
+ Container tbench-wg-origin  Healthy
+ Container tbench-wg-server  Healthy
+S2/wg: iperf3 -P 32 -t 60
+S2/wg: 1297.67 Mbps (P=32)
+=== s2_parallel.sh fr ===
+ Network tbench-fr_wan-net  Creating
+ Network tbench-fr_wan-net  Created
+ Network tbench-fr_internal-net  Creating
+ Network tbench-fr_internal-net  Created
+ Container tbench-fr-origin  Creating
+ Container tbench-fr-origin-http  Creating
+ Container tbench-fr-server  Creating
+ Container tbench-fr-probe  Creating
+ Container tbench-fr-origin-http  Created
+ Container tbench-fr-origin  Created
+ Container tbench-fr-probe  Created
+ Container tbench-fr-server  Created
+ Container tbench-fr-client  Creating
+ Container tbench-fr-client  Created
+ Container tbench-fr-origin  Starting
+ Container tbench-fr-probe  Starting
+ Container tbench-fr-origin-http  Starting
+ Container tbench-fr-server  Starting
+ Container tbench-fr-origin  Started
+ Container tbench-fr-origin-http  Started
+ Container tbench-fr-probe  Started
+ Container tbench-fr-server  Started
+ Container tbench-fr-client  Starting
+ Container tbench-fr-client  Started
+ Container tbench-fr-client  Waiting
+ Container tbench-fr-probe  Waiting
+ Container tbench-fr-origin  Waiting
+ Container tbench-fr-origin-http  Waiting
+ Container tbench-fr-server  Waiting
+ Container tbench-fr-probe  Healthy
+ Container tbench-fr-origin  Healthy
+ Container tbench-fr-server  Healthy
+ Container tbench-fr-origin-http  Healthy
+ Container tbench-fr-client  Healthy
+S2/fr: iperf3 -P 32 -t 60
+S2/fr: 3168.06 Mbps (P=32)
+=== s2_parallel.sh ch ===
+ Network tbench-ch_internal-net  Creating
+ Network tbench-ch_internal-net  Created
+ Network tbench-ch_wan-net  Creating
+ Network tbench-ch_wan-net  Created
+ Container tbench-ch-server  Creating
+ Container tbench-ch-probe  Creating
+ Container tbench-ch-origin  Creating
+ Container tbench-ch-origin-http  Creating
+ Container tbench-ch-origin  Created
+ Container tbench-ch-probe  Created
+ Container tbench-ch-server  Created
+ Container tbench-ch-origin-http  Created
+ Container tbench-ch-client  Creating
+ Container tbench-ch-client  Created
+ Container tbench-ch-probe  Starting
+ Container tbench-ch-origin  Starting
+ Container tbench-ch-origin-http  Starting
+ Container tbench-ch-server  Starting
+ Container tbench-ch-origin-http  Started
+ Container tbench-ch-probe  Started
+ Container tbench-ch-origin  Started
+ Container tbench-ch-server  Started
+ Container tbench-ch-client  Starting
+ Container tbench-ch-client  Started
+ Container tbench-ch-origin  Waiting
+ Container tbench-ch-origin-http  Waiting
+ Container tbench-ch-server  Waiting
+ Container tbench-ch-client  Waiting
+ Container tbench-ch-probe  Waiting
+ Container tbench-ch-server  Healthy
+ Container tbench-ch-origin  Healthy
+ Container tbench-ch-client  Healthy
+ Container tbench-ch-probe  Healthy
+ Container tbench-ch-origin-http  Healthy
+S2/ch: iperf3 -P 32 -t 60
+S2/ch: 2608.00 Mbps (P=32)
+=== s2_parallel.sh bo ===
+ Network tbench-bo_wan-net  Creating
+ Network tbench-bo_wan-net  Created
+ Network tbench-bo_internal-net  Creating
+ Network tbench-bo_internal-net  Created
+ Container tbench-bo-server  Creating
+ Container tbench-bo-probe  Creating
+ Container tbench-bo-origin  Creating
+ Container tbench-bo-origin-http  Creating
+ Container tbench-bo-probe  Created
+ Container tbench-bo-origin  Created
+ Container tbench-bo-origin-http  Created
+ Container tbench-bo-server  Created
+ Container tbench-bo-client  Creating
+ Container tbench-bo-client  Created
+ Container tbench-bo-server  Starting
+ Container tbench-bo-probe  Starting
+ Container tbench-bo-origin  Starting
+ Container tbench-bo-origin-http  Starting
+ Container tbench-bo-server  Started
+ Container tbench-bo-origin  Started
+ Container tbench-bo-probe  Started
+ Container tbench-bo-origin-http  Started
+ Container tbench-bo-client  Starting
+ Container tbench-bo-client  Started
+ Container tbench-bo-client  Waiting
+ Container tbench-bo-probe  Waiting
+ Container tbench-bo-origin  Waiting
+ Container tbench-bo-origin-http  Waiting
+ Container tbench-bo-server  Waiting
+ Container tbench-bo-server  Healthy
+ Container tbench-bo-client  Healthy
+ Container tbench-bo-origin-http  Healthy
+ Container tbench-bo-probe  Healthy
+ Container tbench-bo-origin  Healthy
+S2/bo: iperf3 -P 32 -t 60
+S2/bo: 3064.66 Mbps (P=32)
+=== s2_parallel.sh ra ===
+ Network tbench-ra_internal-net  Creating
+ Network tbench-ra_internal-net  Created
+ Container tbench-ra-origin  Creating
+ Container tbench-ra-probe  Creating
+ Container tbench-ra-origin-http  Creating
+ Container tbench-ra-server  Creating
+ Container tbench-ra-probe  Created
+ Container tbench-ra-origin  Created
+ Container tbench-ra-origin-http  Created
+ Container tbench-ra-server  Created
+ Container tbench-ra-client  Creating
+ Container tbench-ra-client  Created
+ Container tbench-ra-probe  Starting
+ Container tbench-ra-server  Starting
+ Container tbench-ra-origin  Starting
+ Container tbench-ra-origin-http  Starting
+ Container tbench-ra-origin  Started
+ Container tbench-ra-origin-http  Started
+ Container tbench-ra-probe  Started
+ Container tbench-ra-server  Started
+ Container tbench-ra-client  Starting
+ Container tbench-ra-client  Started
+ Container tbench-ra-origin  Waiting
+ Container tbench-ra-origin-http  Waiting
+ Container tbench-ra-server  Waiting
+ Container tbench-ra-client  Waiting
+ Container tbench-ra-probe  Waiting
+ Container tbench-ra-client  Healthy
+ Container tbench-ra-origin  Healthy
+ Container tbench-ra-probe  Healthy
+ Container tbench-ra-origin-http  Healthy
+ Container tbench-ra-server  Healthy
+S2/ra: iperf3 -P 32 -t 60
+S2/ra: 3651.88 Mbps (P=32)
+=== s3_http.sh b0 ===
+ Network tbench-b0_wan-net  Creating
+ Network tbench-b0_wan-net  Created
+ Container tbench-b0-origin-http  Creating
+ Container tbench-b0-probe  Creating
+ Container tbench-b0-origin  Creating
+ Container tbench-b0-probe  Created
+ Container tbench-b0-origin  Created
+ Container tbench-b0-origin-http  Created
+ Container tbench-b0-origin-http  Starting
+ Container tbench-b0-probe  Starting
+ Container tbench-b0-origin  Starting
+ Container tbench-b0-origin  Started
+ Container tbench-b0-probe  Started
+ Container tbench-b0-origin-http  Started
+ Container tbench-b0-origin  Waiting
+ Container tbench-b0-origin-http  Waiting
+ Container tbench-b0-probe  Waiting
+ Container tbench-b0-origin  Healthy
+ Container tbench-b0-origin-http  Healthy
+ Container tbench-b0-probe  Healthy
+S3/b0: wrk / t=4 c=64 d=30s
+Running 30s test @ http://origin-http:80/
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     1.54ms    1.19ms  34.41ms   78.30%
+    Req/Sec    10.49k     1.28k   15.24k    66.92%
+  Latency Distribution
+     50%    1.27ms
+     75%    2.04ms
+     90%    2.98ms
+     99%    5.54ms
+  1253867 requests in 30.06s, 1.32GB read
+Requests/sec:  41716.58
+Transfer/sec:     45.11MB
+S3/b0: wrk /100k t=4 c=64 d=30s
+Running 30s test @ http://origin-http:80/100k
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     2.89ms    2.09ms  47.62ms   74.63%
+    Req/Sec     4.93k   685.35     6.86k    65.72%
+  Latency Distribution
+     50%    2.43ms
+     75%    3.90ms
+     90%    5.57ms
+     99%    9.73ms
+  588683 requests in 30.02s, 75.98GB read
+Requests/sec:  19610.41
+Transfer/sec:      2.53GB
+=== s3_http.sh wg ===
+ Network tbench-wg_internal-net  Creating
+ Network tbench-wg_internal-net  Created
+ Network tbench-wg_wan-net  Creating
+ Network tbench-wg_wan-net  Created
+ Container tbench-wg-server  Creating
+ Container tbench-wg-probe  Creating
+ Container tbench-wg-origin  Creating
+ Container tbench-wg-origin-http  Creating
+ Container tbench-wg-origin-http  Created
+ Container tbench-wg-probe  Created
+ Container tbench-wg-origin  Created
+ Container tbench-wg-server  Created
+ Container tbench-wg-client  Creating
+ Container tbench-wg-client  Created
+ Container tbench-wg-server  Starting
+ Container tbench-wg-origin  Starting
+ Container tbench-wg-probe  Starting
+ Container tbench-wg-origin-http  Starting
+ Container tbench-wg-origin  Started
+ Container tbench-wg-origin-http  Started
+ Container tbench-wg-server  Started
+ Container tbench-wg-client  Starting
+ Container tbench-wg-probe  Started
+ Container tbench-wg-client  Started
+ Container tbench-wg-server  Waiting
+ Container tbench-wg-client  Waiting
+ Container tbench-wg-probe  Waiting
+ Container tbench-wg-origin  Waiting
+ Container tbench-wg-origin-http  Waiting
+ Container tbench-wg-client  Healthy
+ Container tbench-wg-probe  Healthy
+ Container tbench-wg-server  Healthy
+ Container tbench-wg-origin-http  Healthy
+ Container tbench-wg-origin  Healthy
+S3/wg: wrk / t=4 c=64 d=30s
+Running 30s test @ http://tunnel-server:18080/
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     4.10ms    2.92ms  41.00ms   74.33%
+    Req/Sec     3.70k   500.20     5.53k    68.83%
+  Latency Distribution
+     50%    3.42ms
+     75%    5.55ms
+     90%    7.94ms
+     99%   13.74ms
+  442669 requests in 30.08s, 478.73MB read
+Requests/sec:  14714.32
+Transfer/sec:     15.91MB
+S3/wg: wrk /100k t=4 c=64 d=30s
+Running 30s test @ http://tunnel-server:18080/100k
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    60.50ms    9.79ms 177.90ms   87.34%
+    Req/Sec   265.21     32.13   414.00     70.08%
+  Latency Distribution
+     50%   58.26ms
+     75%   63.21ms
+     90%   70.37ms
+     99%  106.85ms
+  31722 requests in 30.06s, 4.09GB read
+Requests/sec:   1055.38
+Transfer/sec:    139.49MB
+=== s3_http.sh fr ===
+ Network tbench-fr_wan-net  Creating
+ Network tbench-fr_wan-net  Created
+ Network tbench-fr_internal-net  Creating
+ Network tbench-fr_internal-net  Created
+ Container tbench-fr-probe  Creating
+ Container tbench-fr-origin  Creating
+ Container tbench-fr-origin-http  Creating
+ Container tbench-fr-server  Creating
+ Container tbench-fr-probe  Created
+ Container tbench-fr-origin-http  Created
+ Container tbench-fr-origin  Created
+ Container tbench-fr-server  Created
+ Container tbench-fr-client  Creating
+ Container tbench-fr-client  Created
+ Container tbench-fr-origin  Starting
+ Container tbench-fr-origin-http  Starting
+ Container tbench-fr-server  Starting
+ Container tbench-fr-probe  Starting
+ Container tbench-fr-origin-http  Started
+ Container tbench-fr-origin  Started
+ Container tbench-fr-server  Started
+ Container tbench-fr-client  Starting
+ Container tbench-fr-probe  Started
+ Container tbench-fr-client  Started
+ Container tbench-fr-client  Waiting
+ Container tbench-fr-probe  Waiting
+ Container tbench-fr-origin  Waiting
+ Container tbench-fr-origin-http  Waiting
+ Container tbench-fr-server  Waiting
+ Container tbench-fr-client  Healthy
+ Container tbench-fr-probe  Healthy
+ Container tbench-fr-server  Healthy
+ Container tbench-fr-origin  Healthy
+ Container tbench-fr-origin-http  Healthy
+S3/fr: wrk / t=4 c=64 d=30s
+Running 30s test @ http://tunnel-server:18080/
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     5.53ms    2.06ms  40.19ms   72.11%
+    Req/Sec     2.91k   275.41     3.62k    66.92%
+  Latency Distribution
+     50%    5.21ms
+     75%    6.61ms
+     90%    8.26ms
+     99%   11.78ms
+  347538 requests in 30.02s, 375.85MB read
+Requests/sec:  11575.90
+Transfer/sec:     12.52MB
+S3/fr: wrk /100k t=4 c=64 d=30s
+Running 30s test @ http://tunnel-server:18080/100k
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    26.40ms    4.75ms  57.18ms   68.30%
+    Req/Sec   608.22     74.53   810.00     63.42%
+  Latency Distribution
+     50%   25.95ms
+     75%   29.38ms
+     90%   32.81ms
+     99%   38.88ms
+  72662 requests in 30.02s, 9.38GB read
+Requests/sec:   2420.34
+Transfer/sec:    319.98MB
+=== s3_http.sh ch ===
+ Network tbench-ch_internal-net  Creating
+ Network tbench-ch_internal-net  Created
+ Network tbench-ch_wan-net  Creating
+ Network tbench-ch_wan-net  Created
+ Container tbench-ch-origin  Creating
+ Container tbench-ch-origin-http  Creating
+ Container tbench-ch-probe  Creating
+ Container tbench-ch-server  Creating
+ Container tbench-ch-origin  Created
+ Container tbench-ch-probe  Created
+ Container tbench-ch-origin-http  Created
+ Container tbench-ch-server  Created
+ Container tbench-ch-client  Creating
+ Container tbench-ch-client  Created
+ Container tbench-ch-server  Starting
+ Container tbench-ch-probe  Starting
+ Container tbench-ch-origin-http  Starting
+ Container tbench-ch-origin  Starting
+ Container tbench-ch-origin  Started
+ Container tbench-ch-probe  Started
+ Container tbench-ch-origin-http  Started
+ Container tbench-ch-server  Started
+ Container tbench-ch-client  Starting
+ Container tbench-ch-client  Started
+ Container tbench-ch-origin  Waiting
+ Container tbench-ch-origin-http  Waiting
+ Container tbench-ch-server  Waiting
+ Container tbench-ch-client  Waiting
+ Container tbench-ch-probe  Waiting
+ Container tbench-ch-client  Healthy
+ Container tbench-ch-origin  Healthy
+ Container tbench-ch-probe  Healthy
+ Container tbench-ch-server  Healthy
+ Container tbench-ch-origin-http  Healthy
+S3/ch: wrk / t=4 c=64 d=30s
+Running 30s test @ http://tunnel-server:18080/
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     4.51ms    1.79ms  26.05ms   71.66%
+    Req/Sec     3.57k   346.17     4.42k    67.17%
+  Latency Distribution
+     50%    4.27ms
+     75%    5.47ms
+     90%    6.82ms
+     99%    9.85ms
+  426102 requests in 30.02s, 460.82MB read
+Requests/sec:  14192.67
+Transfer/sec:     15.35MB
+S3/ch: wrk /100k t=4 c=64 d=30s
+Running 30s test @ http://tunnel-server:18080/100k
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    41.15ms   14.60ms  81.77ms   58.22%
+    Req/Sec   390.01     42.58   484.00     69.42%
+  Latency Distribution
+     50%   34.66ms
+     75%   55.97ms
+     90%   61.01ms
+     99%   68.47ms
+  46626 requests in 30.03s, 6.02GB read
+Requests/sec:   1552.78
+Transfer/sec:    205.28MB
+=== s3_http.sh bo ===
+ Network tbench-bo_wan-net  Creating
+ Network tbench-bo_wan-net  Created
+ Network tbench-bo_internal-net  Creating
+ Network tbench-bo_internal-net  Created
+ Container tbench-bo-origin  Creating
+ Container tbench-bo-origin-http  Creating
+ Container tbench-bo-server  Creating
+ Container tbench-bo-probe  Creating
+ Container tbench-bo-origin  Created
+ Container tbench-bo-server  Created
+ Container tbench-bo-probe  Created
+ Container tbench-bo-origin-http  Created
+ Container tbench-bo-client  Creating
+ Container tbench-bo-client  Created
+ Container tbench-bo-probe  Starting
+ Container tbench-bo-origin-http  Starting
+ Container tbench-bo-origin  Starting
+ Container tbench-bo-server  Starting
+ Container tbench-bo-origin  Started
+ Container tbench-bo-origin-http  Started
+ Container tbench-bo-server  Started
+ Container tbench-bo-client  Starting
+ Container tbench-bo-probe  Started
+ Container tbench-bo-client  Started
+ Container tbench-bo-probe  Waiting
+ Container tbench-bo-origin  Waiting
+ Container tbench-bo-origin-http  Waiting
+ Container tbench-bo-server  Waiting
+ Container tbench-bo-client  Waiting
+ Container tbench-bo-origin-http  Healthy
+ Container tbench-bo-server  Healthy
+ Container tbench-bo-origin  Healthy
+ Container tbench-bo-client  Healthy
+ Container tbench-bo-probe  Healthy
+S3/bo: wrk / t=4 c=64 d=30s
+Running 30s test @ http://tunnel-server:18080/
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    24.28ms   20.15ms  77.92ms   58.50%
+    Req/Sec   661.43     92.02     1.49k    73.67%
+  Latency Distribution
+     50%   40.75ms
+     75%   41.15ms
+     90%   41.96ms
+     99%   42.30ms
+  79013 requests in 30.02s, 85.46MB read
+Requests/sec:   2631.93
+Transfer/sec:      2.85MB
+S3/bo: wrk /100k t=4 c=64 d=30s
+Running 30s test @ http://tunnel-server:18080/100k
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    33.88ms    4.71ms  77.32ms   78.57%
+    Req/Sec   474.01     42.25   585.00     71.00%
+  Latency Distribution
+     50%   33.82ms
+     75%   36.35ms
+     90%   39.29ms
+     99%   45.60ms
+  56652 requests in 30.03s, 7.31GB read
+Requests/sec:   1886.68
+Transfer/sec:    249.37MB
+=== s3_http.sh ra ===
+ Network tbench-ra_internal-net  Creating
+ Network tbench-ra_internal-net  Created
+ Container tbench-ra-origin  Creating
+ Container tbench-ra-probe  Creating
+ Container tbench-ra-server  Creating
+ Container tbench-ra-origin-http  Creating
+ Container tbench-ra-probe  Created
+ Container tbench-ra-origin  Created
+ Container tbench-ra-origin-http  Created
+ Container tbench-ra-server  Created
+ Container tbench-ra-client  Creating
+ Container tbench-ra-client  Created
+ Container tbench-ra-origin-http  Starting
+ Container tbench-ra-probe  Starting
+ Container tbench-ra-origin  Starting
+ Container tbench-ra-server  Starting
+ Container tbench-ra-origin-http  Started
+ Container tbench-ra-origin  Started
+ Container tbench-ra-probe  Started
+ Container tbench-ra-server  Started
+ Container tbench-ra-client  Starting
+ Container tbench-ra-client  Started
+ Container tbench-ra-client  Waiting
+ Container tbench-ra-probe  Waiting
+ Container tbench-ra-origin  Waiting
+ Container tbench-ra-origin-http  Waiting
+ Container tbench-ra-server  Waiting
+ Container tbench-ra-probe  Healthy
+ Container tbench-ra-server  Healthy
+ Container tbench-ra-client  Healthy
+ Container tbench-ra-origin  Healthy
+ Container tbench-ra-origin-http  Healthy
+S3/ra: wrk / t=4 c=64 d=30s
+Running 30s test @ http://tunnel-server:18080/
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    18.95ms   17.12ms  45.86ms   31.54%
+    Req/Sec     0.95k   427.62     4.72k    94.42%
+  Latency Distribution
+     50%   23.89ms
+     75%   40.59ms
+     90%   41.07ms
+     99%   42.06ms
+  113957 requests in 30.02s, 123.25MB read
+Requests/sec:   3796.58
+Transfer/sec:      4.11MB
+S3/ra: wrk /100k t=4 c=64 d=30s
+Running 30s test @ http://tunnel-server:18080/100k
+  4 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    32.59ms    4.45ms  57.12ms   78.70%
+    Req/Sec   492.83     43.47   630.00     70.67%
+  Latency Distribution
+     50%   32.68ms
+     75%   35.16ms
+     90%   37.55ms
+     99%   42.48ms
+  58894 requests in 30.02s, 7.60GB read
+Requests/sec:   1961.66
+Transfer/sec:    259.28MB
+=== s7_dynamic_add.sh wg ===
+ Network tbench-wg_internal-net  Creating
+ Network tbench-wg_internal-net  Created
+ Network tbench-wg_wan-net  Creating
+ Network tbench-wg_wan-net  Created
+ Container tbench-wg-server  Creating
+ Container tbench-wg-origin  Creating
+ Container tbench-wg-probe  Creating
+ Container tbench-wg-origin-http  Creating
+ Container tbench-wg-origin  Created
+ Container tbench-wg-probe  Created
+ Container tbench-wg-server  Created
+ Container tbench-wg-origin-http  Created
+ Container tbench-wg-client  Creating
+ Container tbench-wg-client  Created
+ Container tbench-wg-origin-http  Starting
+ Container tbench-wg-server  Starting
+ Container tbench-wg-probe  Starting
+ Container tbench-wg-origin  Starting
+ Container tbench-wg-origin  Started
+ Container tbench-wg-origin-http  Started
+ Container tbench-wg-probe  Started
+ Container tbench-wg-server  Started
+ Container tbench-wg-client  Starting
+ Container tbench-wg-client  Started
+ Container tbench-wg-client  Waiting
+ Container tbench-wg-probe  Waiting
+ Container tbench-wg-origin  Waiting
+ Container tbench-wg-origin-http  Waiting
+ Container tbench-wg-server  Waiting
+ Container tbench-wg-probe  Healthy
+ Container tbench-wg-origin-http  Healthy
+ Container tbench-wg-server  Healthy
+ Container tbench-wg-client  Healthy
+ Container tbench-wg-origin  Healthy
+S7/wg: iperf3 30s, add event at T=15
+T=15: triggering dynamic add on wg
+S7/wg: median=1310.7 Mbps, worst=1111.5 Mbps at interval 8 (dip=15.2%)
+=== s7_dynamic_add.sh fr ===
+ Network tbench-fr_wan-net  Creating
+ Network tbench-fr_wan-net  Created
+ Network tbench-fr_internal-net  Creating
+ Network tbench-fr_internal-net  Created
+ Container tbench-fr-origin-http  Creating
+ Container tbench-fr-server  Creating
+ Container tbench-fr-probe  Creating
+ Container tbench-fr-origin  Creating
+ Container tbench-fr-origin  Created
+ Container tbench-fr-server  Created
+ Container tbench-fr-probe  Created
+ Container tbench-fr-origin-http  Created
+ Container tbench-fr-client  Creating
+ Container tbench-fr-client  Created
+ Container tbench-fr-origin  Starting
+ Container tbench-fr-server  Starting
+ Container tbench-fr-probe  Starting
+ Container tbench-fr-origin-http  Starting
+ Container tbench-fr-origin  Started
+ Container tbench-fr-origin-http  Started
+ Container tbench-fr-probe  Started
+ Container tbench-fr-server  Started
+ Container tbench-fr-client  Starting
+ Container tbench-fr-client  Started
+ Container tbench-fr-origin  Waiting
+ Container tbench-fr-origin-http  Waiting
+ Container tbench-fr-server  Waiting
+ Container tbench-fr-client  Waiting
+ Container tbench-fr-probe  Waiting
+ Container tbench-fr-probe  Healthy
+ Container tbench-fr-origin-http  Healthy
+ Container tbench-fr-origin  Healthy
+ Container tbench-fr-client  Healthy
+ Container tbench-fr-server  Healthy
+S7/fr: iperf3 30s, add event at T=15
+T=15: triggering dynamic add on fr
+S7/fr: median=2831.1 Mbps, worst=2367.7 Mbps at interval 13 (dip=16.4%)
+=== s7_dynamic_add.sh ch ===
+ Network tbench-ch_internal-net  Creating
+ Network tbench-ch_internal-net  Created
+ Network tbench-ch_wan-net  Creating
+ Network tbench-ch_wan-net  Created
+ Container tbench-ch-origin-http  Creating
+ Container tbench-ch-server  Creating
+ Container tbench-ch-probe  Creating
+ Container tbench-ch-origin  Creating
+ Container tbench-ch-probe  Created
+ Container tbench-ch-origin  Created
+ Container tbench-ch-origin-http  Created
+ Container tbench-ch-server  Created
+ Container tbench-ch-client  Creating
+ Container tbench-ch-client  Created
+ Container tbench-ch-server  Starting
+ Container tbench-ch-origin  Starting
+ Container tbench-ch-probe  Starting
+ Container tbench-ch-origin-http  Starting
+ Container tbench-ch-origin  Started
+ Container tbench-ch-origin-http  Started
+ Container tbench-ch-server  Started
+ Container tbench-ch-client  Starting
+ Container tbench-ch-probe  Started
+ Container tbench-ch-client  Started
+ Container tbench-ch-server  Waiting
+ Container tbench-ch-client  Waiting
+ Container tbench-ch-probe  Waiting
+ Container tbench-ch-origin  Waiting
+ Container tbench-ch-origin-http  Waiting
+ Container tbench-ch-origin-http  Healthy
+ Container tbench-ch-probe  Healthy
+ Container tbench-ch-origin  Healthy
+ Container tbench-ch-server  Healthy
+ Container tbench-ch-client  Healthy
+S7/ch: iperf3 30s, add event at T=15
+T=15: triggering dynamic add on ch
+S7/ch: median=2831.5 Mbps, worst=2422.2 Mbps at interval 17 (dip=14.5%)
+=== s7_dynamic_add.sh bo ===
+ Network tbench-bo_internal-net  Creating
+ Network tbench-bo_internal-net  Created
+ Network tbench-bo_wan-net  Creating
+ Network tbench-bo_wan-net  Created
+ Container tbench-bo-server  Creating
+ Container tbench-bo-probe  Creating
+ Container tbench-bo-origin  Creating
+ Container tbench-bo-origin-http  Creating
+ Container tbench-bo-probe  Created
+ Container tbench-bo-origin  Created
+ Container tbench-bo-server  Created
+ Container tbench-bo-origin-http  Created
+ Container tbench-bo-client  Creating
+ Container tbench-bo-client  Created
+ Container tbench-bo-server  Starting
+ Container tbench-bo-probe  Starting
+ Container tbench-bo-origin  Starting
+ Container tbench-bo-origin-http  Starting
+ Container tbench-bo-origin-http  Started
+ Container tbench-bo-server  Started
+ Container tbench-bo-origin  Started
+ Container tbench-bo-client  Starting
+ Container tbench-bo-probe  Started
+ Container tbench-bo-client  Started
+ Container tbench-bo-server  Waiting
+ Container tbench-bo-client  Waiting
+ Container tbench-bo-probe  Waiting
+ Container tbench-bo-origin  Waiting
+ Container tbench-bo-origin-http  Waiting
+ Container tbench-bo-probe  Healthy
+ Container tbench-bo-origin-http  Healthy
+ Container tbench-bo-server  Healthy
+ Container tbench-bo-origin  Healthy
+ Container tbench-bo-client  Healthy
+S7/bo: iperf3 30s, add event at T=15
+T=15: triggering dynamic add on bo
+S7/bo: median=3241.6 Mbps, worst=2736.7 Mbps at interval 27 (dip=15.6%)
+=== s7_dynamic_add.sh ra ===
+ Network tbench-ra_internal-net  Creating
+ Network tbench-ra_internal-net  Created
+ Container tbench-ra-origin  Creating
+ Container tbench-ra-origin-http  Creating
+ Container tbench-ra-server  Creating
+ Container tbench-ra-probe  Creating
+ Container tbench-ra-server  Created
+ Container tbench-ra-origin-http  Created
+ Container tbench-ra-probe  Created
+ Container tbench-ra-origin  Created
+ Container tbench-ra-client  Creating
+ Container tbench-ra-client  Created
+ Container tbench-ra-probe  Starting
+ Container tbench-ra-origin-http  Starting
+ Container tbench-ra-origin  Starting
+ Container tbench-ra-server  Starting
+ Container tbench-ra-origin-http  Started
+ Container tbench-ra-origin  Started
+ Container tbench-ra-probe  Started
+ Container tbench-ra-server  Started
+ Container tbench-ra-client  Starting
+ Container tbench-ra-client  Started
+ Container tbench-ra-origin  Waiting
+ Container tbench-ra-origin-http  Waiting
+ Container tbench-ra-server  Waiting
+ Container tbench-ra-client  Waiting
+ Container tbench-ra-probe  Waiting
+ Container tbench-ra-origin-http  Healthy
+ Container tbench-ra-probe  Healthy
+ Container tbench-ra-server  Healthy
+ Container tbench-ra-origin  Healthy
+ Container tbench-ra-client  Healthy
+S7/ra: iperf3 30s, add event at T=15
+T=15: triggering dynamic add on ra
+S7/ra: median=3334.5 Mbps, worst=2925.5 Mbps at interval 4 (dip=12.3%)
+=== s5_idle_scale.sh wg ===
+ Network tbench-wg_internal-net  Creating
+ Network tbench-wg_internal-net  Created
+ Container tbench-wg-server  Creating
+ Container tbench-wg-probe  Creating
+ Container tbench-wg-origin-http  Creating
+ Container tbench-wg-origin  Creating
+ Container tbench-wg-probe  Created
+ Container tbench-wg-server  Created
+ Container tbench-wg-origin  Created
+ Container tbench-wg-origin-http  Created
+ Container tbench-wg-client  Creating
+ Container tbench-wg-client  Created
+ Container tbench-wg-server  Starting
+ Container tbench-wg-probe  Starting
+ Container tbench-wg-origin  Starting
+ Container tbench-wg-origin-http  Starting
+ Container tbench-wg-origin-http  Started
+ Container tbench-wg-server  Started
+ Container tbench-wg-origin  Started
+ Container tbench-wg-client  Starting
+ Container tbench-wg-probe  Started
+ Container tbench-wg-client  Started
+ Container tbench-wg-origin  Waiting
+ Container tbench-wg-origin-http  Waiting
+ Container tbench-wg-server  Waiting
+ Container tbench-wg-client  Waiting
+ Container tbench-wg-probe  Waiting
+ Container tbench-wg-origin-http  Healthy
+ Container tbench-wg-server  Healthy
+ Container tbench-wg-probe  Healthy
+ Container tbench-wg-origin  Healthy
+ Container tbench-wg-client  Healthy
+  +10 peers, rss=548864
+  +20 peers, rss=548864
+  +30 peers, rss=544768
+  +40 peers, rss=544768
+  +50 peers, rss=548864
+S5/wg: /home/mtaku3/Workspaces/xxx-operator/bench/results/s5_wg.csv
+=== s5_idle_scale.sh fr ===
+ Network tbench-fr_internal-net  Creating
+ Network tbench-fr_internal-net  Created
+ Container tbench-fr-server  Creating
+ Container tbench-fr-probe  Creating
+ Container tbench-fr-origin-http  Creating
+ Container tbench-fr-origin  Creating
+ Container tbench-fr-probe  Created
+ Container tbench-fr-origin  Created
+ Container tbench-fr-server  Created
+ Container tbench-fr-origin-http  Created
+ Container tbench-fr-client  Creating
+ Container tbench-fr-client  Created
+ Container tbench-fr-probe  Starting
+ Container tbench-fr-origin  Starting
+ Container tbench-fr-origin-http  Starting
+ Container tbench-fr-server  Starting
+ Container tbench-fr-origin  Started
+ Container tbench-fr-origin-http  Started
+ Container tbench-fr-server  Started
+ Container tbench-fr-client  Starting
+ Container tbench-fr-probe  Started
+ Container tbench-fr-client  Started
+ Container tbench-fr-origin  Waiting
+ Container tbench-fr-origin-http  Waiting
+ Container tbench-fr-server  Waiting
+ Container tbench-fr-client  Waiting
+ Container tbench-fr-probe  Waiting
+ Container tbench-fr-probe  Healthy
+ Container tbench-fr-origin-http  Healthy
+ Container tbench-fr-origin  Healthy
+ Container tbench-fr-client  Healthy
+ Container tbench-fr-server  Healthy
+  +10 peers, rss=5857346
+  +20 peers, rss=7557087
+  +30 peers, rss=7921992
+  +40 peers, rss=9338618
+  +50 peers, rss=10915676
+S5/fr: /home/mtaku3/Workspaces/xxx-operator/bench/results/s5_fr.csv
+=== s5_idle_scale.sh ch ===
+ Network tbench-ch_internal-net  Creating
+ Network tbench-ch_internal-net  Created
+ Container tbench-ch-server  Creating
+ Container tbench-ch-probe  Creating
+ Container tbench-ch-origin  Creating
+ Container tbench-ch-origin-http  Creating
+ Container tbench-ch-origin  Created
+ Container tbench-ch-probe  Created
+ Container tbench-ch-server  Created
+ Container tbench-ch-origin-http  Created
+ Container tbench-ch-client  Creating
+ Container tbench-ch-client  Created
+ Container tbench-ch-origin  Starting
+ Container tbench-ch-origin-http  Starting
+ Container tbench-ch-server  Starting
+ Container tbench-ch-probe  Starting
+ Container tbench-ch-origin-http  Started
+ Container tbench-ch-origin  Started
+ Container tbench-ch-probe  Started
+ Container tbench-ch-server  Started
+ Container tbench-ch-client  Starting
+ Container tbench-ch-client  Started
+ Container tbench-ch-client  Waiting
+ Container tbench-ch-probe  Waiting
+ Container tbench-ch-origin  Waiting
+ Container tbench-ch-origin-http  Waiting
+ Container tbench-ch-server  Waiting
+ Container tbench-ch-server  Healthy
+ Container tbench-ch-client  Healthy
+ Container tbench-ch-origin  Healthy
+ Container tbench-ch-probe  Healthy
+ Container tbench-ch-origin-http  Healthy
+  +10 peers, rss=6446645
+  +20 peers, rss=7630488
+  +30 peers, rss=7778337
+  +40 peers, rss=7765754
+  +50 peers, rss=7872709
+S5/ch: /home/mtaku3/Workspaces/xxx-operator/bench/results/s5_ch.csv
+=== s5_idle_scale.sh bo ===
+ Network tbench-bo_wan-net  Creating
+ Network tbench-bo_wan-net  Created
+ Network tbench-bo_internal-net  Creating
+ Network tbench-bo_internal-net  Created
+ Container tbench-bo-probe  Creating
+ Container tbench-bo-server  Creating
+ Container tbench-bo-origin  Creating
+ Container tbench-bo-origin-http  Creating
+ Container tbench-bo-server  Created
+ Container tbench-bo-origin-http  Created
+ Container tbench-bo-origin  Created
+ Container tbench-bo-probe  Created
+ Container tbench-bo-client  Creating
+ Container tbench-bo-client  Created
+ Container tbench-bo-server  Starting
+ Container tbench-bo-origin  Starting
+ Container tbench-bo-probe  Starting
+ Container tbench-bo-origin-http  Starting
+ Container tbench-bo-origin  Started
+ Container tbench-bo-probe  Started
+ Container tbench-bo-origin-http  Started
+ Container tbench-bo-server  Started
+ Container tbench-bo-client  Starting
+ Container tbench-bo-client  Started
+ Container tbench-bo-client  Waiting
+ Container tbench-bo-probe  Waiting
+ Container tbench-bo-origin  Waiting
+ Container tbench-bo-origin-http  Waiting
+ Container tbench-bo-server  Waiting
+ Container tbench-bo-probe  Healthy
+ Container tbench-bo-client  Healthy
+ Container tbench-bo-origin-http  Healthy
+ Container tbench-bo-origin  Healthy
+ Container tbench-bo-server  Healthy
+  +10 peers, rss=864256
+  +20 peers, rss=1052770
+  +30 peers, rss=1248854
+  +40 peers, rss=1450181
+  +50 peers, rss=1642070
+S5/bo: /home/mtaku3/Workspaces/xxx-operator/bench/results/s5_bo.csv
+=== s5_idle_scale.sh ra ===
+ Network tbench-ra_internal-net  Creating
+ Network tbench-ra_internal-net  Created
+ Container tbench-ra-server  Creating
+ Container tbench-ra-probe  Creating
+ Container tbench-ra-origin  Creating
+ Container tbench-ra-origin-http  Creating
+ Container tbench-ra-server  Created
+ Container tbench-ra-origin  Created
+ Container tbench-ra-origin-http  Created
+ Container tbench-ra-probe  Created
+ Container tbench-ra-client  Creating
+ Container tbench-ra-client  Created
+ Container tbench-ra-origin  Starting
+ Container tbench-ra-origin-http  Starting
+ Container tbench-ra-server  Starting
+ Container tbench-ra-probe  Starting
+ Container tbench-ra-origin  Started
+ Container tbench-ra-origin-http  Started
+ Container tbench-ra-probe  Started
+ Container tbench-ra-server  Started
+ Container tbench-ra-client  Starting
+ Container tbench-ra-client  Started
+ Container tbench-ra-probe  Waiting
+ Container tbench-ra-origin  Waiting
+ Container tbench-ra-origin-http  Waiting
+ Container tbench-ra-server  Waiting
+ Container tbench-ra-client  Waiting
+ Container tbench-ra-probe  Healthy
+ Container tbench-ra-origin  Healthy
+ Container tbench-ra-origin-http  Healthy
+ Container tbench-ra-server  Healthy
+ Container tbench-ra-client  Healthy
+  +10 peers, rss=2514485
+  +20 peers, rss=3014656
+  +30 peers, rss=3530555
+  +40 peers, rss=4039115
+  +50 peers, rss=4550820
+S5/ra: /home/mtaku3/Workspaces/xxx-operator/bench/results/s5_ra.csv
+=== s9_reconnect.sh wg ===
+ Network tbench-wg_internal-net  Creating
+ Network tbench-wg_internal-net  Created
+ Network tbench-wg_wan-net  Creating
+ Network tbench-wg_wan-net  Created
+ Container tbench-wg-server  Creating
+ Container tbench-wg-probe  Creating
+ Container tbench-wg-origin  Creating
+ Container tbench-wg-origin-http  Creating
+ Container tbench-wg-origin  Created
+ Container tbench-wg-probe  Created
+ Container tbench-wg-origin-http  Created
+ Container tbench-wg-server  Created
+ Container tbench-wg-client  Creating
+ Container tbench-wg-client  Created
+ Container tbench-wg-origin-http  Starting
+ Container tbench-wg-server  Starting
+ Container tbench-wg-probe  Starting
+ Container tbench-wg-origin  Starting
+ Container tbench-wg-origin  Started
+ Container tbench-wg-origin-http  Started
+ Container tbench-wg-server  Started
+ Container tbench-wg-client  Starting
+ Container tbench-wg-probe  Started
+ Container tbench-wg-client  Started
+ Container tbench-wg-origin  Waiting
+ Container tbench-wg-origin-http  Waiting
+ Container tbench-wg-server  Waiting
+ Container tbench-wg-client  Waiting
+ Container tbench-wg-probe  Waiting
+ Container tbench-wg-origin-http  Healthy
+ Container tbench-wg-client  Healthy
+ Container tbench-wg-probe  Healthy
+ Container tbench-wg-server  Healthy
+ Container tbench-wg-origin  Healthy
+S9/wg: killing tunnel-client
+S9/wg: reconnect took 0.66s (1 polls)
+=== s9_reconnect.sh fr ===
+ Network tbench-fr_internal-net  Creating
+ Network tbench-fr_internal-net  Created
+ Network tbench-fr_wan-net  Creating
+ Network tbench-fr_wan-net  Created
+ Container tbench-fr-probe  Creating
+ Container tbench-fr-origin  Creating
+ Container tbench-fr-server  Creating
+ Container tbench-fr-origin-http  Creating
+ Container tbench-fr-origin  Created
+ Container tbench-fr-probe  Created
+ Container tbench-fr-origin-http  Created
+ Container tbench-fr-server  Created
+ Container tbench-fr-client  Creating
+ Container tbench-fr-client  Created
+ Container tbench-fr-origin  Starting
+ Container tbench-fr-origin-http  Starting
+ Container tbench-fr-probe  Starting
+ Container tbench-fr-server  Starting
+ Container tbench-fr-origin  Started
+ Container tbench-fr-origin-http  Started
+ Container tbench-fr-server  Started
+ Container tbench-fr-client  Starting
+ Container tbench-fr-probe  Started
+ Container tbench-fr-client  Started
+ Container tbench-fr-server  Waiting
+ Container tbench-fr-client  Waiting
+ Container tbench-fr-probe  Waiting
+ Container tbench-fr-origin  Waiting
+ Container tbench-fr-origin-http  Waiting
+ Container tbench-fr-server  Healthy
+ Container tbench-fr-origin-http  Healthy
+ Container tbench-fr-client  Healthy
+ Container tbench-fr-origin  Healthy
+ Container tbench-fr-probe  Healthy
+S9/fr: killing tunnel-client
+S9/fr: reconnect took 0.40s (1 polls)
+=== s9_reconnect.sh ch ===
+ Network tbench-ch_wan-net  Creating
+ Network tbench-ch_wan-net  Created
+ Network tbench-ch_internal-net  Creating
+ Network tbench-ch_internal-net  Created
+ Container tbench-ch-server  Creating
+ Container tbench-ch-probe  Creating
+ Container tbench-ch-origin  Creating
+ Container tbench-ch-origin-http  Creating
+ Container tbench-ch-origin  Created
+ Container tbench-ch-probe  Created
+ Container tbench-ch-origin-http  Created
+ Container tbench-ch-server  Created
+ Container tbench-ch-client  Creating
+ Container tbench-ch-client  Created
+ Container tbench-ch-server  Starting
+ Container tbench-ch-probe  Starting
+ Container tbench-ch-origin-http  Starting
+ Container tbench-ch-origin  Starting
+ Container tbench-ch-origin-http  Started
+ Container tbench-ch-server  Started
+ Container tbench-ch-probe  Started
+ Container tbench-ch-origin  Started
+ Container tbench-ch-client  Starting
+ Container tbench-ch-client  Started
+ Container tbench-ch-client  Waiting
+ Container tbench-ch-probe  Waiting
+ Container tbench-ch-origin  Waiting
+ Container tbench-ch-origin-http  Waiting
+ Container tbench-ch-server  Waiting
+ Container tbench-ch-probe  Healthy
+ Container tbench-ch-origin  Healthy
+ Container tbench-ch-server  Healthy
+ Container tbench-ch-client  Healthy
+ Container tbench-ch-origin-http  Healthy
+S9/ch: killing tunnel-client
+S9/ch: reconnect took 0.88s (1 polls)
+=== s9_reconnect.sh bo ===
+ Network tbench-bo_internal-net  Creating
+ Network tbench-bo_internal-net  Created
+ Network tbench-bo_wan-net  Creating
+ Network tbench-bo_wan-net  Created
+ Container tbench-bo-probe  Creating
+ Container tbench-bo-server  Creating
+ Container tbench-bo-origin-http  Creating
+ Container tbench-bo-origin  Creating
+ Container tbench-bo-probe  Created
+ Container tbench-bo-server  Created
+ Container tbench-bo-origin-http  Created
+ Container tbench-bo-origin  Created
+ Container tbench-bo-client  Creating
+ Container tbench-bo-client  Created
+ Container tbench-bo-server  Starting
+ Container tbench-bo-probe  Starting
+ Container tbench-bo-origin  Starting
+ Container tbench-bo-origin-http  Starting
+ Container tbench-bo-origin  Started
+ Container tbench-bo-probe  Started
+ Container tbench-bo-origin-http  Started
+ Container tbench-bo-server  Started
+ Container tbench-bo-client  Starting
+ Container tbench-bo-client  Started
+ Container tbench-bo-origin-http  Waiting
+ Container tbench-bo-server  Waiting
+ Container tbench-bo-client  Waiting
+ Container tbench-bo-probe  Waiting
+ Container tbench-bo-origin  Waiting
+ Container tbench-bo-probe  Healthy
+ Container tbench-bo-client  Healthy
+ Container tbench-bo-origin-http  Healthy
+ Container tbench-bo-origin  Healthy
+ Container tbench-bo-server  Healthy
+S9/bo: killing tunnel-client
+S9/bo: reconnect took 11.99s (2 polls)
+=== s9_reconnect.sh ra ===
+ Network tbench-ra_internal-net  Creating
+ Network tbench-ra_internal-net  Created
+ Container tbench-ra-origin  Creating
+ Container tbench-ra-origin-http  Creating
+ Container tbench-ra-server  Creating
+ Container tbench-ra-probe  Creating
+ Container tbench-ra-server  Created
+ Container tbench-ra-probe  Created
+ Container tbench-ra-origin  Created
+ Container tbench-ra-origin-http  Created
+ Container tbench-ra-client  Creating
+ Container tbench-ra-client  Created
+ Container tbench-ra-server  Starting
+ Container tbench-ra-origin-http  Starting
+ Container tbench-ra-origin  Starting
+ Container tbench-ra-probe  Starting
+ Container tbench-ra-origin  Started
+ Container tbench-ra-probe  Started
+ Container tbench-ra-origin-http  Started
+ Container tbench-ra-server  Started
+ Container tbench-ra-client  Starting
+ Container tbench-ra-client  Started
+ Container tbench-ra-origin  Waiting
+ Container tbench-ra-origin-http  Waiting
+ Container tbench-ra-server  Waiting
+ Container tbench-ra-client  Waiting
+ Container tbench-ra-probe  Waiting
+ Container tbench-ra-server  Healthy
+ Container tbench-ra-origin-http  Healthy
+ Container tbench-ra-probe  Healthy
+ Container tbench-ra-origin  Healthy
+ Container tbench-ra-client  Healthy
+S9/ra: killing tunnel-client
+S9/ra: reconnect took 0.65s (1 polls)

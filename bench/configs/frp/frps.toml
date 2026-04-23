@@ -1,0 +1,19 @@
+bindAddr = "0.0.0.0"
+bindPort = 7000
+
+# Admin API — used by S7 (dynamic add) and for stats in S6.
+webServer.addr = "0.0.0.0"
+webServer.port = 7500
+webServer.user = "admin"
+webServer.password = "admin"
+
+auth.method = "token"
+auth.token = "benchtoken"
+
+# Don't log to stdout at info level during benches — reduces noise.
+log.level = "warn"
+
+# Allow the client to request any port in this range for dynamic S7.
+allowPorts = [
+  { start = 15000, end = 19999 },
+]

@@ -1,0 +1,9 @@
+[client]
+remote_addr = "tunnel-server:2333"
+default_token = "benchtoken"
+
+[client.services.iperf]
+local_addr = "origin:5201"
+
+[client.services.http]
+local_addr = "origin-http:80"

@@ -1,0 +1,48 @@
+# FRP backend. frps on tunnel-server (wan-net), frpc on tunnel-client
+# (both nets). Exposes:
+#   tunnel-server:15200  -> origin:5201 (iperf3, tcp proxy "iperf")
+#   tunnel-server:18080  -> origin-http:80 (http, tcp proxy "http")
+# frps admin API on :7500 for dynamic reload during S7.
+name: tbench-fr
+
+networks:
+  wan-net:
+    driver: bridge
+  internal-net:
+    driver: bridge
+    internal: true
+
+services:
+  origin:
+    image: networkstatic/iperf3
+    container_name: tbench-fr-origin
+    command: ["-s", "-p", "5201"]
+    networks: [internal-net]
+
+  origin-http:
+    image: nginx:alpine
+    container_name: tbench-fr-origin-http
+    networks: [internal-net]
+
+  tunnel-server:
+    image: snowdreamtech/frps:latest
+    container_name: tbench-fr-server
+    volumes:
+      - ../configs/frp/frps.toml:/etc/frp/frps.toml:ro
+    networks: [wan-net]
+    cpus: ${BENCH_CPUS:-1.0}
+    mem_limit: ${BENCH_MEM:-512m}
+
+  tunnel-client:
+    image: snowdreamtech/frpc:latest
+    container_name: tbench-fr-client
+    volumes:
+      - ../configs/frp/frpc.toml:/etc/frp/frpc.toml:ro
+    networks: [wan-net, internal-net]
+    depends_on: [tunnel-server, origin, origin-http]
+
+  probe:
+    image: networkstatic/iperf3
+    container_name: tbench-fr-probe
+    entrypoint: ["sleep", "infinity"]
+    networks: [wan-net]

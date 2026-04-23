@@ -1,0 +1,56 @@
+# Chisel backend. Server listens on :8000 (control channel + multiplexed
+# reverse tunnels). Client requests reverse forwards:
+#   tunnel-server:15200  -> origin:5201
+#   tunnel-server:18080  -> origin-http:80
+name: tbench-ch
+
+networks:
+  wan-net:
+    driver: bridge
+  internal-net:
+    driver: bridge
+    internal: true
+
+services:
+  origin:
+    image: networkstatic/iperf3
+    container_name: tbench-ch-origin
+    command: ["-s", "-p", "5201"]
+    networks: [internal-net]
+
+  origin-http:
+    image: nginx:alpine
+    container_name: tbench-ch-origin-http
+    networks: [internal-net]
+
+  tunnel-server:
+    image: jpillora/chisel:latest
+    container_name: tbench-ch-server
+    command:
+      - "server"
+      - "--port=8000"
+      - "--reverse"
+      - "--authfile=/etc/chisel/users.json"
+    volumes:
+      - ../configs/chisel/users.json:/etc/chisel/users.json:ro
+    networks: [wan-net]
+    cpus: ${BENCH_CPUS:-1.0}
+    mem_limit: ${BENCH_MEM:-512m}
+
+  tunnel-client:
+    image: jpillora/chisel:latest
+    container_name: tbench-ch-client
+    command:
+      - "client"
+      - "--auth=bench:benchpw"
+      - "http://tunnel-server:8000"
+      - "R:0.0.0.0:15200:origin:5201"
+      - "R:0.0.0.0:18080:origin-http:80"
+    networks: [wan-net, internal-net]
+    depends_on: [tunnel-server, origin, origin-http]
+
+  probe:
+    image: networkstatic/iperf3
+    container_name: tbench-ch-probe
+    entrypoint: ["sleep", "infinity"]
+    networks: [wan-net]

@@ -135,6 +135,7 @@ spec:
     bandwidthMbps: 200
   migrationPolicy: Never          # Never | OnOvercommit | OnExitLost | OnOvercommitOrLost
   allowPortSplit: false           # if true, multi-port tunnel may land across multiple exits
+  immutableWhenReady: false       # if true, lock rebind-triggering fields once phase == Ready
 status:
   phase: Ready                    # Pending | Allocating | Provisioning | Connecting | Ready | Disconnected | Failed
   assignedExit: exit-nyc-1
@@ -161,6 +162,20 @@ status:
 - Multi-port tunnels default to atomic placement on one exit (one public IP).
   `allowPortSplit: true` permits spreading across exits when no single exit
   can host all ports.
+- **`immutableWhenReady`** (default `false`) is an opt-in downtime-prevention
+  lock. When `true` and `status.phase == Ready`:
+  - A validating admission webhook rejects mutations to `exitRef`, `ports`
+    (any change), and `service` — the fields that would force re-allocation
+    and a public-IP change.
+  - **Autonomous migration is disabled**, regardless of `migrationPolicy`.
+    On `Overcommitted` or `ExitLost`, the tunnel stays placed and goes to
+    `Disconnected`/`Overcommitted` — the user has chosen downtime over
+    unexpected rebind.
+  - To change a locked field, the user first sets `immutableWhenReady: false`
+    (acknowledging impending disruption), makes the change, and optionally
+    re-locks. Soft fields (`placement.*`, `requirements.*`,
+    `schedulingPolicyRef`, `migrationPolicy`) remain editable while locked
+    because they don't trigger rebind.
 
 ### 3.3 `SchedulingPolicy` (cluster-scoped)
 
@@ -321,6 +336,7 @@ after follows the Tunnel controller's normal rules — no special-case
 | `frp-operator.io/migration-policy: OnExitLost` | `migrationPolicy` | No rebind. Affects later autonomous decisions. |
 | `frp-operator.io/traffic-gb: "100"` | `requirements.monthlyTrafficGB` | Reservation math re-evaluates; may raise `Overcommitted`. Migration only if `migrationPolicy` opts in. |
 | `frp-operator.io/bandwidth-mbps: "200"` | `requirements.bandwidthMbps` | Same as above. |
+| `frp-operator.io/immutable-when-ready: "true"` | `immutableWhenReady` | Locks rebind-triggering fields once `Ready` (see §3.2). Removing the annotation clears the field. |
 
 **Principle.** `migrationPolicy` governs the operator's *autonomous*
 decisions (drift from overcommit or from an exit going `Lost`). A user

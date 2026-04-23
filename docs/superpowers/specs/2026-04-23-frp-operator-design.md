@@ -305,17 +305,29 @@ registered implementation.
 
 ### 6.2 Service annotations → Tunnel mapping
 
-| Service annotation | Tunnel.spec field |
-|---|---|
-| `frp-operator.io/exit: <name>` | `exitRef.name` |
-| `frp-operator.io/provider: digitalocean` | appended to `placement.providers` |
-| `frp-operator.io/region: nyc1,sfo3` | `placement.regions` |
-| `frp-operator.io/size: s-2vcpu-2gb` | `placement.sizeOverride` |
-| `frp-operator.io/scheduling-policy: <name>` | `schedulingPolicyRef.name` |
-| `frp-operator.io/allow-port-split: "true"` | `allowPortSplit` |
-| `frp-operator.io/migration-policy: OnExitLost` | `migrationPolicy` |
-| `frp-operator.io/traffic-gb: "100"` | `requirements.monthlyTrafficGB` |
-| `frp-operator.io/bandwidth-mbps: "200"` | `requirements.bandwidthMbps` |
+The Service-watcher **continuously syncs** annotations into the sibling
+`Tunnel.spec`. Changing an annotation updates the `Tunnel`; what happens
+after follows the Tunnel controller's normal rules — no special-case
+"Service-watcher rebinds" logic.
+
+| Service annotation | Tunnel.spec field | Effect on an already-placed tunnel |
+|---|---|---|
+| `frp-operator.io/exit: <name>` | `exitRef.name` | **Rebinds immediately.** Hard pin is an explicit user directive; IP change is expected. |
+| `frp-operator.io/provider: digitalocean` | appended to `placement.providers` | No rebind. Applies on next (re-)allocation only. |
+| `frp-operator.io/region: nyc1,sfo3` | `placement.regions` | No rebind. Applies on next (re-)allocation only. |
+| `frp-operator.io/size: s-2vcpu-2gb` | `placement.sizeOverride` | No rebind. Used only when provisioning a *new* exit. |
+| `frp-operator.io/scheduling-policy: <name>` | `schedulingPolicyRef.name` | No rebind. Future-only. |
+| `frp-operator.io/allow-port-split: "true"` | `allowPortSplit` | No rebind. Future-only. |
+| `frp-operator.io/migration-policy: OnExitLost` | `migrationPolicy` | No rebind. Affects later autonomous decisions. |
+| `frp-operator.io/traffic-gb: "100"` | `requirements.monthlyTrafficGB` | Reservation math re-evaluates; may raise `Overcommitted`. Migration only if `migrationPolicy` opts in. |
+| `frp-operator.io/bandwidth-mbps: "200"` | `requirements.bandwidthMbps` | Same as above. |
+
+**Principle.** `migrationPolicy` governs the operator's *autonomous*
+decisions (drift from overcommit or from an exit going `Lost`). A user
+writing an explicit `exitRef` (directly or via the `/exit` annotation) is
+an unambiguous directive and is always honored. Soft `placement.*`
+preferences only bite at allocation time and never trigger a rebind of a
+tunnel that already has a valid placement.
 
 ## 7. Bootstrap and auth
 

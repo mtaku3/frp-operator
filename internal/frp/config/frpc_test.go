@@ -11,7 +11,7 @@ func TestRenderFrpcMinimal(t *testing.T) {
 	cfg := FrpcConfig{
 		ServerAddr: "203.0.113.10",
 		ServerPort: 7000,
-		Auth: FrpcAuth{Method: "token", Token: "secret-token-1234"},
+		Auth:       FrpcAuth{Method: "token", Token: "secret-token-1234"},
 		Proxies: []FrpcProxy{
 			{
 				Name:       "my-ns_my-tunnel_http",

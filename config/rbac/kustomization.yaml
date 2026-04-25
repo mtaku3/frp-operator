@@ -18,3 +18,17 @@ resources:
 - metrics_auth_role.yaml
 - metrics_auth_role_binding.yaml
 - metrics_reader_role.yaml
+# For each CRD, "Admin", "Editor" and "Viewer" roles are scaffolded by
+# default, aiding admins in cluster management. Those roles are
+# not used by the frp-operator itself. You can comment the following lines
+# if you do not want those helpers be installed with your Project.
+- schedulingpolicy_admin_role.yaml
+- schedulingpolicy_editor_role.yaml
+- schedulingpolicy_viewer_role.yaml
+- tunnel_admin_role.yaml
+- tunnel_editor_role.yaml
+- tunnel_viewer_role.yaml
+- exitserver_admin_role.yaml
+- exitserver_editor_role.yaml
+- exitserver_viewer_role.yaml
+

@@ -61,5 +61,37 @@ func TestExitServerRoundTrip(t *testing.T) {
 	}
 }
 
+func TestExitServerStatusDrainStartedAtRoundTrip(t *testing.T) {
+	now := metav1.Now()
+	original := ExitServer{
+		ObjectMeta: metav1.ObjectMeta{Name: "e", Namespace: "default"},
+		Spec: ExitServerSpec{
+			Provider:   ProviderDigitalOcean,
+			Frps:       FrpsConfig{Version: "v0.68.1"},
+			AllowPorts: []string{"1024-65535"},
+		},
+		Status: ExitServerStatus{
+			Phase:          PhaseDraining,
+			DrainStartedAt: &now,
+		},
+	}
+	b, err := json.Marshal(&original)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got ExitServer
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Status.DrainStartedAt == nil {
+		t.Fatal("DrainStartedAt lost in round-trip")
+	}
+	// JSON marshaling of metav1.Time truncates to seconds precision,
+	// so compare Unix timestamps rather than exact time values.
+	if got.Status.DrainStartedAt.Time.Unix() != now.Time.Unix() {
+		t.Errorf("DrainStartedAt mismatch: got %v want %v", got.Status.DrainStartedAt, &now)
+	}
+}
+
 func ptrInt32(v int32) *int32 { return &v }
 func ptrInt64(v int64) *int64 { return &v }

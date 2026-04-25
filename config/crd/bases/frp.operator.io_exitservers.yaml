@@ -223,6 +223,14 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              drainStartedAt:
+                description: |-
+                  DrainStartedAt records when the ExitReclaimController moved this exit
+                  into the Draining phase. After Spec.Consolidation.DrainAfter elapses
+                  from this timestamp the controller deletes the CR. Cleared back to nil
+                  when the exit returns to Ready (a tunnel allocated to it during drain).
+                format: date-time
+                type: string
               frpsVersion:
                 type: string
               lastReconcileTime:

@@ -135,6 +135,12 @@ type ExitServerStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	LastReconcileTime *metav1.Time `json:"lastReconcileTime,omitempty"`
+
+	// DrainStartedAt records when the ExitReclaimController moved this exit
+	// into the Draining phase. After Spec.Consolidation.DrainAfter elapses
+	// from this timestamp the controller deletes the CR. Cleared back to nil
+	// when the exit returns to Ready (a tunnel allocated to it during drain).
+	DrainStartedAt *metav1.Time `json:"drainStartedAt,omitempty"`
 }
 
 // +kubebuilder:object:root=true

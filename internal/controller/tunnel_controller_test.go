@@ -78,6 +78,21 @@ var _ = Describe("TunnelController integration", func() {
 				},
 			},
 		}
+		// Auto-created exits get CredentialsRef{Name: "digitalocean-credentials", Key: "token"}.
+		// The ExitServerController now loads provider credentials from that Secret;
+		// stub it out so reconcile doesn't error.
+		doSec := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "digitalocean-credentials", Namespace: "default"},
+			Data:       map[string][]byte{"token": []byte("test-do-token")},
+		}
+		if err := k8sClient.Create(tctx, doSec); err != nil && !errors.IsAlreadyExists(err) {
+			Expect(err).NotTo(HaveOccurred())
+		}
+		DeferCleanup(func() {
+			s := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "digitalocean-credentials", Namespace: "default"}}
+			_ = k8sClient.Delete(tctx, s)
+		})
+
 		var existing frpv1alpha1.SchedulingPolicy
 		err := k8sClient.Get(tctx, types.NamespacedName{Name: "tunnel-test"}, &existing)
 		if errors.IsNotFound(err) {

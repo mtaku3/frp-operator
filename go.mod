@@ -4,6 +4,7 @@ go 1.25.3
 
 require (
 	github.com/BurntSushi/toml v1.6.0
+	github.com/digitalocean/godo v1.187.0
 	github.com/docker/docker v27.5.1+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/onsi/ginkgo/v2 v2.27.2
@@ -45,9 +46,12 @@ require (
 	github.com/google/cel-go v0.26.0 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

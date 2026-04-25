@@ -9,11 +9,17 @@
     "glow@latest",
     "go@1.24",
     "kubebuilder@latest",
-    "kustomize@latest"
+    "kustomize@latest",
+    "k3d@latest",
+    "kubectl@latest"
   ],
+  "env": {
+    "GOPATH": "$HOME/go/",
+    "PATH":   "$PATH:$HOME/go/bin"
+  },
   "shell": {
     "init_hook": [
-      "echo 'Welcome to devbox!' > /dev/null"
+      "export \"GOROOT=$(go env GOROOT)\""
     ],
     "scripts": {
       "test": [

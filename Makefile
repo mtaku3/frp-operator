@@ -90,6 +90,22 @@ test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expect
 cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
 	@$(KIND) delete cluster --name $(KIND_CLUSTER)
 
+##@ Local cluster (k3d) — rootless-Docker friendly alternative to kind for manual dev
+
+K3D_CLUSTER ?= frp-operator-dev
+
+.PHONY: k3d-up
+k3d-up: ## Create a local k3d cluster (rootless-Docker friendly) and install CRDs.
+	@k3d cluster list -o json | jq -e '.[] | select(.name=="$(K3D_CLUSTER)")' >/dev/null 2>&1 || \
+		k3d cluster create $(K3D_CLUSTER)
+	@kubectl config use-context k3d-$(K3D_CLUSTER)
+	@$(MAKE) install
+	@echo "k3d cluster '$(K3D_CLUSTER)' ready. Run 'make run' to start the operator out-of-cluster."
+
+.PHONY: k3d-down
+k3d-down: ## Delete the local k3d cluster.
+	@k3d cluster delete $(K3D_CLUSTER) || true
+
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter
 	"$(GOLANGCI_LINT)" run

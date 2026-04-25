@@ -24,6 +24,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -127,10 +128,11 @@ func (r *ExitServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// Step 8: real admin probe. Build an AdminClient once we have a
-	// PublicIP and a factory injected, then call ServerInfo with a short
-	// timeout. A nil error means the frps webServer admin API is healthy.
+	// PublicIP, the provider state is Running, and a factory injected, then
+	// call ServerInfo with a short timeout. A nil error means the frps
+	// webServer admin API is healthy.
 	adminOK := false
-	if state.PublicIP != "" && r.NewAdminClient != nil {
+	if state.PublicIP != "" && state.Phase == provider.PhaseRunning && r.NewAdminClient != nil {
 		// Temporarily reflect the freshly observed PublicIP so adminBaseURL
 		// can build a URL even before status is patched below.
 		probeExit := exit.DeepCopy()
@@ -182,22 +184,11 @@ func (r *ExitServerReconciler) patchStatusCondition(
 		Reason:             reason,
 		Message:            message,
 	}
-	exit.Status.Conditions = upsertCondition(exit.Status.Conditions, cond)
+	apimeta.SetStatusCondition(&exit.Status.Conditions, cond)
 	if err := r.Status().Patch(ctx, exit, patch); err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
-}
-
-// upsertCondition replaces an existing condition by Type or appends one.
-func upsertCondition(in []metav1.Condition, c metav1.Condition) []metav1.Condition {
-	for i, existing := range in {
-		if existing.Type == c.Type {
-			in[i] = c
-			return in
-		}
-	}
-	return append(in, c)
 }
 
 // reconcileDelete tears the resource down, then drops the finalizer.

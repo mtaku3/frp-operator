@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -56,64 +55,6 @@ func (f *fakeAdmin) ServerInfo(_ context.Context) (*admin.ServerInfo, error) {
 func (f *fakeAdmin) PutConfigAndReload(_ context.Context, _ []byte) error {
 	return nil
 }
-
-var _ = Describe("ExitServer Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
-
-		ctx := context.Background()
-
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
-		}
-		exitserver := &frpv1alpha1.ExitServer{}
-
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind ExitServer")
-			err := k8sClient.Get(ctx, typeNamespacedName, exitserver)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &frpv1alpha1.ExitServer{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
-					},
-					Spec: frpv1alpha1.ExitServerSpec{
-						Provider:       frpv1alpha1.ProviderDigitalOcean,
-						CredentialsRef: frpv1alpha1.SecretKeyRef{Name: "do-token", Key: "token"},
-						Frps:           frpv1alpha1.FrpsConfig{Version: "v0.65.0"},
-						AllowPorts:     []string{"1024-65535"},
-					},
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
-		})
-
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &frpv1alpha1.ExitServer{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Cleanup the specific resource instance ExitServer")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &ExitServerReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
-
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
-		})
-	})
-})
 
 var _ = Describe("ExitServerController integration", func() {
 	ctx := context.Background()

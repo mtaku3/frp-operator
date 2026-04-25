@@ -51,7 +51,13 @@ var _ = Describe("Tunnel Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: frpv1alpha1.TunnelSpec{
+						Service: frpv1alpha1.ServiceRef{Name: "svc", Namespace: "default"},
+						Ports: []frpv1alpha1.TunnelPort{
+							{Name: "http", ServicePort: 80},
+						},
+						SchedulingPolicyRef: frpv1alpha1.PolicyRef{Name: "default"},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

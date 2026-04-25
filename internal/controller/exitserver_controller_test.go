@@ -51,7 +51,12 @@ var _ = Describe("ExitServer Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: frpv1alpha1.ExitServerSpec{
+						Provider:       frpv1alpha1.ProviderDigitalOcean,
+						CredentialsRef: frpv1alpha1.SecretKeyRef{Name: "do-token", Key: "token"},
+						Frps:           frpv1alpha1.FrpsConfig{Version: "v0.65.0"},
+						AllowPorts:     []string{"1024-65535"},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

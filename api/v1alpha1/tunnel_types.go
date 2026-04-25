@@ -20,70 +20,147 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// +kubebuilder:validation:Enum=TCP;UDP
+type TunnelProtocol string
 
-// TunnelSpec defines the desired state of Tunnel
-type TunnelSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
+const (
+	ProtocolTCP TunnelProtocol = "TCP"
+	ProtocolUDP TunnelProtocol = "UDP"
+)
 
-	// foo is an example field of Tunnel. Edit tunnel_types.go to remove/update
-	// +optional
-	Foo *string `json:"foo,omitempty"`
+// +kubebuilder:validation:Enum=Never;OnOvercommit;OnExitLost;OnOvercommitOrLost
+type MigrationPolicy string
+
+const (
+	MigrationNever              MigrationPolicy = "Never"
+	MigrationOnOvercommit       MigrationPolicy = "OnOvercommit"
+	MigrationOnExitLost         MigrationPolicy = "OnExitLost"
+	MigrationOnOvercommitOrLost MigrationPolicy = "OnOvercommitOrLost"
+)
+
+// +kubebuilder:validation:Enum=Pending;Allocating;Provisioning;Connecting;Ready;Disconnected;Failed
+type TunnelPhase string
+
+const (
+	TunnelPending      TunnelPhase = "Pending"
+	TunnelAllocating   TunnelPhase = "Allocating"
+	TunnelProvisioning TunnelPhase = "Provisioning"
+	TunnelConnecting   TunnelPhase = "Connecting"
+	TunnelReady        TunnelPhase = "Ready"
+	TunnelDisconnected TunnelPhase = "Disconnected"
+	TunnelFailed       TunnelPhase = "Failed"
+)
+
+type ServiceRef struct {
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+	// +kubebuilder:validation:MinLength=1
+	Namespace string `json:"namespace"`
 }
 
-// TunnelStatus defines the observed state of Tunnel.
+type TunnelPort struct {
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	ServicePort int32 `json:"servicePort"`
+
+	// PublicPort defaults to ServicePort when nil.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	PublicPort *int32 `json:"publicPort,omitempty"`
+
+	// +kubebuilder:default=TCP
+	Protocol TunnelProtocol `json:"protocol,omitempty"`
+}
+
+type ExitRef struct {
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+}
+
+type Placement struct {
+	Providers    []Provider `json:"providers,omitempty"`
+	Regions      []string   `json:"regions,omitempty"`
+	SizeOverride string     `json:"sizeOverride,omitempty"`
+}
+
+type PolicyRef struct {
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+}
+
+type TunnelRequirements struct {
+	// +kubebuilder:validation:Minimum=0
+	MonthlyTrafficGB *int64 `json:"monthlyTrafficGB,omitempty"`
+	// +kubebuilder:validation:Minimum=0
+	BandwidthMbps *int32 `json:"bandwidthMbps,omitempty"`
+}
+
+type TunnelSpec struct {
+	Service ServiceRef `json:"service"`
+
+	// +kubebuilder:validation:MinItems=1
+	Ports []TunnelPort `json:"ports"`
+
+	// ExitRef hard-pins the tunnel to a specific exit. If unset, the
+	// scheduler picks (or provisions) one.
+	ExitRef *ExitRef `json:"exitRef,omitempty"`
+
+	// Placement is a soft preference list applied during (re-)allocation.
+	// Ignored when ExitRef is set.
+	Placement *Placement `json:"placement,omitempty"`
+
+	SchedulingPolicyRef PolicyRef `json:"schedulingPolicyRef,omitempty"`
+
+	Requirements *TunnelRequirements `json:"requirements,omitempty"`
+
+	// +kubebuilder:default=Never
+	MigrationPolicy MigrationPolicy `json:"migrationPolicy,omitempty"`
+
+	// AllowPortSplit lets a multi-port tunnel land across multiple exits when
+	// no single exit can host all ports. Default false → atomic placement.
+	AllowPortSplit bool `json:"allowPortSplit,omitempty"`
+
+	// ImmutableWhenReady locks rebind-triggering fields once status.phase
+	// reaches Ready and disables autonomous migration regardless of
+	// MigrationPolicy. Enforced by a validating webhook in a later phase.
+	ImmutableWhenReady bool `json:"immutableWhenReady,omitempty"`
+}
+
 type TunnelStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Phase TunnelPhase `json:"phase,omitempty"`
 
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
+	AssignedExit  string  `json:"assignedExit,omitempty"`
+	AssignedIP    string  `json:"assignedIP,omitempty"`
+	AssignedPorts []int32 `json:"assignedPorts,omitempty"`
 
-	// conditions represent the current state of the Tunnel resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
 	// +listType=map
 	// +listMapKey=type
-	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-
-// Tunnel is the Schema for the tunnels API
+// +kubebuilder:resource:scope=Namespaced,shortName=tn;tunnels
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Service",type=string,JSONPath=`.spec.service.name`
+// +kubebuilder:printcolumn:name="Exit",type=string,JSONPath=`.status.assignedExit`
+// +kubebuilder:printcolumn:name="IP",type=string,JSONPath=`.status.assignedIP`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type Tunnel struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// metadata is a standard object metadata
-	// +optional
-	metav1.ObjectMeta `json:"metadata,omitzero"`
-
-	// spec defines the desired state of Tunnel
-	// +required
-	Spec TunnelSpec `json:"spec"`
-
-	// status defines the observed state of Tunnel
-	// +optional
-	Status TunnelStatus `json:"status,omitzero"`
+	Spec   TunnelSpec   `json:"spec,omitempty"`
+	Status TunnelStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
-
-// TunnelList contains a list of Tunnel
 type TunnelList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitzero"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Tunnel `json:"items"`
 }
 

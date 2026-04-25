@@ -84,9 +84,9 @@ func TestTranslateServiceToTunnelSpec(t *testing.T) {
 			name: "scheduling-policy + migration-policy + allow-port-split",
 			svc: mkSvc(func(s *corev1.Service) {
 				s.Annotations = map[string]string{
-					"frp-operator.io/scheduling-policy":  "team-a",
-					"frp-operator.io/migration-policy":   "OnExitLost",
-					"frp-operator.io/allow-port-split":   "true",
+					"frp-operator.io/scheduling-policy":    "team-a",
+					"frp-operator.io/migration-policy":     "OnExitLost",
+					"frp-operator.io/allow-port-split":     "true",
 					"frp-operator.io/immutable-when-ready": "true",
 				}
 			}),

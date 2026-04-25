@@ -73,6 +73,12 @@ func ensureFrpcSecret(
 		// Update if drifted.
 		if string(existing.Data["frpc.toml"]) != string(body) {
 			existing.Data = map[string][]byte{"frpc.toml": body}
+			// Reassert ownership/labels in case they were tampered with.
+			existing.OwnerReferences = mergeOwnerRef(existing.OwnerReferences, tunnelOwnerRef(t))
+			if existing.Labels == nil {
+				existing.Labels = map[string]string{}
+			}
+			existing.Labels["frp-operator.io/tunnel"] = t.Name
 			if err := c.Update(ctx, &existing); err != nil {
 				return nil, fmt.Errorf("update frpc secret: %w", err)
 			}
@@ -96,9 +102,14 @@ func ensureFrpcSecret(
 	if err := c.Create(ctx, &sec); err != nil {
 		if apierrors.IsAlreadyExists(err) {
 			// Race: re-fetch and update.
-			if err := c.Get(ctx, key, &existing); err == nil {
+			if err := c.Get(ctx, key, &existing); err != nil {
+				return nil, fmt.Errorf("re-get frpc secret after race: %w", err)
+			}
+			if string(existing.Data["frpc.toml"]) != string(body) {
 				existing.Data = map[string][]byte{"frpc.toml": body}
-				_ = c.Update(ctx, &existing)
+				if err := c.Update(ctx, &existing); err != nil {
+					return nil, fmt.Errorf("update frpc secret after race: %w", err)
+				}
 			}
 			return body, nil
 		}
@@ -120,6 +131,11 @@ func ensureFrpcDeployment(ctx context.Context, c client.Client, t *frpv1alpha1.T
 		if existing.Spec.Template.Spec.Containers[0].Image != frpcImage ||
 			existing.Spec.Replicas == nil || *existing.Spec.Replicas != 1 {
 			existing.Spec = desired.Spec
+			existing.OwnerReferences = mergeOwnerRef(existing.OwnerReferences, tunnelOwnerRef(t))
+			if existing.Labels == nil {
+				existing.Labels = map[string]string{}
+			}
+			existing.Labels["frp-operator.io/tunnel"] = t.Name
 			return c.Update(ctx, &existing)
 		}
 		return nil
@@ -187,4 +203,17 @@ func toFrpcType(p frpv1alpha1.TunnelProtocol) string {
 		return "udp"
 	}
 	return "tcp"
+}
+
+// mergeOwnerRef returns refs with want appended if no controller-ref already
+// matches by UID. Tunnel only has one OwnerReference (itself); this guards
+// against accidental concurrent ownership claims.
+func mergeOwnerRef(refs []metav1.OwnerReference, want metav1.OwnerReference) []metav1.OwnerReference {
+	for i, r := range refs {
+		if r.UID == want.UID {
+			refs[i] = want
+			return refs
+		}
+	}
+	return append(refs, want)
 }

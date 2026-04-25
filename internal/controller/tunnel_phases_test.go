@@ -8,10 +8,10 @@ import (
 
 func TestNextTunnelPhase(t *testing.T) {
 	cases := []struct {
-		name                    string
-		current                 frpv1alpha1.TunnelPhase
+		name                               string
+		current                            frpv1alpha1.TunnelPhase
 		exitAssigned, exitReady, frpcReady bool
-		want                    frpv1alpha1.TunnelPhase
+		want                               frpv1alpha1.TunnelPhase
 	}{
 		{"no exit yet", "", false, false, false, frpv1alpha1.TunnelAllocating},
 		{"exit assigned but provisioning", frpv1alpha1.TunnelAllocating, true, false, false, frpv1alpha1.TunnelProvisioning},

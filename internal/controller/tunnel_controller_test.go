@@ -136,8 +136,16 @@ var _ = Describe("TunnelController integration", func() {
 		// Drive ExitServerController to ready the new exit.
 		var exits frpv1alpha1.ExitServerList
 		Expect(k8sClient.List(tctx, &exits, client.InNamespace("default"))).To(Succeed())
-		Expect(exits.Items).To(HaveLen(1))
-		exitName := exits.Items[0].Name
+		Expect(exits.Items).To(Not(BeEmpty()))
+		// Get the exit for this tunnel (created by the provisioner).
+		var exitName string
+		for _, ex := range exits.Items {
+			if ex.Labels["frp-operator.io/created-by"] == "tunnel-controller" {
+				exitName = ex.Name
+				break
+			}
+		}
+		Expect(exitName).NotTo(BeEmpty())
 		eReq := ctrl.Request{NamespacedName: types.NamespacedName{Name: exitName, Namespace: "default"}}
 		for i := 0; i < 3; i++ {
 			_, err := exitRecon.Reconcile(tctx, eReq)

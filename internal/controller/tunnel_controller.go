@@ -83,12 +83,19 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	var exit *frpv1alpha1.ExitServer
 	if tunnel.Status.AssignedExit == "" {
 		var err error
-		exit, err = r.allocateExit(ctx, &tunnel)
+		var justProvisioned bool
+		exit, justProvisioned, err = r.allocateExit(ctx, &tunnel)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 		if exit == nil {
-			return r.patchTunnelPhase(ctx, &tunnel, frpv1alpha1.TunnelAllocating, "no eligible exit; provisioning or pending")
+			phase := frpv1alpha1.TunnelAllocating
+			reason := "no eligible exit; pending"
+			if justProvisioned {
+				phase = frpv1alpha1.TunnelProvisioning
+				reason = "provisioning new exit"
+			}
+			return r.patchTunnelPhase(ctx, &tunnel, phase, reason)
 		}
 	} else {
 		var got frpv1alpha1.ExitServer
@@ -176,23 +183,24 @@ func (r *TunnelReconciler) reconcileDelete(ctx context.Context, tunnel *frpv1alp
 }
 
 // allocateExit runs the scheduler. Returns nil exit if a new ExitServer is
-// being provisioned or no eligible exit exists.
-func (r *TunnelReconciler) allocateExit(ctx context.Context, tunnel *frpv1alpha1.Tunnel) (*frpv1alpha1.ExitServer, error) {
+// being provisioned or no eligible exit exists. justProvisioned indicates
+// whether a new ExitServer was just created.
+func (r *TunnelReconciler) allocateExit(ctx context.Context, tunnel *frpv1alpha1.Tunnel) (*frpv1alpha1.ExitServer, bool, error) {
 	if tunnel.Spec.ExitRef != nil {
 		var got frpv1alpha1.ExitServer
 		if err := r.Get(ctx, types.NamespacedName{Name: tunnel.Spec.ExitRef.Name, Namespace: tunnel.Namespace}, &got); err != nil {
-			return nil, fmt.Errorf("hard-pinned ExitRef: %w", err)
+			return nil, false, fmt.Errorf("hard-pinned ExitRef: %w", err)
 		}
-		return &got, nil
+		return &got, false, nil
 	}
 
 	policy, err := resolvePolicy(ctx, r.Client, tunnel)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	exits, err := listExitsInScope(ctx, r.Client, tunnel)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	allocName := string(policy.Spec.Allocator)
@@ -201,14 +209,14 @@ func (r *TunnelReconciler) allocateExit(ctx context.Context, tunnel *frpv1alpha1
 	}
 	alloc, err := r.Allocators.Lookup(allocName)
 	if err != nil {
-		return nil, fmt.Errorf("allocator %q: %w", allocName, err)
+		return nil, false, fmt.Errorf("allocator %q: %w", allocName, err)
 	}
 	decision, err := alloc.Allocate(scheduler.AllocateInput{Tunnel: tunnel, Exits: exits})
 	if err != nil {
-		return nil, fmt.Errorf("Allocate: %w", err)
+		return nil, false, fmt.Errorf("Allocate: %w", err)
 	}
 	if decision.Exit != nil {
-		return decision.Exit, nil
+		return decision.Exit, false, nil
 	}
 
 	provName := string(policy.Spec.Provisioner)
@@ -217,19 +225,19 @@ func (r *TunnelReconciler) allocateExit(ctx context.Context, tunnel *frpv1alpha1
 	}
 	ps, err := r.ProvisionStrategies.Lookup(provName)
 	if err != nil {
-		return nil, fmt.Errorf("provision strategy %q: %w", provName, err)
+		return nil, false, fmt.Errorf("provision strategy %q: %w", provName, err)
 	}
 	pd, err := ps.Plan(scheduler.ProvisionInput{Tunnel: tunnel, Policy: policy, Current: exits})
 	if err != nil {
-		return nil, fmt.Errorf("Plan: %w", err)
+		return nil, false, fmt.Errorf("Plan: %w", err)
 	}
 	if !pd.Provision {
-		return nil, nil
+		return nil, false, nil
 	}
 	if _, err := createExitServerFromDecision(ctx, r.Client, tunnel, pd); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return nil, nil
+	return nil, true, nil
 }
 
 // patchTunnelPhase patches just status.phase when the tunnel is not yet placed.

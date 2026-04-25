@@ -8,13 +8,15 @@ import (
 // Pure function; no side effects.
 //
 // Inputs:
-//   current      = current Tunnel.status.phase
-//   exitAssigned = is there an assignedExit?
-//   exitReady    = is the assigned exit in PhaseReady?
-//   frpcReady    = is the frpc Deployment Ready (replicas == readyReplicas > 0)?
+//
+//	current      = current Tunnel.status.phase
+//	exitAssigned = is there an assignedExit?
+//	exitReady    = is the assigned exit in PhaseReady?
+//	frpcReady    = is the frpc Deployment Ready (replicas == readyReplicas > 0)?
 //
 // Lattice (worst-to-best):
-//   Failed > Disconnected > Pending > Allocating > Provisioning > Connecting > Ready
+//
+//	Failed > Disconnected > Pending > Allocating > Provisioning > Connecting > Ready
 //
 // We only ever transition forward to Ready. Disconnected is a regression
 // from Ready when frpc loses connection (frpc Deployment unhealthy).

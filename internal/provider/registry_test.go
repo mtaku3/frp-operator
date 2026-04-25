@@ -8,9 +8,9 @@ import (
 
 type stubProvisioner struct{ name string }
 
-func (s *stubProvisioner) Name() string                                     { return s.name }
-func (s *stubProvisioner) Create(_ context.Context, _ Spec) (State, error)  { return State{}, nil }
-func (s *stubProvisioner) Destroy(_ context.Context, _ string) error        { return nil }
+func (s *stubProvisioner) Name() string                                    { return s.name }
+func (s *stubProvisioner) Create(_ context.Context, _ Spec) (State, error) { return State{}, nil }
+func (s *stubProvisioner) Destroy(_ context.Context, _ string) error       { return nil }
 func (s *stubProvisioner) Inspect(_ context.Context, _ string) (State, error) {
 	return State{}, ErrNotFound
 }

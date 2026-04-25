@@ -20,7 +20,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -28,6 +27,7 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/errdefs"
 	"github.com/docker/go-connections/nat"
 
 	"github.com/mtaku3/frp-operator/internal/provider"
@@ -159,8 +159,7 @@ func (d *LocalDocker) Inspect(ctx context.Context, providerID string) (provider.
 	resp, err := d.client.ContainerInspect(ctx, providerID)
 	if err != nil {
 		// Distinguish "no such container" from other errors.
-		msg := strings.ToLower(err.Error())
-		if strings.Contains(msg, "no such container") || strings.Contains(msg, "404") {
+		if errdefs.IsNotFound(err) {
 			return provider.State{Phase: provider.PhaseGone}, fmt.Errorf("%s: %w", providerID, provider.ErrNotFound)
 		}
 		return provider.State{}, fmt.Errorf("inspect: %w", err)
@@ -189,14 +188,12 @@ func (d *LocalDocker) Destroy(ctx context.Context, providerID string) error {
 	}
 	timeout := 5
 	if err := d.client.ContainerStop(ctx, providerID, container.StopOptions{Timeout: &timeout}); err != nil {
-		msg := strings.ToLower(err.Error())
-		if !strings.Contains(msg, "no such container") && !strings.Contains(msg, "404") {
+		if !errdefs.IsNotFound(err) {
 			return fmt.Errorf("stop: %w", err)
 		}
 	}
 	if err := d.client.ContainerRemove(ctx, providerID, container.RemoveOptions{Force: true}); err != nil {
-		msg := strings.ToLower(err.Error())
-		if !strings.Contains(msg, "no such container") && !strings.Contains(msg, "404") {
+		if !errdefs.IsNotFound(err) {
 			return fmt.Errorf("remove: %w", err)
 		}
 	}

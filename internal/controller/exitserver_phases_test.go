@@ -9,9 +9,9 @@ import (
 
 func TestNextPhase(t *testing.T) {
 	type input struct {
-		current     frpv1alpha1.ExitPhase
-		providerSt  provider.Phase
-		adminOK     bool // last admin-API probe outcome
+		current    frpv1alpha1.ExitPhase
+		providerSt provider.Phase
+		adminOK    bool // last admin-API probe outcome
 	}
 	cases := []struct {
 		name string

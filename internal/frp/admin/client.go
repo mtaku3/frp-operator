@@ -50,12 +50,20 @@ func (c *Client) ServerInfo(ctx context.Context) (*ServerInfo, error) {
 // triggers GET /api/reload. Both steps must succeed; if reload fails the
 // caller should inspect the most recent ServerInfo to detect partial state.
 func (c *Client) PutConfigAndReload(ctx context.Context, configBody []byte) error {
-	if _, err := c.do(ctx, http.MethodPut, "/api/config", bytes.NewReader(configBody)); err != nil {
+	resp, err := c.do(ctx, http.MethodPut, "/api/config", bytes.NewReader(configBody))
+	if err != nil {
 		return fmt.Errorf("put config: %w", err)
 	}
-	if _, err := c.do(ctx, http.MethodGet, "/api/reload", nil); err != nil {
+	io.Copy(io.Discard, resp.Body) // drain to allow keep-alive reuse
+	resp.Body.Close()
+
+	resp, err = c.do(ctx, http.MethodGet, "/api/reload", nil)
+	if err != nil {
 		return fmt.Errorf("reload: %w", err)
 	}
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+
 	return nil
 }
 

@@ -88,3 +88,103 @@ func TestServerInfoBadAuthReturnsUnauthorized(t *testing.T) {
 		t.Errorf("error should mention 401: %v", err)
 	}
 }
+
+func TestPutConfigClosesBodies(t *testing.T) {
+	// Track whether response bodies were fully read before being closed.
+	// This verifies that we drain+close rather than just closing.
+	var configBodyRead bool
+	var reloadBodyRead bool
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPut && r.URL.Path == "/api/config":
+			// Write a body that must be read to track if it was drained.
+			w.Header().Set("Content-Length", "10")
+			w.Write([]byte("config-ok!"))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/reload":
+			// Similarly for the reload endpoint.
+			w.Header().Set("Content-Length", "8")
+			w.Write([]byte("reload-ok"))
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer srv.Close()
+
+	// Use a custom RoundTripper to verify bodies are being read.
+	origRT := http.DefaultTransport
+	http.DefaultTransport = &trackingRoundTripper{
+		RT: origRT,
+		onResp: func(resp *http.Response) {
+			// Wrap the body to track if it's fully read.
+			originalBody := resp.Body
+			resp.Body = &trackingReadCloser{
+				rc: originalBody,
+				onFullyRead: func() {
+					if resp.Request.URL.Path == "/api/config" {
+						configBodyRead = true
+					} else if resp.Request.URL.Path == "/api/reload" {
+						reloadBodyRead = true
+					}
+				},
+			}
+		},
+	}
+	defer func() { http.DefaultTransport = origRT }()
+
+	c := NewClient(srv.URL, "admin", "secret")
+	if err := c.PutConfigAndReload(context.Background(), []byte(`bindPort = 7000`)); err != nil {
+		t.Fatalf("PutConfigAndReload: %v", err)
+	}
+
+	if !configBodyRead {
+		t.Error("PUT /api/config response body was not fully read before closing (leak risk)")
+	}
+	if !reloadBodyRead {
+		t.Error("GET /api/reload response body was not fully read before closing (leak risk)")
+	}
+}
+
+// trackingRoundTripper wraps an http.RoundTripper to track responses.
+type trackingRoundTripper struct {
+	RT     http.RoundTripper
+	onResp func(*http.Response)
+}
+
+func (t *trackingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.RT.RoundTrip(req)
+	if err != nil {
+		return resp, err
+	}
+	if t.onResp != nil {
+		t.onResp(resp)
+	}
+	return resp, nil
+}
+
+// trackingReadCloser wraps an io.ReadCloser and calls a callback when fully read.
+type trackingReadCloser struct {
+	rc          io.ReadCloser
+	onFullyRead func()
+	sawEOF      bool
+}
+
+func (t *trackingReadCloser) Read(p []byte) (n int, err error) {
+	n, err = t.rc.Read(p)
+	if err == io.EOF && !t.sawEOF {
+		t.sawEOF = true
+		if t.onFullyRead != nil {
+			t.onFullyRead()
+		}
+	}
+	return n, err
+}
+
+func (t *trackingReadCloser) Close() error {
+	// Even if we weren't fully read, mark as read on close (defensive).
+	if !t.sawEOF && t.onFullyRead != nil {
+		t.onFullyRead()
+	}
+	return t.rc.Close()
+}

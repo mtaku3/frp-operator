@@ -31,10 +31,10 @@ func TestTunnelRoundTrip(t *testing.T) {
 			ImmutableWhenReady: true,
 		},
 		Status: TunnelStatus{
-			Phase:          TunnelReady,
-			AssignedExit:   "exit-nyc-1",
-			AssignedIP:     "203.0.113.10",
-			AssignedPorts:  []int32{80},
+			Phase:         TunnelReady,
+			AssignedExit:  "exit-nyc-1",
+			AssignedIP:    "203.0.113.10",
+			AssignedPorts: []int32{80},
 		},
 	}
 	b, err := json.Marshal(&original)

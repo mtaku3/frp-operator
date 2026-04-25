@@ -11,13 +11,24 @@ spec:
     kind: SchedulingPolicy
     listKind: SchedulingPolicyList
     plural: schedulingpolicies
+    shortNames:
+    - spol
     singular: schedulingpolicy
   scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.allocator
+      name: Allocator
+      type: string
+    - jsonPath: .spec.provisioner
+      name: Provisioner
+      type: string
+    - jsonPath: .spec.budget.maxExits
+      name: MaxExits
+      type: integer
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: SchedulingPolicy is the Schema for the schedulingpolicies API
         properties:
           apiVersion:
             description: |-
@@ -37,27 +48,96 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of SchedulingPolicy
             properties:
-              foo:
-                description: foo is an example field of SchedulingPolicy. Edit schedulingpolicy_types.go
-                  to remove/update
+              allocator:
+                default: CapacityAware
+                description: |-
+                  AllocatorName names a built-in or registered Allocator. Custom
+                  allocators use the form "Custom:<name>" — validation accepts any
+                  non-empty string; resolution to a concrete impl happens at runtime.
+                minLength: 1
                 type: string
+              budget:
+                properties:
+                  maxExits:
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  maxExitsPerNamespace:
+                    format: int32
+                    minimum: 0
+                    type: integer
+                type: object
+              consolidation:
+                properties:
+                  drainAfter:
+                    default: 10m
+                    type: string
+                  reclaimEmpty:
+                    default: true
+                    type: boolean
+                type: object
+              probes:
+                properties:
+                  adminInterval:
+                    default: 30s
+                    type: string
+                  degradedTimeout:
+                    default: 5m
+                    type: string
+                  lostGracePeriod:
+                    default: 5m
+                    type: string
+                  providerInterval:
+                    default: 5m
+                    type: string
+                type: object
+              provisioner:
+                default: OnDemand
+                minLength: 1
+                type: string
+              vps:
+                properties:
+                  default:
+                    properties:
+                      capacity:
+                        description: |-
+                          ExitCapacity declares per-exit caps used for reservation math.
+                          All fields optional; unset means "no limit on this dimension".
+                        properties:
+                          bandwidthMbps:
+                            format: int32
+                            minimum: 0
+                            type: integer
+                          maxTunnels:
+                            format: int32
+                            minimum: 0
+                            type: integer
+                          monthlyTrafficGB:
+                            format: int64
+                            minimum: 0
+                            type: integer
+                        type: object
+                      provider:
+                        description: Provider identifies which Provisioner implementation
+                          manages an exit's VPS.
+                        enum:
+                        - digitalocean
+                        - external
+                        - local-docker
+                        type: string
+                      regions:
+                        items:
+                          type: string
+                        type: array
+                      size:
+                        type: string
+                    type: object
+                type: object
             type: object
           status:
-            description: status defines the observed state of SchedulingPolicy
             properties:
               conditions:
-                description: |-
-                  conditions represent the current state of the SchedulingPolicy resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -117,8 +197,6 @@ spec:
                 - type
                 x-kubernetes-list-type: map
             type: object
-        required:
-        - spec
         type: object
     served: true
     storage: true

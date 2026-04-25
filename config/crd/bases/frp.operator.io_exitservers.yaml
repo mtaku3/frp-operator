@@ -11,13 +11,31 @@ spec:
     kind: ExitServer
     listKind: ExitServerList
     plural: exitservers
+    shortNames:
+    - exit
+    - exits
     singular: exitserver
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.publicIP
+      name: IP
+      type: string
+    - jsonPath: .spec.provider
+      name: Provider
+      type: string
+    - jsonPath: .status.usage.tunnels
+      name: Tunnels
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ExitServer is the Schema for the exitservers API
         properties:
           apiVersion:
             description: |-
@@ -37,27 +55,116 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of ExitServer
             properties:
-              foo:
-                description: foo is an example field of ExitServer. Edit exitserver_types.go
-                  to remove/update
+              allowPorts:
+                description: |-
+                  AllowPorts is a list of port ranges (e.g. "1024-65535") or single ports
+                  the operator may allocate to tunnels. Grow-only — admission webhook
+                  rejects shrinks below current allocations (enforced in a later phase).
+                items:
+                  type: string
+                minItems: 1
+                type: array
+              capacity:
+                description: |-
+                  ExitCapacity declares per-exit caps used for reservation math.
+                  All fields optional; unset means "no limit on this dimension".
+                properties:
+                  bandwidthMbps:
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  maxTunnels:
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  monthlyTrafficGB:
+                    format: int64
+                    minimum: 0
+                    type: integer
+                type: object
+              credentialsRef:
+                description: SecretKeyRef points at a key in a Secret in the same
+                  namespace as the referrer.
+                properties:
+                  key:
+                    minLength: 1
+                    type: string
+                  name:
+                    minLength: 1
+                    type: string
+                required:
+                - key
+                - name
+                type: object
+              frps:
+                properties:
+                  adminPort:
+                    default: 7500
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  bindPort:
+                    default: 7000
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  version:
+                    description: Pinned frps release tag; the operator ships a bundled
+                      checksum for it.
+                    minLength: 1
+                    type: string
+                required:
+                - version
+                type: object
+              provider:
+                description: Provider identifies which Provisioner implementation
+                  manages an exit's VPS.
+                enum:
+                - digitalocean
+                - external
+                - local-docker
                 type: string
+              region:
+                type: string
+              reservedPorts:
+                description: |-
+                  ReservedPorts is a list of ports the operator must NOT allocate even if
+                  they fall inside AllowPorts. Defaults to [SSH.Port, Frps.BindPort,
+                  Frps.AdminPort] when empty (defaulted in webhook in a later phase).
+                items:
+                  format: int32
+                  type: integer
+                type: array
+              size:
+                type: string
+              ssh:
+                properties:
+                  port:
+                    default: 22
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                type: object
+            required:
+            - allowPorts
+            - frps
+            - provider
             type: object
           status:
-            description: status defines the observed state of ExitServer
             properties:
-              conditions:
+              allocations:
+                additionalProperties:
+                  type: string
                 description: |-
-                  conditions represent the current state of the ExitServer resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                  Allocations maps allocated public port (as string) to "namespace/name"
+                  of the Tunnel that holds it. String keys because JSON object keys.
+                type: object
+              conditions:
+                description: Conditions is the standard Kubernetes condition list.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -116,9 +223,44 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              frpsVersion:
+                type: string
+              lastReconcileTime:
+                format: date-time
+                type: string
+              phase:
+                description: ExitPhase is the lifecycle phase of an ExitServer.
+                enum:
+                - Pending
+                - Provisioning
+                - Ready
+                - Degraded
+                - Unreachable
+                - Lost
+                - Draining
+                - Deleting
+                type: string
+              providerID:
+                type: string
+              publicIP:
+                type: string
+              usage:
+                description: ExitUsage is the running sum of tunnel reservations on
+                  an exit.
+                properties:
+                  bandwidthMbps:
+                    format: int32
+                    type: integer
+                  monthlyTrafficGB:
+                    format: int64
+                    type: integer
+                  tunnels:
+                    format: int32
+                    type: integer
+                required:
+                - tunnels
+                type: object
             type: object
-        required:
-        - spec
         type: object
     served: true
     storage: true

@@ -77,6 +77,20 @@ var _ = Describe("ExitServerController integration", func() {
 			Provisioners:   registry,
 			NewAdminClient: func(_, _, _ string) AdminClient { return fa },
 		}
+
+		// The integration tests use CredentialsRef{Name: "x", Key: "y"};
+		// the controller now loads it from a real Secret. Provide one.
+		sec := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "x", Namespace: "default"},
+			Data:       map[string][]byte{"y": []byte("test-do-token")},
+		}
+		if err := k8sClient.Create(ctx, sec); err != nil && !errors.IsAlreadyExists(err) {
+			Expect(err).NotTo(HaveOccurred())
+		}
+		DeferCleanup(func() {
+			s := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "x", Namespace: "default"}}
+			_ = k8sClient.Delete(ctx, s)
+		})
 	})
 
 	It("provisions a fresh ExitServer and writes status", func() {

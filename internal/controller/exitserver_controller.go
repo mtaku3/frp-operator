@@ -32,7 +32,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
+	"github.com/mtaku3/frp-operator/internal/bootstrap"
 	"github.com/mtaku3/frp-operator/internal/frp/admin"
+	"github.com/mtaku3/frp-operator/internal/frp/config"
+	"github.com/mtaku3/frp-operator/internal/frp/release"
 	"github.com/mtaku3/frp-operator/internal/provider"
 )
 
@@ -115,8 +118,44 @@ func (r *ExitServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
+	// Step 5b: Render frps.toml + cloud-init user-data using Phase 2 primitives.
+	frpsCfg := config.FrpsConfig{
+		BindPort: portOrDefault(exit.Spec.Frps.BindPort, 7000),
+		Auth:     config.FrpsAuth{Method: "token", Token: creds.AuthToken},
+		WebServer: config.FrpsWebServer{
+			Addr:     "0.0.0.0",
+			Port:     portOrDefault(exit.Spec.Frps.AdminPort, 7500),
+			User:     adminUser,
+			Password: creds.AdminPassword,
+		},
+		AllowPorts: parseAllowPorts(exit.Spec.AllowPorts),
+	}
+	frpsBody, err := frpsCfg.Render()
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("render frps.toml: %w", err)
+	}
+	cloudInit, err := bootstrap.Render(bootstrap.Input{
+		FrpsConfigTOML:  frpsBody,
+		BindPort:        portOrDefault(exit.Spec.Frps.BindPort, 7000),
+		AdminPort:       portOrDefault(exit.Spec.Frps.AdminPort, 7500),
+		AllowPortsRange: firstAllowPortsRangeString(exit.Spec.AllowPorts),
+		ReservedPorts:   intsFrom32(exit.Spec.ReservedPorts),
+		FrpsVersion:     release.Version,
+		FrpsDownloadURL: release.DownloadURL("linux", "amd64"),
+		FrpsSHA256:      release.SHA256LinuxAmd64,
+	})
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("render cloud-init: %w", err)
+	}
+
+	// Step 5c: Load provider API credentials from the referenced Secret.
+	providerCreds, err := loadProviderCredentials(ctx, r.Client, &exit)
+	if err != nil {
+		return r.patchStatusCondition(ctx, &exit, "CredentialsUnavailable", err.Error())
+	}
+
 	// Step 6/7: Provisioner state.
-	state, provErr := reconcileProvisioner(ctx, p, &exit, creds)
+	state, provErr := reconcileProvisioner(ctx, p, &exit, creds, providerCreds, cloudInit, frpsBody)
 	if provErr != nil {
 		// Network/transient errors get re-enqueued. ErrNotFound is treated
 		// as "the resource is gone" -> Lost.

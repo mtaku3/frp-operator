@@ -37,6 +37,7 @@ runcmd:
   - ufw allow {{ .BindPort }}/tcp
   - ufw allow {{ .AdminPort }}/tcp
   - ufw allow {{ .AllowPortsRangeUFW }}/tcp
+{{- /* UFW first-match-wins: allow rules above take precedence over deny rules below — DO NOT reorder. */ -}}
 {{- range .ReservedPorts }}
   - ufw deny {{ . }}/tcp || true
 {{- end }}

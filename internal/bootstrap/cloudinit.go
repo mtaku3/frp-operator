@@ -8,6 +8,8 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"text/template"
 )
@@ -72,8 +74,8 @@ func validate(in Input) error {
 	if in.BindPort == 0 || in.AdminPort == 0 {
 		return fmt.Errorf("BindPort and AdminPort are required")
 	}
-	if !strings.Contains(in.AllowPortsRange, "-") {
-		return fmt.Errorf("AllowPortsRange must be of the form start-end, got %q", in.AllowPortsRange)
+	if err := validateAllowPortsRange(in.AllowPortsRange); err != nil {
+		return err
 	}
 	if in.FrpsDownloadURL == "" || in.FrpsSHA256 == "" || in.FrpsVersion == "" {
 		return fmt.Errorf("FrpsVersion, FrpsDownloadURL, FrpsSHA256 are all required")
@@ -81,5 +83,22 @@ func validate(in Input) error {
 	if len(in.FrpsSHA256) != 64 {
 		return fmt.Errorf("FrpsSHA256 must be 64 hex chars, got len %d", len(in.FrpsSHA256))
 	}
+	return nil
+}
+
+func validateAllowPortsRange(allowPortsRange string) error {
+	re := regexp.MustCompile(`^\d+-\d+$`)
+	if !re.MatchString(allowPortsRange) {
+		return fmt.Errorf("AllowPortsRange must be of the form start-end (numeric), got %q", allowPortsRange)
+	}
+
+	parts := strings.Split(allowPortsRange, "-")
+	start, _ := strconv.Atoi(parts[0])
+	end, _ := strconv.Atoi(parts[1])
+
+	if end < start {
+		return fmt.Errorf("AllowPortsRange end (%d) must be >= start (%d)", end, start)
+	}
+
 	return nil
 }

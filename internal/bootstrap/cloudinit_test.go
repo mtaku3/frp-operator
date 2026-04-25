@@ -62,3 +62,29 @@ func TestRenderCloudInitContainsExpectedKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderRejectsBadAllowPortsRange(t *testing.T) {
+	cases := map[string]string{
+		"empty":         "",
+		"no dash":       "1024",
+		"non-numeric":   "abc-def",
+		"reversed":      "65535-1024",
+		"trailing junk": "1024-65535-",
+	}
+	for name, bad := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := Render(Input{
+				FrpsConfigTOML:  []byte("bindPort = 7000\n"),
+				BindPort:        7000,
+				AdminPort:       7500,
+				AllowPortsRange: bad,
+				FrpsVersion:     "v0.68.1",
+				FrpsDownloadURL: "https://example.test/frp.tar.gz",
+				FrpsSHA256:      "0000000000000000000000000000000000000000000000000000000000000000",
+			})
+			if err == nil {
+				t.Errorf("expected error for AllowPortsRange=%q, got nil", bad)
+			}
+		})
+	}
+}

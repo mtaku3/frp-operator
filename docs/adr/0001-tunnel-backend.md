@@ -140,6 +140,9 @@ line-rate traffic, not `frps` RAM.
   the admin API.
 - Coupled to FRP's protocol evolution; upstream version pins are managed in
   the operator.
+- **Version pinning:** Currently pinned to v0.68.1 (latest stable as of 2026-04).
+  Bumped from v0.65.0 during Phase 2 implementation for performance and
+  stability improvements.
 
 ## References
 

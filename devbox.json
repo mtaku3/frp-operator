@@ -5,7 +5,11 @@
     "wireguard-tools@latest",
     "bc@latest",
     "python@latest",
-    "jq@latest"
+    "jq@latest",
+    "glow@latest",
+    "go@1.24",
+    "kubebuilder@latest",
+    "kustomize@latest"
   ],
   "shell": {
     "init_hook": [
@@ -13,7 +17,7 @@
     ],
     "scripts": {
       "test": [
-        "echo \"Error: no test specified\" && exit 1"
+        "go test ./..."
       ]
     }
   }

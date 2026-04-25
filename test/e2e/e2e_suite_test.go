@@ -49,6 +49,12 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	// Default-skip cert-manager install for v1 e2e (no webhook serving certs needed).
+	// Override by setting CERT_MANAGER_INSTALL_SKIP=false explicitly.
+	if os.Getenv("CERT_MANAGER_INSTALL_SKIP") == "" {
+		_ = os.Setenv("CERT_MANAGER_INSTALL_SKIP", "true")
+	}
+
 	By("building the manager image")
 	cmd := exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", managerImage))
 	_, err := utils.Run(cmd)

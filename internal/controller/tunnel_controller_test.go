@@ -138,14 +138,15 @@ var _ = Describe("TunnelController integration", func() {
 		Expect(k8sClient.List(tctx, &exits, client.InNamespace("default"))).To(Succeed())
 		Expect(exits.Items).To(Not(BeEmpty()))
 		// Get the exit for this tunnel (created by the provisioner).
-		var exitName string
+		// With the fix, there should be exactly 1 exit created by tunnel-controller.
+		var createdByTunnelController []frpv1alpha1.ExitServer
 		for _, ex := range exits.Items {
-			if ex.Labels["frp-operator.io/created-by"] == "tunnel-controller" {
-				exitName = ex.Name
-				break
+			if ex.Labels != nil && ex.Labels["frp-operator.io/created-by"] == "tunnel-controller" {
+				createdByTunnelController = append(createdByTunnelController, ex)
 			}
 		}
-		Expect(exitName).NotTo(BeEmpty())
+		Expect(createdByTunnelController).To(HaveLen(1))
+		exitName := createdByTunnelController[0].Name
 		eReq := ctrl.Request{NamespacedName: types.NamespacedName{Name: exitName, Namespace: "default"}}
 		for i := 0; i < 3; i++ {
 			_, err := exitRecon.Reconcile(tctx, eReq)

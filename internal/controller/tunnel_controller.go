@@ -89,13 +89,11 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 		if exit == nil {
-			phase := frpv1alpha1.TunnelAllocating
-			reason := "no eligible exit; pending"
-			if justProvisioned {
-				phase = frpv1alpha1.TunnelProvisioning
-				reason = "provisioning new exit"
-			}
-			return r.patchTunnelPhase(ctx, &tunnel, phase, reason)
+			return r.patchTunnelPhase(ctx, &tunnel, frpv1alpha1.TunnelAllocating, "no eligible exit; pending")
+		}
+		if justProvisioned {
+			// Newly-created exit: record it and wait for Ready.
+			return r.patchTunnelPhaseWithExit(ctx, &tunnel, exit, frpv1alpha1.TunnelProvisioning, "provisioning new exit")
 		}
 	} else {
 		var got frpv1alpha1.ExitServer
@@ -234,10 +232,11 @@ func (r *TunnelReconciler) allocateExit(ctx context.Context, tunnel *frpv1alpha1
 	if !pd.Provision {
 		return nil, false, nil
 	}
-	if _, err := createExitServerFromDecision(ctx, r.Client, tunnel, pd); err != nil {
+	newExit, err := createExitServerFromDecision(ctx, r.Client, tunnel, pd)
+	if err != nil {
 		return nil, false, err
 	}
-	return nil, true, nil
+	return newExit, true, nil
 }
 
 // patchTunnelPhase patches just status.phase when the tunnel is not yet placed.

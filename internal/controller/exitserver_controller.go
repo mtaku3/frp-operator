@@ -126,9 +126,25 @@ func (r *ExitServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 
-	// Step 8 placeholder: assume admin OK if provider says Running. Task 5
-	// replaces this with a real ServerInfo call.
-	adminOK := state.Phase == provider.PhaseRunning
+	// Step 8: real admin probe. Build an AdminClient once we have a
+	// PublicIP and a factory injected, then call ServerInfo with a short
+	// timeout. A nil error means the frps webServer admin API is healthy.
+	adminOK := false
+	if state.PublicIP != "" && r.NewAdminClient != nil {
+		// Temporarily reflect the freshly observed PublicIP so adminBaseURL
+		// can build a URL even before status is patched below.
+		probeExit := exit.DeepCopy()
+		probeExit.Status.PublicIP = state.PublicIP
+		baseURL, urlErr := adminBaseURL(probeExit)
+		if urlErr == nil {
+			ac := r.NewAdminClient(baseURL, adminUser, creds.AdminPassword)
+			probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			if _, sErr := ac.ServerInfo(probeCtx); sErr == nil {
+				adminOK = true
+			}
+			cancel()
+		}
+	}
 
 	// Step 9: Compute nextPhase and patch status.
 	patch := client.MergeFrom(exit.DeepCopy())

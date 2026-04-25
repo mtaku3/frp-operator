@@ -33,9 +33,29 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
+	"github.com/mtaku3/frp-operator/internal/frp/admin"
 	"github.com/mtaku3/frp-operator/internal/provider"
 	"github.com/mtaku3/frp-operator/internal/provider/fake"
 )
+
+// fakeAdmin is an injectable AdminClient implementation. Tests toggle
+// serverInfoOK between reconcile calls to drive Ready/Degraded transitions;
+// because ServerInfo reads the field on every call (no captured snapshot),
+// flips are picked up on the next reconcile.
+type fakeAdmin struct {
+	serverInfoOK bool
+}
+
+func (f *fakeAdmin) ServerInfo(_ context.Context) (*admin.ServerInfo, error) {
+	if !f.serverInfoOK {
+		return nil, goerrors.New("fake admin: not ready")
+	}
+	return &admin.ServerInfo{Version: "0.68.1"}, nil
+}
+
+func (f *fakeAdmin) PutConfigAndReload(_ context.Context, _ []byte) error {
+	return nil
+}
 
 var _ = Describe("ExitServer Controller", func() {
 	Context("When reconciling a resource", func() {
@@ -102,16 +122,19 @@ var _ = Describe("ExitServerController integration", func() {
 		fakeProv *fake.FakeProvisioner
 		registry *provider.Registry
 		recon    *ExitServerReconciler
+		fa       *fakeAdmin
 	)
 
 	BeforeEach(func() {
 		fakeProv = fake.New("digitalocean")
 		registry = provider.NewRegistry()
 		Expect(registry.Register(fakeProv)).To(Succeed())
+		fa = &fakeAdmin{serverInfoOK: true}
 		recon = &ExitServerReconciler{
-			Client:       k8sClient,
-			Scheme:       scheme.Scheme,
-			Provisioners: registry,
+			Client:         k8sClient,
+			Scheme:         scheme.Scheme,
+			Provisioners:   registry,
+			NewAdminClient: func(_, _, _ string) AdminClient { return fa },
 		}
 	})
 
@@ -165,8 +188,7 @@ var _ = Describe("ExitServerController integration", func() {
 		Expect(k8sClient.Get(ctx, key, got)).To(Succeed())
 		Expect(got.Status.ProviderID).NotTo(BeEmpty())
 		Expect(got.Status.PublicIP).To(Equal("127.0.0.1"))
-		// Task 4 placeholder: adminOK := state.Phase == provider.PhaseRunning,
-		// so PhaseRunning + adminOK=true -> PhaseReady.
+		// Fake admin reports ServerInfo OK -> nextPhase yields Ready.
 		Expect(got.Status.Phase).To(Equal(frpv1alpha1.PhaseReady))
 		Expect(got.Status.LastReconcileTime).NotTo(BeNil())
 
@@ -221,5 +243,60 @@ var _ = Describe("ExitServerController integration", func() {
 		// Fake provisioner no longer holds the resource.
 		_, inspectErr := fakeProv.Inspect(ctx, providerID)
 		Expect(goerrors.Is(inspectErr, provider.ErrNotFound)).To(BeTrue())
+	})
+
+	It("transitions to Degraded when admin probe fails post-Ready", func() {
+		exit := &frpv1alpha1.ExitServer{
+			ObjectMeta: metav1.ObjectMeta{Name: "exit-deg", Namespace: "default"},
+			Spec: frpv1alpha1.ExitServerSpec{
+				Provider:       frpv1alpha1.ProviderDigitalOcean,
+				Region:         "nyc1",
+				Size:           "s-1vcpu-1gb",
+				CredentialsRef: frpv1alpha1.SecretKeyRef{Name: "x", Key: "y"},
+				Frps:           frpv1alpha1.FrpsConfig{Version: "v0.68.1"},
+				AllowPorts:     []string{"1024-65535"},
+			},
+		}
+		Expect(k8sClient.Create(ctx, exit)).To(Succeed())
+		key := types.NamespacedName{Name: "exit-deg", Namespace: "default"}
+		req := ctrl.Request{NamespacedName: key}
+		DeferCleanup(func() {
+			got := &frpv1alpha1.ExitServer{}
+			if err := k8sClient.Get(ctx, key, got); err == nil {
+				_ = k8sClient.Delete(ctx, got)
+				Eventually(func() error {
+					_, rerr := recon.Reconcile(ctx, req)
+					if rerr != nil {
+						return rerr
+					}
+					gerr := k8sClient.Get(ctx, key, got)
+					if errors.IsNotFound(gerr) {
+						return nil
+					}
+					if gerr != nil {
+						return gerr
+					}
+					return goerrors.New("still present")
+				}, 5*time.Second, 100*time.Millisecond).Should(Succeed())
+			}
+		})
+
+		// Drive reconciles to Ready with the fake admin reporting OK.
+		for i := 0; i < 3; i++ {
+			_, err := recon.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+		}
+		got := &frpv1alpha1.ExitServer{}
+		Expect(k8sClient.Get(ctx, key, got)).To(Succeed())
+		Expect(got.Status.Phase).To(Equal(frpv1alpha1.PhaseReady))
+
+		// Flip the fake admin to fail. Because ServerInfo reads the field
+		// each call (not a captured snapshot), the next reconcile picks up
+		// the failure and nextPhase transitions Ready -> Degraded.
+		fa.serverInfoOK = false
+		_, err := recon.Reconcile(ctx, req)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(k8sClient.Get(ctx, key, got)).To(Succeed())
+		Expect(got.Status.Phase).To(Equal(frpv1alpha1.PhaseDegraded))
 	})
 })

@@ -1,0 +1,9 @@
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitServer
+metadata:
+  labels:
+    app.kubernetes.io/name: frp-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: exitserver-sample
+spec:
+  # TODO(user): Add fields here

@@ -24,6 +24,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -72,8 +73,6 @@ type ExitServerReconciler struct {
 //  7. Otherwise, call Provisioner.Inspect and admin.ServerInfo for health.
 //  8. Compute next phase via nextPhase(); patch status.
 //  9. Requeue at the configured admin-probe interval.
-//
-// Tasks 4–5 fill in step 6–8. This task lands the skeleton with steps 1–3.
 func (r *ExitServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
@@ -98,10 +97,91 @@ func (r *ExitServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	// TODO(Tasks 4-5): resolve Provisioner, ensure credentials Secret, run
-	// Create/Inspect, probe admin API, compute next phase, patch status.
-	logger.V(1).Info("reconciling ExitServer", "name", exit.Name, "phase", exit.Status.Phase)
+	// Step 4: Look up Provisioner.
+	if r.Provisioners == nil {
+		return ctrl.Result{}, errors.New("ExitServerReconciler.Provisioners is nil — wire it in main.go")
+	}
+	p, err := r.Provisioners.Lookup(string(exit.Spec.Provider))
+	if err != nil {
+		// Treat a missing Provisioner as a permanent failure on this CR;
+		// surface via condition rather than re-enqueueing forever.
+		return r.patchStatusCondition(ctx, &exit, "ProviderNotRegistered", err.Error())
+	}
+
+	// Step 5: Ensure credentials Secret.
+	creds, err := ensureCredentialsSecret(ctx, r.Client, &exit)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Step 6/7: Provisioner state.
+	state, provErr := reconcileProvisioner(ctx, p, &exit, creds)
+	if provErr != nil {
+		// Network/transient errors get re-enqueued. ErrNotFound is treated
+		// as "the resource is gone" -> Lost.
+		if errors.Is(provErr, provider.ErrNotFound) {
+			state.Phase = provider.PhaseGone
+		} else {
+			return ctrl.Result{}, provErr
+		}
+	}
+
+	// Step 8 placeholder: assume admin OK if provider says Running. Task 5
+	// replaces this with a real ServerInfo call.
+	adminOK := state.Phase == provider.PhaseRunning
+
+	// Step 9: Compute nextPhase and patch status.
+	patch := client.MergeFrom(exit.DeepCopy())
+	if state.ProviderID != "" {
+		exit.Status.ProviderID = state.ProviderID
+	}
+	if state.PublicIP != "" {
+		exit.Status.PublicIP = state.PublicIP
+	}
+	exit.Status.Phase = nextPhase(exit.Status.Phase, state.Phase, adminOK)
+	now := metav1.Now()
+	exit.Status.LastReconcileTime = &now
+	if err := r.Status().Patch(ctx, &exit, patch); err != nil {
+		return ctrl.Result{}, fmt.Errorf("patch status: %w", err)
+	}
+
+	logger.V(1).Info("reconciled ExitServer", "name", exit.Name, "phase", exit.Status.Phase, "providerID", exit.Status.ProviderID)
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+}
+
+// patchStatusCondition writes one Condition to ExitServer.status and
+// returns a non-requeueing Result (the issue is "permanent" per this call;
+// resolution requires a spec change).
+func (r *ExitServerReconciler) patchStatusCondition(
+	ctx context.Context,
+	exit *frpv1alpha1.ExitServer,
+	reason, message string,
+) (ctrl.Result, error) {
+	patch := client.MergeFrom(exit.DeepCopy())
+	cond := metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionFalse,
+		ObservedGeneration: exit.Generation,
+		LastTransitionTime: metav1.Now(),
+		Reason:             reason,
+		Message:            message,
+	}
+	exit.Status.Conditions = upsertCondition(exit.Status.Conditions, cond)
+	if err := r.Status().Patch(ctx, exit, patch); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+}
+
+// upsertCondition replaces an existing condition by Type or appends one.
+func upsertCondition(in []metav1.Condition, c metav1.Condition) []metav1.Condition {
+	for i, existing := range in {
+		if existing.Type == c.Type {
+			in[i] = c
+			return in
+		}
+	}
+	return append(in, c)
 }
 
 // reconcileDelete tears the resource down, then drops the finalizer.

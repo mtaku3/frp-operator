@@ -1,0 +1,44 @@
+#cloud-config
+package_update: true
+package_upgrade: false
+
+write_files:
+  - path: /etc/frp/frps.toml
+    permissions: "0600"
+    owner: root:root
+    encoding: b64
+    content: {{ .FrpsConfigB64 }}
+  - path: /etc/systemd/system/frps.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=FRP server (frps)
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/local/bin/frps -c /etc/frp/frps.toml
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - set -eux
+  - cd /tmp
+  - curl -fsSL -o frp.tar.gz {{ .FrpsDownloadURL }}
+  - echo "{{ .FrpsSHA256 }}  frp.tar.gz" | sha256sum -c -
+  - tar -xzf frp.tar.gz --strip-components=1 -C /usr/local/bin frp_{{ trimv .FrpsVersion }}_linux_amd64/frps
+  - chmod +x /usr/local/bin/frps
+  - ufw --force enable
+  - ufw allow {{ .BindPort }}/tcp
+  - ufw allow {{ .AdminPort }}/tcp
+  - ufw allow {{ .AllowPortsRangeUFW }}/tcp
+{{- range .ReservedPorts }}
+  - ufw deny {{ . }}/tcp || true
+{{- end }}
+  - systemctl daemon-reload
+  - systemctl enable --now frps.service

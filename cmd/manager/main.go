@@ -37,6 +37,11 @@ import (
 
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 	"github.com/mtaku3/frp-operator/internal/controller"
+	"github.com/mtaku3/frp-operator/internal/frp/admin"
+	"github.com/mtaku3/frp-operator/internal/provider"
+	"github.com/mtaku3/frp-operator/internal/provider/digitalocean"
+	"github.com/mtaku3/frp-operator/internal/provider/localdocker"
+	"github.com/mtaku3/frp-operator/internal/scheduler"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -178,18 +183,87 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Build provider registry and register available providers. LocalDocker
+	// may fail when the Docker daemon is unreachable; we log and continue so
+	// the manager still starts in cloud-only environments.
+	provReg := provider.NewRegistry()
+	if ld, err := localdocker.New(localdocker.Config{Name: "local-docker"}); err != nil {
+		setupLog.Info("Skipping LocalDocker provider registration", "reason", err.Error())
+	} else if err := provReg.Register(ld); err != nil {
+		setupLog.Error(err, "Failed to register LocalDocker provider")
+		os.Exit(1)
+	}
+	if do, err := digitalocean.New(digitalocean.Config{Token: os.Getenv("DIGITALOCEAN_TOKEN")}); err != nil {
+		setupLog.Info("Skipping DigitalOcean provider registration", "reason", err.Error())
+	} else if err := provReg.Register(do); err != nil {
+		setupLog.Error(err, "Failed to register DigitalOcean provider")
+		os.Exit(1)
+	}
+
+	// Build scheduler registries.
+	allocReg := scheduler.NewAllocatorRegistry()
+	if err := allocReg.Register(&scheduler.BinPackAllocator{}); err != nil {
+		setupLog.Error(err, "Failed to register BinPack allocator")
+		os.Exit(1)
+	}
+	if err := allocReg.Register(&scheduler.SpreadAllocator{}); err != nil {
+		setupLog.Error(err, "Failed to register Spread allocator")
+		os.Exit(1)
+	}
+	if err := allocReg.Register(&scheduler.CapacityAwareAllocator{}); err != nil {
+		setupLog.Error(err, "Failed to register CapacityAware allocator")
+		os.Exit(1)
+	}
+
+	psReg := scheduler.NewProvisionStrategyRegistry()
+	if err := psReg.Register(&scheduler.OnDemandStrategy{}); err != nil {
+		setupLog.Error(err, "Failed to register OnDemand provision strategy")
+		os.Exit(1)
+	}
+	if err := psReg.Register(&scheduler.FixedPoolStrategy{}); err != nil {
+		setupLog.Error(err, "Failed to register FixedPool provision strategy")
+		os.Exit(1)
+	}
+
+	// adminFactory builds an AdminClient pointing at one frps's webServer.
+	// *admin.Client satisfies controller.AdminClient.
+	adminFactory := func(baseURL, user, password string) controller.AdminClient {
+		return admin.NewClient(baseURL, user, password)
+	}
+
 	if err := (&controller.ExitServerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		Provisioners:   provReg,
+		NewAdminClient: adminFactory,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "ExitServer")
 		os.Exit(1)
 	}
 	if err := (&controller.TunnelReconciler{
+		Client:              mgr.GetClient(),
+		Scheme:              mgr.GetScheme(),
+		Allocators:          allocReg,
+		ProvisionStrategies: psReg,
+		Provisioners:        provReg,
+		NewAdminClient:      adminFactory,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Failed to create controller", "controller", "Tunnel")
+		os.Exit(1)
+	}
+	if err := (&controller.ExitReclaimReconciler{
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		PolicyName: "default",
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Failed to create controller", "controller", "ExitReclaim")
+		os.Exit(1)
+	}
+	if err := (&controller.ServiceWatcherReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "Failed to create controller", "controller", "Tunnel")
+		setupLog.Error(err, "Failed to create controller", "controller", "ServiceWatcher")
 		os.Exit(1)
 	}
 	if err := (&controller.SchedulingPolicyReconciler{

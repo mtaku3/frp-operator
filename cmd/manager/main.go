@@ -42,6 +42,7 @@ import (
 	"github.com/mtaku3/frp-operator/internal/provider/digitalocean"
 	"github.com/mtaku3/frp-operator/internal/provider/localdocker"
 	"github.com/mtaku3/frp-operator/internal/scheduler"
+	webhookv1alpha1 "github.com/mtaku3/frp-operator/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -274,6 +275,16 @@ func main() {
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
+
+	// Webhooks: register the validators.
+	if err := (&webhookv1alpha1.TunnelValidator{}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Tunnel")
+		os.Exit(1)
+	}
+	if err := (&webhookv1alpha1.ExitServerValidator{}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "ExitServer")
+		os.Exit(1)
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "Failed to set up health check")

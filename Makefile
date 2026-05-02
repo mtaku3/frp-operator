@@ -96,6 +96,13 @@ test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expect
 cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
 	@$(KIND) delete cluster --name $(KIND_CLUSTER)
 
+.PHONY: test-e2e-localdocker
+test-e2e-localdocker: setup-test-e2e manifests generate fmt vet ## Run the LocalDocker e2e tests. Operator runs out-of-cluster against a kind cluster.
+	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e_localdocker ./test/e2e/ -v -ginkgo.v -timeout=10m; \
+	rc=$$?; \
+	if [ "$(KEEP_CLUSTER)" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
+	exit $$rc
+
 ##@ Local cluster (kind) — manual dev cluster, isolated from e2e cluster
 
 KIND_DEV_CLUSTER ?= frp-operator-dev

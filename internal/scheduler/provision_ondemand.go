@@ -1,6 +1,8 @@
 package scheduler
 
 import (
+	"fmt"
+
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 )
 
@@ -17,7 +19,19 @@ func (OnDemandStrategy) Plan(in ProvisionInput) (ProvisionDecision, error) {
 	if reason := checkBudget(in); reason != "" {
 		return ProvisionDecision{Reason: reason}, nil
 	}
-	return ProvisionDecision{Provision: true, Spec: composeSpec(in)}, nil
+	spec := composeSpec(in)
+	// Refuse to provision an exit that wouldn't satisfy this tunnel: if
+	// the policy's default AllowPorts doesn't cover every requested
+	// public port, leave the tunnel Allocating so the user can widen
+	// the policy or add a compatible exit manually.
+	for _, p := range tunnelPorts(in.Tunnel) {
+		if !portAllowed(spec.AllowPorts, p) {
+			return ProvisionDecision{Reason: fmt.Sprintf(
+				"tunnel port %d not in policy default AllowPorts %v", p, spec.AllowPorts,
+			)}, nil
+		}
+	}
+	return ProvisionDecision{Provision: true, Spec: spec}, nil
 }
 
 // checkBudget enforces the SchedulingPolicy.spec.budget caps. Returns a
@@ -64,6 +78,13 @@ func composeSpec(in ProvisionInput) frpv1alpha1.ExitServerSpec {
 		if p.SizeOverride != "" {
 			spec.Size = p.SizeOverride
 		}
+	}
+	// Seed AllowPorts from the policy default. Plan() refuses to
+	// provision when the tunnel's requested ports fall outside this set.
+	if len(def.AllowPorts) > 0 {
+		spec.AllowPorts = append([]string(nil), def.AllowPorts...)
+	} else {
+		spec.AllowPorts = []string{"1024-65535"}
 	}
 	return spec
 }

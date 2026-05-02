@@ -21,7 +21,7 @@ func allocatorTestExits() []frpv1alpha1.ExitServer {
 			Spec: frpv1alpha1.ExitServerSpec{
 				Provider:   frpv1alpha1.ProviderDigitalOcean,
 				Region:     "nyc1",
-				AllowPorts: []string{"1024-65535"},
+				AllowPorts: []string{"80", "1024-65535"},
 			},
 			Status: frpv1alpha1.ExitServerStatus{
 				Phase:       frpv1alpha1.PhaseReady,

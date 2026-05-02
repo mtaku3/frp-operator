@@ -60,6 +60,8 @@ func createExitServerFromDecision(
 		spec.Frps.Version = "v0.68.1"
 	}
 	if len(spec.AllowPorts) == 0 {
+		// Defensive fallback; OnDemandStrategy.composeSpec already populates
+		// this from the tunnel's requested ports.
 		spec.AllowPorts = []string{"1024-65535"}
 	}
 	if spec.CredentialsRef.Name == "" {

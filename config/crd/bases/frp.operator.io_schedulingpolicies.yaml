@@ -100,6 +100,16 @@ spec:
                 properties:
                   default:
                     properties:
+                      allowPorts:
+                        description: |-
+                          AllowPorts seeds new ExitServer.spec.allowPorts. A tunnel whose
+                          requested public ports fall outside this set will not provision a
+                          new exit; instead, the tunnel stays Allocating until either an
+                          existing eligible exit appears or the policy default is widened.
+                          When empty, the operator falls back to "1024-65535".
+                        items:
+                          type: string
+                        type: array
                       capacity:
                         description: |-
                           ExitCapacity declares per-exit caps used for reservation math.

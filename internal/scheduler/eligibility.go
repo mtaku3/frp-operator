@@ -2,18 +2,20 @@ package scheduler
 
 import (
 	"strconv"
+	"strings"
 
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 )
 
-// PortsFit returns true iff every requested public port is free on exit:
-// not in spec.ReservedPorts and not already allocated in status.Allocations.
-// An empty ports slice trivially fits.
+// PortsFit returns true iff every requested public port is allocatable on
+// exit. Allocatable = AllowPorts \ (ReservedPorts ∪ implicit-reserved ∪
+// already-allocated). Implicit-reserved is {SSH.Port, Frps.BindPort,
+// Frps.AdminPort} so the operator never hands a tunnel a port that would
+// collide with the exit's own services, regardless of whether the
+// admission webhook populated ReservedPorts. An empty ports slice
+// trivially fits.
 func PortsFit(exit frpv1alpha1.ExitServer, ports []int32) bool {
-	reserved := make(map[int32]struct{}, len(exit.Spec.ReservedPorts))
-	for _, p := range exit.Spec.ReservedPorts {
-		reserved[p] = struct{}{}
-	}
+	reserved := reservedSet(exit)
 	for _, p := range ports {
 		if _, isReserved := reserved[p]; isReserved {
 			return false
@@ -21,8 +23,55 @@ func PortsFit(exit frpv1alpha1.ExitServer, ports []int32) bool {
 		if _, allocated := exit.Status.Allocations[strconv.Itoa(int(p))]; allocated {
 			return false
 		}
+		if !portAllowed(exit.Spec.AllowPorts, p) {
+			return false
+		}
 	}
 	return true
+}
+
+// reservedSet returns the union of explicit ReservedPorts and the
+// implicit reservations for SSH and frps control/admin ports.
+func reservedSet(exit frpv1alpha1.ExitServer) map[int32]struct{} {
+	r := make(map[int32]struct{}, len(exit.Spec.ReservedPorts)+3)
+	for _, p := range exit.Spec.ReservedPorts {
+		r[p] = struct{}{}
+	}
+	if p := exit.Spec.SSH.Port; p != 0 {
+		r[p] = struct{}{}
+	}
+	if p := exit.Spec.Frps.BindPort; p != 0 {
+		r[p] = struct{}{}
+	}
+	if p := exit.Spec.Frps.AdminPort; p != 0 {
+		r[p] = struct{}{}
+	}
+	return r
+}
+
+// portAllowed checks p against the exit's AllowPorts spec entries.
+// Each entry is either a single port ("443") or a range ("1024-65535").
+// An empty AllowPorts slice means "no restriction" (caller-friendly default).
+func portAllowed(allow []string, p int32) bool {
+	if len(allow) == 0 {
+		return true
+	}
+	for _, e := range allow {
+		e = strings.TrimSpace(e)
+		if i := strings.IndexByte(e, '-'); i > 0 {
+			lo, errLo := strconv.Atoi(strings.TrimSpace(e[:i]))
+			hi, errHi := strconv.Atoi(strings.TrimSpace(e[i+1:]))
+			if errLo == nil && errHi == nil && int32(lo) <= p && p <= int32(hi) {
+				return true
+			}
+			continue
+		}
+		v, err := strconv.Atoi(e)
+		if err == nil && int32(v) == p {
+			return true
+		}
+	}
+	return false
 }
 
 // CapacityFits returns true iff adding `req` to `exit.Status.Usage` stays

@@ -72,9 +72,10 @@ var _ = Describe("TunnelController integration", func() {
 		desiredSpec := frpv1alpha1.SchedulingPolicySpec{
 			VPS: frpv1alpha1.VPSSpec{
 				Default: frpv1alpha1.VPSDefaults{
-					Provider: frpv1alpha1.ProviderDigitalOcean,
-					Regions:  []string{"nyc1"},
-					Size:     "s-1vcpu-1gb",
+					Provider:   frpv1alpha1.ProviderDigitalOcean,
+					Regions:    []string{"nyc1"},
+					Size:       "s-1vcpu-1gb",
+					AllowPorts: []string{"80", "81", "1024-65535"},
 				},
 			},
 		}

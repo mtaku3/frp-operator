@@ -50,6 +50,13 @@ type VPSDefaults struct {
 	Regions  []string      `json:"regions,omitempty"`
 	Size     string        `json:"size,omitempty"`
 	Capacity *ExitCapacity `json:"capacity,omitempty"`
+
+	// AllowPorts seeds new ExitServer.spec.allowPorts. A tunnel whose
+	// requested public ports fall outside this set will not provision a
+	// new exit; instead, the tunnel stays Allocating until either an
+	// existing eligible exit appears or the policy default is widened.
+	// When empty, the operator falls back to "1024-65535".
+	AllowPorts []string `json:"allowPorts,omitempty"`
 }
 
 type VPSSpec struct {

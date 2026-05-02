@@ -14,9 +14,10 @@ func basicPolicy(maxExits *int32) *frpv1alpha1.SchedulingPolicy {
 			Budget: frpv1alpha1.BudgetSpec{MaxExits: maxExits},
 			VPS: frpv1alpha1.VPSSpec{
 				Default: frpv1alpha1.VPSDefaults{
-					Provider: frpv1alpha1.ProviderDigitalOcean,
-					Regions:  []string{"nyc1", "sfo3"},
-					Size:     "s-1vcpu-1gb",
+					Provider:   frpv1alpha1.ProviderDigitalOcean,
+					Regions:    []string{"nyc1", "sfo3"},
+					Size:       "s-1vcpu-1gb",
+					AllowPorts: []string{"80", "1024-65535"},
 				},
 			},
 		},
@@ -45,6 +46,22 @@ func TestOnDemand_ProvisionsWhenUnderBudget(t *testing.T) {
 	}
 	if d.Spec.Size != "s-1vcpu-1gb" {
 		t.Errorf("Spec.Size=%q want s-1vcpu-1gb", d.Spec.Size)
+	}
+}
+
+func TestOnDemand_RefusesWhenPortNotInDefaultAllowPorts(t *testing.T) {
+	p := &OnDemandStrategy{}
+	policy := basicPolicy(nil)
+	policy.Spec.VPS.Default.AllowPorts = []string{"1024-65535"}
+	d, err := p.Plan(ProvisionInput{Tunnel: basicTunnel(80), Policy: policy})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if d.Provision {
+		t.Errorf("expected Provision=false; got Spec=%+v", d.Spec)
+	}
+	if d.Reason == "" {
+		t.Error("expected non-empty Reason")
 	}
 }
 

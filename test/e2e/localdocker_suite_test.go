@@ -91,14 +91,15 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred(), "Failed to export kind kubeconfig")
 
 	By("installing CRDs into the kind cluster")
-	// Cold-cluster apiserver/etcd is slow for the first ~30s; retry on
-	// transient timeouts so the suite isn't gated on warm-up jitter.
+	// Cold-cluster apiserver/etcd is slow for the first ~30-120s under
+	// load; retry on transient timeouts so the suite isn't gated on
+	// warm-up jitter.
 	Eventually(func() error {
 		installCmd := exec.Command("make", "install")
 		installCmd.Env = append(envWithoutKubeconfig(), "KUBECONFIG="+ldKubeconfig)
 		_, e := utils.Run(installCmd)
 		return e
-	}, 90*time.Second, 5*time.Second).Should(Succeed(), "Failed to install CRDs")
+	}, 4*time.Minute, 10*time.Second).Should(Succeed(), "Failed to install CRDs")
 
 	By("building the manager binary for the host")
 	buildCmd := exec.Command("go", "build", "-o", ldManagerBinary, "./cmd/manager")

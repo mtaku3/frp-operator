@@ -227,51 +227,17 @@ spec:
 		// Owner ref should cascade-delete the Tunnel; if not, force.
 		_, _ = utils.Run(exec.Command("kubectl", "delete", "tunnel", "e2e-svc", "-n", "default", "--wait=false", "--ignore-not-found"))
 	})
-})
 
-// applyManifest writes the YAML to a temp file and runs `kubectl apply -f`.
-func applyManifest(yaml []byte) error {
-	f, err := os.CreateTemp("", "e2e-*.yaml")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	if _, err := f.Write(yaml); err != nil {
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	_, err = utils.Run(exec.Command("kubectl", "apply", "-f", f.Name()))
-	return err
-}
+	// Webhook validation lives inside the Manager Describe so it
+	// shares the in-cluster operator deployment created by the outer
+	// BeforeAll. Outer AfterAll undeploys the operator, so a separate
+	// Describe would run against an empty cluster.
 
-var _ = Describe("Webhook validation", Ordered, func() {
-	BeforeAll(func() {
+	It("rejects spec change to a Ready+ImmutableWhenReady Tunnel", func() {
 		if os.Getenv("E2E_WEBHOOK") != "1" {
 			Skip("set E2E_WEBHOOK=1 to run webhook specs (requires cert-manager)")
 		}
 
-		// CRDs and operator deployed by the outer Manager BeforeAll.
-		// Webhook config is part of `make deploy`; cert-manager mints
-		// its serving cert. Wait for the manager Pod to be Ready.
-		Eventually(func() error {
-			cmd := exec.Command("kubectl", "wait", "--for=condition=Ready", "pod",
-				"-l", "control-plane=controller-manager",
-				"-n", namespace, "--timeout=120s")
-			_, err := utils.Run(cmd)
-			return err
-		}, 3*time.Minute, 5*time.Second).Should(Succeed())
-	})
-
-	AfterAll(func() {
-		_, _ = utils.Run(exec.Command("kubectl", "delete", "tunnel", "wh-immutable",
-			"-n", "default", "--ignore-not-found", "--wait=false"))
-		_, _ = utils.Run(exec.Command("kubectl", "delete", "exitserver", "wh-grow",
-			"-n", "default", "--ignore-not-found", "--wait=false"))
-	})
-
-	It("rejects spec change to a Ready+ImmutableWhenReady Tunnel", func() {
 		By("creating a Tunnel with ImmutableWhenReady=true")
 		Expect(applyManifest([]byte(`
 apiVersion: frp.operator.io/v1alpha1
@@ -310,9 +276,17 @@ spec:
 		out, err := utils.Run(exec.Command("kubectl", "apply", "-f", f.Name()))
 		Expect(err).To(HaveOccurred(), "expected admission rejection, got success: %s", out)
 		Expect(out + err.Error()).To(ContainSubstring("immutable"))
+
+		By("cleaning up")
+		_, _ = utils.Run(exec.Command("kubectl", "delete", "tunnel", "wh-immutable",
+			"-n", "default", "--ignore-not-found", "--wait=false"))
 	})
 
 	It("rejects shrinking ExitServer AllowPorts below allocations", func() {
+		if os.Getenv("E2E_WEBHOOK") != "1" {
+			Skip("set E2E_WEBHOOK=1 to run webhook specs (requires cert-manager)")
+		}
+
 		By("creating an ExitServer with a wide AllowPorts and frps spec")
 		Expect(applyManifest([]byte(`
 apiVersion: frp.operator.io/v1alpha1
@@ -337,5 +311,27 @@ spec:
 			"-n", "default", "--type=merge",
 			"-p", `{"spec":{"allowPorts":["1024-4999"]}}`))
 		Expect(err).To(HaveOccurred(), "expected admission rejection")
+
+		By("cleaning up")
+		_, _ = utils.Run(exec.Command("kubectl", "delete", "exitserver", "wh-grow",
+			"-n", "default", "--ignore-not-found", "--wait=false"))
 	})
 })
+
+// applyManifest writes the YAML to a temp file and runs `kubectl apply -f`.
+func applyManifest(yaml []byte) error {
+	f, err := os.CreateTemp("", "e2e-*.yaml")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(yaml); err != nil {
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	_, err = utils.Run(exec.Command("kubectl", "apply", "-f", f.Name()))
+	return err
+}
+

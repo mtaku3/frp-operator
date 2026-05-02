@@ -205,3 +205,143 @@ func applyManifestKC(yaml []byte) error {
 	_, err = runKC("apply", "-f", f.Name())
 	return err
 }
+
+var _ = Describe("Lifecycle", Ordered, func() {
+	SetDefaultEventuallyTimeout(2 * time.Minute)
+	SetDefaultEventuallyPollingInterval(2 * time.Second)
+
+	const lcSvc = "lc-svc"
+	const lcBackend = "lc-backend"
+
+	BeforeAll(func() {
+		// The previous Describe block tears down with --wait=false; wait
+		// for any lingering Tunnels and ExitServers to be fully gone
+		// before we set up, otherwise the scheduler may pack our Tunnel
+		// onto an ExitServer that's about to be deleted.
+		Eventually(func() string {
+			out, _ := runKC("get", "tunnel,exitserver", "-n", "default",
+				"-o", "jsonpath={range .items[*]}{.metadata.name} {end}")
+			return strings.TrimSpace(out)
+		}, 60*time.Second, 2*time.Second).Should(BeEmpty())
+
+		Expect(applyManifestKC([]byte(`
+apiVersion: frp.operator.io/v1alpha1
+kind: SchedulingPolicy
+metadata:
+  name: default
+spec:
+  consolidation:
+    reclaimEmpty: false
+  vps:
+    default:
+      provider: local-docker
+      allowPorts: ["80", "1024-65535"]
+`))).To(Succeed())
+
+		Expect(applyManifestKC([]byte(`
+apiVersion: v1
+kind: Secret
+metadata:
+  name: local-docker-credentials
+  namespace: default
+type: Opaque
+stringData:
+  token: lifecycle-unused
+`))).To(Succeed())
+
+		Expect(applyManifestKC([]byte(fmt.Sprintf(`
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: %s
+  namespace: default
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: %s}}
+  template:
+    metadata: {labels: {app: %s}}
+    spec:
+      containers:
+        - name: http-echo
+          image: hashicorp/http-echo
+          args: ["-text=lc", "-listen=:8080"]
+          ports: [{containerPort: 8080}]
+`, lcBackend, lcBackend, lcBackend)))).To(Succeed())
+
+		Expect(applyManifestKC([]byte(fmt.Sprintf(`
+apiVersion: v1
+kind: Service
+metadata:
+  name: %s
+  namespace: default
+spec:
+  type: LoadBalancer
+  loadBalancerClass: frp-operator.io/frp
+  ports: [{name: http, port: 80, targetPort: 8080, protocol: TCP}]
+  selector: {app: %s}
+`, lcSvc, lcBackend)))).To(Succeed())
+
+		By("waiting for the Tunnel to reach Ready before lifecycle assertions")
+		Eventually(func() string {
+			out, _ := runKC("get", "tunnel", lcSvc, "-n", "default",
+				"-o", "jsonpath={.status.phase}")
+			return out
+		}).Should(Equal("Ready"))
+	})
+
+	AfterAll(func() {
+		_, _ = runKC("delete", "svc", lcSvc, "-n", "default", "--ignore-not-found", "--wait=false")
+		_, _ = runKC("delete", "deploy", lcBackend, "-n", "default", "--ignore-not-found", "--wait=false")
+		_, _ = runKC("delete", "tunnel", "--all", "-n", "default", "--ignore-not-found", "--wait=true")
+		_, _ = runKC("delete", "exitserver", "--all", "-n", "default", "--ignore-not-found", "--wait=true")
+		_, _ = runKC("delete", "secret", "local-docker-credentials", "-n", "default", "--ignore-not-found")
+		_, _ = runKC("delete", "schedulingpolicy", "default", "--ignore-not-found")
+		// Belt-and-suspenders: ensure no Tunnels/ExitServers leak into the
+		// next Describe block.
+		Eventually(func() string {
+			out, _ := runKC("get", "tunnel,exitserver", "-n", "default",
+				"-o", "jsonpath={range .items[*]}{.metadata.name} {end}")
+			return strings.TrimSpace(out)
+		}, 60*time.Second, 2*time.Second).Should(BeEmpty())
+	})
+
+	It("Tunnel deletion releases the port allocation on the exit", func() {
+		By("recording the assigned exit and confirming port 80 is allocated")
+		exit, err := runKC("get", "tunnel", lcSvc, "-n", "default",
+			"-o", "jsonpath={.status.assignedExit}")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(exit).NotTo(BeEmpty())
+
+		alloc, err := runKC("get", "exitserver", exit, "-n", "default",
+			"-o", `jsonpath={.status.allocations.80}`)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(alloc).NotTo(BeEmpty(), "expected port 80 allocation before delete")
+
+		By("deleting the owning Service so the Tunnel cascades away")
+		// Deleting the Tunnel directly while the Service still exists
+		// causes ServiceWatcher to recreate it instantly with the same
+		// name, so the port allocation never appears released. Removing
+		// the Service first lets the owner-ref cascade-delete the Tunnel.
+		_, err = runKC("delete", "svc", lcSvc, "-n", "default", "--wait=true")
+		Expect(err).NotTo(HaveOccurred())
+		Eventually(func() string {
+			out, _ := runKC("get", "tunnel", lcSvc, "-n", "default",
+				"--ignore-not-found", "-o", "jsonpath={.metadata.name}")
+			return out
+		}).Should(BeEmpty())
+
+		By("waiting for port 80 to drop from the exit's allocations")
+		Eventually(func() string {
+			out, _ := runKC("get", "exitserver", exit, "-n", "default",
+				"-o", `jsonpath={.status.allocations.80}`)
+			return out
+		}).Should(BeEmpty())
+
+		By("waiting for the frpc Deployment to be garbage-collected")
+		Eventually(func() string {
+			out, _ := runKC("get", "deploy", lcSvc+"-frpc", "-n", "default",
+				"--ignore-not-found", "-o", "jsonpath={.metadata.name}")
+			return out
+		}).Should(BeEmpty())
+	})
+})

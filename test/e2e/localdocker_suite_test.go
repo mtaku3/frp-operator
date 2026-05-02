@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -51,6 +52,22 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
+// envWithoutKubeconfig returns os.Environ() with any pre-set KUBECONFIG
+// stripped, so the caller can append the suite's kubeconfig and have it
+// win deterministically (glibc getenv returns the first match — the
+// ambient KUBECONFIG from devbox would otherwise shadow ours).
+func envWithoutKubeconfig() []string {
+	in := os.Environ()
+	out := make([]string, 0, len(in))
+	for _, kv := range in {
+		if strings.HasPrefix(kv, "KUBECONFIG=") {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
+}
+
 // TestE2ELocalDocker runs the LocalDocker e2e suite.
 func TestE2ELocalDocker(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -59,6 +76,13 @@ func TestE2ELocalDocker(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	By("removing any leftover frps containers from prior killed runs")
+	// Best-effort; AfterSuite removes them after a clean run, but a
+	// killed/aborted run can leave them behind and block new
+	// Provisioner.Create with a name conflict.
+	_, _ = utils.Run(exec.Command("bash", "-c",
+		`docker ps -a --format '{{.Names}}' | grep '^frp-operator-default__' | xargs -r docker rm -f`))
+
 	By("exporting kubeconfig for the kind cluster")
 	cmd := exec.Command("kind", "export", "kubeconfig",
 		"--name", ldKindCluster,
@@ -67,10 +91,14 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred(), "Failed to export kind kubeconfig")
 
 	By("installing CRDs into the kind cluster")
-	installCmd := exec.Command("make", "install")
-	installCmd.Env = append(os.Environ(), "KUBECONFIG="+ldKubeconfig)
-	_, err = utils.Run(installCmd)
-	Expect(err).NotTo(HaveOccurred(), "Failed to install CRDs")
+	// Cold-cluster apiserver/etcd is slow for the first ~30s; retry on
+	// transient timeouts so the suite isn't gated on warm-up jitter.
+	Eventually(func() error {
+		installCmd := exec.Command("make", "install")
+		installCmd.Env = append(envWithoutKubeconfig(), "KUBECONFIG="+ldKubeconfig)
+		_, e := utils.Run(installCmd)
+		return e
+	}, 90*time.Second, 5*time.Second).Should(Succeed(), "Failed to install CRDs")
 
 	By("building the manager binary for the host")
 	buildCmd := exec.Command("go", "build", "-o", ldManagerBinary, "./cmd/manager")
@@ -84,7 +112,7 @@ var _ = BeforeSuite(func() {
 		"--metrics-bind-address=:0",
 		"--health-probe-bind-address=:18081",
 	)
-	ldOperatorCmd.Env = append(os.Environ(),
+	ldOperatorCmd.Env = append(envWithoutKubeconfig(),
 		"KUBECONFIG="+ldKubeconfig,
 		"LOCALDOCKER_NETWORK=kind",
 	)

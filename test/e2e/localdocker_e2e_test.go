@@ -39,11 +39,16 @@ var _ = Describe("LocalDocker provider integration", Ordered, func() {
 
 	BeforeAll(func() {
 		By("applying SchedulingPolicy with provider=local-docker and AllowPorts covering 80")
+		// Name MUST be "default": ExitReclaimReconciler.PolicyName defaults
+		// to "default" (no env wiring in the operator binary), so a
+		// differently-named policy means reclaim falls back to its
+		// hardcoded enabled=true and starts flapping the freshly-created
+		// exit between Ready and Draining, hammering apiserver.
 		Expect(applyManifestKC([]byte(`
 apiVersion: frp.operator.io/v1alpha1
 kind: SchedulingPolicy
 metadata:
-  name: ld-default
+  name: default
 spec:
   consolidation:
     reclaimEmpty: false
@@ -97,7 +102,7 @@ metadata:
   name: %s
   namespace: %s
   annotations:
-    frp-operator.io/scheduling-policy: ld-default
+    frp-operator.io/scheduling-policy: default
 spec:
   type: LoadBalancer
   loadBalancerClass: frp-operator.io/frp
@@ -117,7 +122,7 @@ spec:
 		_, _ = runKC("delete", "tunnel", "--all", "-n", ldNamespace, "--ignore-not-found", "--wait=false")
 		_, _ = runKC("delete", "exitserver", "--all", "-n", ldNamespace, "--ignore-not-found", "--wait=false")
 		_, _ = runKC("delete", "secret", "local-docker-credentials", "-n", ldNamespace, "--ignore-not-found")
-		_, _ = runKC("delete", "schedulingpolicy", "ld-default", "--ignore-not-found")
+		_, _ = runKC("delete", "schedulingpolicy", "default", "--ignore-not-found")
 	})
 
 	It("ServiceWatcher creates a Tunnel and the operator drives it to Ready", func() {

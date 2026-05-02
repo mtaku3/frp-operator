@@ -49,10 +49,14 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	// Default-skip cert-manager install for v1 e2e (no webhook serving certs needed).
-	// Override by setting CERT_MANAGER_INSTALL_SKIP=false explicitly.
+	// Default-skip cert-manager unless E2E_WEBHOOK=1 (webhook specs need
+	// serving certs). Explicit CERT_MANAGER_INSTALL_SKIP wins over both.
 	if os.Getenv("CERT_MANAGER_INSTALL_SKIP") == "" {
-		_ = os.Setenv("CERT_MANAGER_INSTALL_SKIP", "true")
+		if os.Getenv("E2E_WEBHOOK") == "1" {
+			_ = os.Setenv("CERT_MANAGER_INSTALL_SKIP", "false")
+		} else {
+			_ = os.Setenv("CERT_MANAGER_INSTALL_SKIP", "true")
+		}
 	}
 
 	By("building the manager image")

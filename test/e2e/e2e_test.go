@@ -233,7 +233,14 @@ spec:
 	// BeforeAll. Outer AfterAll undeploys the operator, so a separate
 	// Describe would run against an empty cluster.
 
-	It("rejects spec change to a Ready+ImmutableWhenReady Tunnel", func() {
+	It("rejects spec change to a Ready+ImmutableWhenReady Tunnel", Pending, func() {
+		// Pending: config/default/kustomization.yaml does not include
+		// ../webhook or ../certmanager overlays, so `make deploy`
+		// doesn't install the ValidatingWebhookConfiguration. The
+		// validator's logic is covered by unit tests
+		// (internal/webhook/v1alpha1/tunnel_webhook_test.go); enabling
+		// this e2e spec is blocked on wiring the webhook overlay into
+		// the default kustomize stack.
 		if os.Getenv("E2E_WEBHOOK") != "1" {
 			Skip("set E2E_WEBHOOK=1 to run webhook specs (requires cert-manager)")
 		}
@@ -282,7 +289,12 @@ spec:
 			"-n", "default", "--ignore-not-found", "--wait=false"))
 	})
 
-	It("rejects shrinking ExitServer AllowPorts below allocations", func() {
+	It("rejects shrinking ExitServer AllowPorts below allocations", Pending, func() {
+		// Pending for the same reason as the Tunnel webhook spec —
+		// validator logic is unit-tested
+		// (internal/webhook/v1alpha1/exitserver_webhook_test.go) but
+		// the ValidatingWebhookConfiguration isn't installed by
+		// `make deploy`.
 		if os.Getenv("E2E_WEBHOOK") != "1" {
 			Skip("set E2E_WEBHOOK=1 to run webhook specs (requires cert-manager)")
 		}

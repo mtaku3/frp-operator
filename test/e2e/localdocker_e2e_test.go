@@ -344,4 +344,39 @@ spec:
 			return out
 		}).Should(BeEmpty())
 	})
+
+	It("ExitServer deletion runs the finalizer (container + cred secret gone)", func() {
+		By("listing the empty exit left over from the previous spec")
+		out, err := runKC("get", "exitserver", "-n", "default",
+			"-o", "jsonpath={range .items[*]}{.metadata.name} {end}")
+		Expect(err).NotTo(HaveOccurred())
+		names := strings.Fields(out)
+		Expect(names).NotTo(BeEmpty(), "expected at least one ExitServer")
+		exit := names[0]
+
+		container := "frp-operator-default__" + exit
+		credSecret := exit + "-credentials"
+
+		By("verifying the docker container exists before delete")
+		dockerOut, err := utils.Run(exec.Command("docker", "inspect", "-f", "{{.Name}}", container))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(strings.TrimSpace(dockerOut)).NotTo(BeEmpty())
+
+		By("deleting the ExitServer")
+		_, err = runKC("delete", "exitserver", exit, "-n", "default", "--wait=true")
+		Expect(err).NotTo(HaveOccurred())
+
+		By("waiting for the container to be removed by the finalizer")
+		Eventually(func() error {
+			_, e := utils.Run(exec.Command("docker", "inspect", container))
+			return e
+		}).ShouldNot(Succeed())
+
+		By("waiting for the operator-managed credentials Secret to be gone")
+		Eventually(func() string {
+			s, _ := runKC("get", "secret", credSecret, "-n", "default",
+				"--ignore-not-found", "-o", "jsonpath={.metadata.name}")
+			return s
+		}).Should(BeEmpty())
+	})
 })

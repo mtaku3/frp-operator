@@ -98,7 +98,14 @@ cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
 
 .PHONY: test-e2e-localdocker
 test-e2e-localdocker: setup-test-e2e manifests generate fmt vet ## Run the LocalDocker e2e tests. Operator runs out-of-cluster against a kind cluster.
-	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e_localdocker ./test/e2e/ -v -ginkgo.v -timeout=10m; \
+	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e_localdocker ./test/e2e/ -v -ginkgo.v -timeout=15m; \
+	rc=$$?; \
+	if [ "$(KEEP_CLUSTER)" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
+	exit $$rc
+
+.PHONY: test-e2e-webhook
+test-e2e-webhook: setup-test-e2e manifests generate fmt vet ## Run the e2e suite with cert-manager + webhook validation specs.
+	E2E_WEBHOOK=1 KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2e/ -v -ginkgo.v -timeout=15m; \
 	rc=$$?; \
 	if [ "$(KEEP_CLUSTER)" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
 	exit $$rc

@@ -380,3 +380,406 @@ spec:
 		}).Should(BeEmpty())
 	})
 })
+
+var _ = Describe("Scheduling", Ordered, func() {
+	SetDefaultEventuallyTimeout(3 * time.Minute)
+	SetDefaultEventuallyPollingInterval(2 * time.Second)
+
+	const svcA = "sched-a"
+	const svcB = "sched-b"
+
+	BeforeAll(func() {
+		Eventually(func() string {
+			out, _ := runKC("get", "tunnel,exitserver", "-n", "default",
+				"-o", "jsonpath={range .items[*]}{.metadata.name} {end}")
+			return strings.TrimSpace(out)
+		}, 60*time.Second, 2*time.Second).Should(BeEmpty())
+
+		Expect(applyManifestKC([]byte(`
+apiVersion: frp.operator.io/v1alpha1
+kind: SchedulingPolicy
+metadata:
+  name: default
+spec:
+  consolidation:
+    reclaimEmpty: false
+  vps:
+    default:
+      provider: local-docker
+      allowPorts: ["80", "81", "1024-65535"]
+`))).To(Succeed())
+
+		Expect(applyManifestKC([]byte(`
+apiVersion: v1
+kind: Secret
+metadata: {name: local-docker-credentials, namespace: default}
+type: Opaque
+stringData: {token: sched-unused}
+`))).To(Succeed())
+
+		for _, n := range []struct{ name, label, port string }{
+			{"sched-a-be", "sched-a", "8080"},
+			{"sched-b-be", "sched-b", "8081"},
+		} {
+			Expect(applyManifestKC([]byte(fmt.Sprintf(`
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: %s
+  namespace: default
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: %s}}
+  template:
+    metadata: {labels: {app: %s}}
+    spec:
+      containers:
+        - name: http-echo
+          image: hashicorp/http-echo
+          args: ["-text=%s", "-listen=:%s"]
+          ports: [{containerPort: %s}]
+`, n.name, n.label, n.label, n.label, n.port, n.port)))).To(Succeed())
+		}
+
+		// Apply A first and wait for its exit to be Ready before applying
+		// B, otherwise both Tunnels race the scheduler before any exit
+		// finishes provisioning and we end up with one exit per tunnel
+		// instead of binpacked onto one.
+		Expect(applyManifestKC([]byte(fmt.Sprintf(`
+apiVersion: v1
+kind: Service
+metadata: {name: %s, namespace: default}
+spec:
+  type: LoadBalancer
+  loadBalancerClass: frp-operator.io/frp
+  ports: [{name: http, port: 80, targetPort: 8080, protocol: TCP}]
+  selector: {app: sched-a}
+`, svcA)))).To(Succeed())
+
+		Eventually(func() string {
+			out, _ := runKC("get", "tunnel", svcA, "-n", "default",
+				"-o", "jsonpath={.status.phase}")
+			return out
+		}, 3*time.Minute, 2*time.Second).Should(Equal("Ready"))
+
+		Expect(applyManifestKC([]byte(fmt.Sprintf(`
+apiVersion: v1
+kind: Service
+metadata: {name: %s, namespace: default}
+spec:
+  type: LoadBalancer
+  loadBalancerClass: frp-operator.io/frp
+  ports: [{name: http, port: 81, targetPort: 8081, protocol: TCP}]
+  selector: {app: sched-b}
+`, svcB)))).To(Succeed())
+	})
+
+	AfterAll(func() {
+		_, _ = runKC("delete", "svc", svcA, svcB, "sched-c", "-n", "default", "--ignore-not-found", "--wait=false")
+		_, _ = runKC("delete", "deploy", "sched-a-be", "sched-b-be", "-n", "default", "--ignore-not-found", "--wait=false")
+		_, _ = runKC("delete", "tunnel", "--all", "-n", "default", "--ignore-not-found", "--wait=true")
+		_, _ = runKC("delete", "exitserver", "--all", "-n", "default", "--ignore-not-found", "--wait=true")
+		_, _ = runKC("delete", "secret", "local-docker-credentials", "-n", "default", "--ignore-not-found")
+		_, _ = runKC("delete", "schedulingpolicy", "default", "--ignore-not-found")
+		Eventually(func() string {
+			out, _ := runKC("get", "tunnel,exitserver", "-n", "default",
+				"-o", "jsonpath={range .items[*]}{.metadata.name} {end}")
+			return strings.TrimSpace(out)
+		}, 60*time.Second, 2*time.Second).Should(BeEmpty())
+	})
+
+	It("schedules both tunnels onto a single ExitServer", func() {
+		By("waiting for both Tunnels to reach Ready")
+		for _, name := range []string{svcA, svcB} {
+			Eventually(func() string {
+				out, _ := runKC("get", "tunnel", name, "-n", "default",
+					"-o", "jsonpath={.status.phase}")
+				return out
+			}).Should(Equal("Ready"))
+		}
+
+		By("asserting both tunnels share the same assignedExit")
+		exitA, _ := runKC("get", "tunnel", svcA, "-n", "default",
+			"-o", "jsonpath={.status.assignedExit}")
+		exitB, _ := runKC("get", "tunnel", svcB, "-n", "default",
+			"-o", "jsonpath={.status.assignedExit}")
+		Expect(exitA).NotTo(BeEmpty())
+		Expect(exitA).To(Equal(exitB))
+
+		By("asserting the exit lists exactly one ExitServer with both ports allocated")
+		out, _ := runKC("get", "exitserver", "-n", "default",
+			"-o", "jsonpath={range .items[*]}{.metadata.name} {end}")
+		Expect(strings.Fields(out)).To(HaveLen(1))
+
+		alloc80, _ := runKC("get", "exitserver", exitA, "-n", "default",
+			"-o", `jsonpath={.status.allocations.80}`)
+		alloc81, _ := runKC("get", "exitserver", exitA, "-n", "default",
+			"-o", `jsonpath={.status.allocations.81}`)
+		Expect(alloc80).NotTo(BeEmpty())
+		Expect(alloc81).NotTo(BeEmpty())
+	})
+
+	It("does not provision an exit when policy AllowPorts excludes the requested port", func() {
+		By("narrowing the policy default AllowPorts to exclude port 22")
+		_, err := runKC("patch", "schedulingpolicy", "default", "--type=merge", "-p",
+			`{"spec":{"vps":{"default":{"allowPorts":["1024-65535"]}}}}`)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("recording exit count before applying the new tunnel")
+		out, _ := runKC("get", "exitserver", "-n", "default",
+			"-o", "jsonpath={range .items[*]}{.metadata.name} {end}")
+		exitsBefore := len(strings.Fields(out))
+
+		By("applying a Service requesting a sub-1024 port")
+		Expect(applyManifestKC([]byte(`
+apiVersion: v1
+kind: Service
+metadata: {name: sched-c, namespace: default}
+spec:
+  type: LoadBalancer
+  loadBalancerClass: frp-operator.io/frp
+  ports: [{name: ssh, port: 22, targetPort: 22, protocol: TCP}]
+  selector: {app: nonexistent}
+`))).To(Succeed())
+
+		By("waiting for ServiceWatcher to create the Tunnel")
+		Eventually(func() error {
+			_, e := runKC("get", "tunnel", "sched-c", "-n", "default")
+			return e
+		}, 30*time.Second, 2*time.Second).Should(Succeed())
+
+		By("asserting the Tunnel stays in Allocating for 30s")
+		Consistently(func() string {
+			out, _ := runKC("get", "tunnel", "sched-c", "-n", "default",
+				"-o", "jsonpath={.status.phase}")
+			return out
+		}, 30*time.Second, 5*time.Second).Should(Equal("Allocating"))
+
+		By("asserting no new ExitServer was created")
+		out, _ = runKC("get", "exitserver", "-n", "default",
+			"-o", "jsonpath={range .items[*]}{.metadata.name} {end}")
+		Expect(strings.Fields(out)).To(HaveLen(exitsBefore))
+
+		By("cleaning up sched-c")
+		_, _ = runKC("delete", "svc", "sched-c", "-n", "default", "--ignore-not-found", "--wait=false")
+		_, _ = runKC("delete", "tunnel", "sched-c", "-n", "default", "--ignore-not-found", "--wait=false")
+	})
+})
+
+var _ = Describe("ServiceWatcher reverse-sync", Ordered, func() {
+	SetDefaultEventuallyTimeout(2 * time.Minute)
+	SetDefaultEventuallyPollingInterval(2 * time.Second)
+
+	const rsyncSvc = "rsync-svc"
+	const rsyncBackend = "rsync-backend"
+
+	BeforeAll(func() {
+		Eventually(func() string {
+			out, _ := runKC("get", "tunnel,exitserver", "-n", "default",
+				"-o", "jsonpath={range .items[*]}{.metadata.name} {end}")
+			return strings.TrimSpace(out)
+		}, 60*time.Second, 2*time.Second).Should(BeEmpty())
+
+		Expect(applyManifestKC([]byte(`
+apiVersion: frp.operator.io/v1alpha1
+kind: SchedulingPolicy
+metadata: {name: default}
+spec:
+  consolidation: {reclaimEmpty: false}
+  vps:
+    default:
+      provider: local-docker
+      allowPorts: ["80", "1024-65535"]
+`))).To(Succeed())
+
+		Expect(applyManifestKC([]byte(`
+apiVersion: v1
+kind: Secret
+metadata: {name: local-docker-credentials, namespace: default}
+type: Opaque
+stringData: {token: rsync-unused}
+`))).To(Succeed())
+
+		Expect(applyManifestKC([]byte(fmt.Sprintf(`
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: %s, namespace: default}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: %s}}
+  template:
+    metadata: {labels: {app: %s}}
+    spec:
+      containers:
+        - name: http-echo
+          image: hashicorp/http-echo
+          args: ["-text=rsync", "-listen=:8080"]
+          ports: [{containerPort: 8080}]
+`, rsyncBackend, rsyncBackend, rsyncBackend)))).To(Succeed())
+
+		Expect(applyManifestKC([]byte(fmt.Sprintf(`
+apiVersion: v1
+kind: Service
+metadata: {name: %s, namespace: default}
+spec:
+  type: LoadBalancer
+  loadBalancerClass: frp-operator.io/frp
+  ports: [{name: http, port: 80, targetPort: 8080, protocol: TCP}]
+  selector: {app: %s}
+`, rsyncSvc, rsyncBackend)))).To(Succeed())
+	})
+
+	AfterAll(func() {
+		_, _ = runKC("delete", "svc", rsyncSvc, "-n", "default", "--ignore-not-found", "--wait=false")
+		_, _ = runKC("delete", "deploy", rsyncBackend, "-n", "default", "--ignore-not-found", "--wait=false")
+		_, _ = runKC("delete", "tunnel", "--all", "-n", "default", "--ignore-not-found", "--wait=true")
+		_, _ = runKC("delete", "exitserver", "--all", "-n", "default", "--ignore-not-found", "--wait=true")
+		_, _ = runKC("delete", "secret", "local-docker-credentials", "-n", "default", "--ignore-not-found")
+		_, _ = runKC("delete", "schedulingpolicy", "default", "--ignore-not-found")
+		Eventually(func() string {
+			out, _ := runKC("get", "tunnel,exitserver", "-n", "default",
+				"-o", "jsonpath={range .items[*]}{.metadata.name} {end}")
+			return strings.TrimSpace(out)
+		}, 60*time.Second, 2*time.Second).Should(BeEmpty())
+	})
+
+	It("reflects the assigned ExitServer.publicIP into Service.status", func() {
+		By("waiting for the Tunnel to reach Ready")
+		Eventually(func() string {
+			out, _ := runKC("get", "tunnel", rsyncSvc, "-n", "default",
+				"-o", "jsonpath={.status.phase}")
+			return out
+		}).Should(Equal("Ready"))
+
+		By("reading the assigned exit and its publicIP")
+		exit, _ := runKC("get", "tunnel", rsyncSvc, "-n", "default",
+			"-o", "jsonpath={.status.assignedExit}")
+		Expect(exit).NotTo(BeEmpty())
+		exitIP, _ := runKC("get", "exitserver", exit, "-n", "default",
+			"-o", "jsonpath={.status.publicIP}")
+		Expect(exitIP).NotTo(BeEmpty())
+
+		By("waiting for Service.status.loadBalancer.ingress[0].ip to equal the exit's publicIP")
+		Eventually(func() string {
+			out, _ := runKC("get", "svc", rsyncSvc, "-n", "default",
+				"-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+			return strings.TrimSpace(out)
+		}).Should(Equal(exitIP))
+	})
+})
+
+var _ = Describe("Resilience", Ordered, func() {
+	SetDefaultEventuallyTimeout(3 * time.Minute)
+	SetDefaultEventuallyPollingInterval(3 * time.Second)
+
+	const resSvc = "res-svc"
+	const resBackend = "res-backend"
+	const resBody = "res-hello"
+
+	BeforeAll(func() {
+		if os.Getenv("E2E_LOCALDOCKER_RESILIENCE") != "1" {
+			Skip("set E2E_LOCALDOCKER_RESILIENCE=1 to run resilience specs")
+		}
+
+		Eventually(func() string {
+			out, _ := runKC("get", "tunnel,exitserver", "-n", "default",
+				"-o", "jsonpath={range .items[*]}{.metadata.name} {end}")
+			return strings.TrimSpace(out)
+		}, 60*time.Second, 2*time.Second).Should(BeEmpty())
+
+		Expect(applyManifestKC([]byte(`
+apiVersion: frp.operator.io/v1alpha1
+kind: SchedulingPolicy
+metadata: {name: default}
+spec:
+  consolidation: {reclaimEmpty: false}
+  vps:
+    default:
+      provider: local-docker
+      allowPorts: ["80", "1024-65535"]
+`))).To(Succeed())
+
+		Expect(applyManifestKC([]byte(`
+apiVersion: v1
+kind: Secret
+metadata: {name: local-docker-credentials, namespace: default}
+type: Opaque
+stringData: {token: res-unused}
+`))).To(Succeed())
+
+		Expect(applyManifestKC([]byte(fmt.Sprintf(`
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: %s, namespace: default}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: %s}}
+  template:
+    metadata: {labels: {app: %s}}
+    spec:
+      containers:
+        - name: http-echo
+          image: hashicorp/http-echo
+          args: ["-text=%s", "-listen=:8080"]
+          ports: [{containerPort: 8080}]
+`, resBackend, resBackend, resBackend, resBody)))).To(Succeed())
+
+		Expect(applyManifestKC([]byte(fmt.Sprintf(`
+apiVersion: v1
+kind: Service
+metadata: {name: %s, namespace: default}
+spec:
+  type: LoadBalancer
+  loadBalancerClass: frp-operator.io/frp
+  ports: [{name: http, port: 80, targetPort: 8080, protocol: TCP}]
+  selector: {app: %s}
+`, resSvc, resBackend)))).To(Succeed())
+
+		By("waiting for Tunnel Ready before chaos")
+		Eventually(func() string {
+			out, _ := runKC("get", "tunnel", resSvc, "-n", "default",
+				"-o", "jsonpath={.status.phase}")
+			return out
+		}).Should(Equal("Ready"))
+	})
+
+	AfterAll(func() {
+		_, _ = runKC("delete", "svc", resSvc, "-n", "default", "--ignore-not-found", "--wait=false")
+		_, _ = runKC("delete", "deploy", resBackend, "-n", "default", "--ignore-not-found", "--wait=false")
+		_, _ = runKC("delete", "tunnel", "--all", "-n", "default", "--ignore-not-found", "--wait=true")
+		_, _ = runKC("delete", "exitserver", "--all", "-n", "default", "--ignore-not-found", "--wait=true")
+		_, _ = runKC("delete", "secret", "local-docker-credentials", "-n", "default", "--ignore-not-found")
+		_, _ = runKC("delete", "schedulingpolicy", "default", "--ignore-not-found")
+	})
+
+	It("frpc reconnects after frps container restart", func() {
+		exit, _ := runKC("get", "tunnel", resSvc, "-n", "default",
+			"-o", "jsonpath={.status.assignedExit}")
+		Expect(exit).NotTo(BeEmpty())
+		exitIP, _ := runKC("get", "exitserver", exit, "-n", "default",
+			"-o", "jsonpath={.status.publicIP}")
+		Expect(exitIP).NotTo(BeEmpty())
+
+		node := fmt.Sprintf(ldKindNodeFmt, ldKindCluster)
+
+		curl := func() string {
+			out, err := utils.Run(exec.Command("docker", "exec", node,
+				"curl", "-s", "--max-time", "5", "http://"+exitIP+":80"))
+			if err != nil {
+				return ""
+			}
+			return strings.TrimSpace(out)
+		}
+
+		By("verifying baseline curl works")
+		Eventually(curl).Should(Equal(resBody))
+
+		By("restarting the frps container")
+		_, err := utils.Run(exec.Command("docker", "restart",
+			"frp-operator-default__"+exit))
+		Expect(err).NotTo(HaveOccurred())
+
+		By("waiting up to 90s for traffic to recover")
+		Eventually(curl, 90*time.Second, 3*time.Second).Should(Equal(resBody))
+	})
+})

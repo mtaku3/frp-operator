@@ -46,6 +46,13 @@ type Config struct {
 	// HostBindIP controls the address the published ports bind to.
 	// Defaults to "127.0.0.1" so the daemon doesn't expose them publicly.
 	HostBindIP string
+
+	// Network, if non-empty, attaches the frps container to this Docker
+	// network in addition to the default bridge. PublicIP is then reported
+	// as the container's IP on that network, so workloads on the same
+	// network (e.g., kind nodes/Pods) can dial frps directly without
+	// host-port publishing. The network must already exist.
+	Network string
 }
 
 // LocalDocker is a Provisioner that runs frps as Docker containers.
@@ -143,7 +150,13 @@ func (d *LocalDocker) Create(ctx context.Context, spec provider.Spec) (provider.
 		}},
 		AutoRemove: false,
 	}
-	created, err := d.client.ContainerCreate(ctx, containerCfg, hostCfg, &network.NetworkingConfig{}, nil, sanitize(spec.Name))
+	netCfg := &network.NetworkingConfig{}
+	if d.cfg.Network != "" {
+		netCfg.EndpointsConfig = map[string]*network.EndpointSettings{
+			d.cfg.Network: {},
+		}
+	}
+	created, err := d.client.ContainerCreate(ctx, containerCfg, hostCfg, netCfg, nil, sanitize(spec.Name))
 	if err != nil {
 		return provider.State{}, fmt.Errorf("container create: %w", err)
 	}
@@ -167,6 +180,11 @@ func (d *LocalDocker) Inspect(ctx context.Context, providerID string) (provider.
 	state := provider.State{
 		ProviderID: resp.ID,
 		PublicIP:   d.cfg.HostBindIP,
+	}
+	if d.cfg.Network != "" {
+		if ep, ok := resp.NetworkSettings.Networks[d.cfg.Network]; ok && ep != nil && ep.IPAddress != "" {
+			state.PublicIP = ep.IPAddress
+		}
 	}
 	switch {
 	case resp.State.Running:

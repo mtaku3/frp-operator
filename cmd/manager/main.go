@@ -188,7 +188,10 @@ func main() {
 	// may fail when the Docker daemon is unreachable; we log and continue so
 	// the manager still starts in cloud-only environments.
 	provReg := provider.NewRegistry()
-	if ld, err := localdocker.New(localdocker.Config{Name: "local-docker"}); err != nil {
+	if ld, err := localdocker.New(localdocker.Config{
+		Name:    "local-docker",
+		Network: os.Getenv("LOCALDOCKER_NETWORK"),
+	}); err != nil {
 		setupLog.Info("Skipping LocalDocker provider registration", "reason", err.Error())
 	} else if err := provReg.Register(ld); err != nil {
 		setupLog.Error(err, "Failed to register LocalDocker provider")

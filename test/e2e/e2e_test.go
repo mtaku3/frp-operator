@@ -245,3 +245,97 @@ func applyManifest(yaml []byte) error {
 	_, err = utils.Run(exec.Command("kubectl", "apply", "-f", f.Name()))
 	return err
 }
+
+var _ = Describe("Webhook validation", Ordered, func() {
+	BeforeAll(func() {
+		if os.Getenv("E2E_WEBHOOK") != "1" {
+			Skip("set E2E_WEBHOOK=1 to run webhook specs (requires cert-manager)")
+		}
+
+		// CRDs and operator deployed by the outer Manager BeforeAll.
+		// Webhook config is part of `make deploy`; cert-manager mints
+		// its serving cert. Wait for the manager Pod to be Ready.
+		Eventually(func() error {
+			cmd := exec.Command("kubectl", "wait", "--for=condition=Ready", "pod",
+				"-l", "control-plane=controller-manager",
+				"-n", namespace, "--timeout=120s")
+			_, err := utils.Run(cmd)
+			return err
+		}, 3*time.Minute, 5*time.Second).Should(Succeed())
+	})
+
+	AfterAll(func() {
+		_, _ = utils.Run(exec.Command("kubectl", "delete", "tunnel", "wh-immutable",
+			"-n", "default", "--ignore-not-found", "--wait=false"))
+		_, _ = utils.Run(exec.Command("kubectl", "delete", "exitserver", "wh-grow",
+			"-n", "default", "--ignore-not-found", "--wait=false"))
+	})
+
+	It("rejects spec change to a Ready+ImmutableWhenReady Tunnel", func() {
+		By("creating a Tunnel with ImmutableWhenReady=true")
+		Expect(applyManifest([]byte(`
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata: {name: wh-immutable, namespace: default}
+spec:
+  immutableWhenReady: true
+  service: {name: wh-svc, namespace: default}
+  ports: [{name: http, servicePort: 80}]
+  schedulingPolicyRef: {name: default}
+`))).To(Succeed())
+
+		By("forcing status.phase=Ready via the status subresource")
+		patch := `{"status":{"phase":"Ready"}}`
+		_, err := utils.Run(exec.Command("kubectl", "patch", "tunnel", "wh-immutable",
+			"-n", "default", "--type=merge", "--subresource=status", "-p", patch))
+		Expect(err).NotTo(HaveOccurred())
+
+		By("attempting to mutate the locked spec.service.name; expect rejection")
+		mutated := []byte(`
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata: {name: wh-immutable, namespace: default}
+spec:
+  immutableWhenReady: true
+  service: {name: wh-svc-MUTATED, namespace: default}
+  ports: [{name: http, servicePort: 80}]
+  schedulingPolicyRef: {name: default}
+`)
+		f, ferr := os.CreateTemp("", "wh-*.yaml")
+		Expect(ferr).NotTo(HaveOccurred())
+		defer os.Remove(f.Name())
+		_, _ = f.Write(mutated)
+		_ = f.Close()
+
+		out, err := utils.Run(exec.Command("kubectl", "apply", "-f", f.Name()))
+		Expect(err).To(HaveOccurred(), "expected admission rejection, got success: %s", out)
+		Expect(out + err.Error()).To(ContainSubstring("immutable"))
+	})
+
+	It("rejects shrinking ExitServer AllowPorts below allocations", func() {
+		By("creating an ExitServer with a wide AllowPorts and frps spec")
+		Expect(applyManifest([]byte(`
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitServer
+metadata: {name: wh-grow, namespace: default}
+spec:
+  provider: local-docker
+  frps: {version: v0.68.1, bindPort: 7000, adminPort: 7500}
+  ssh: {port: 22}
+  credentialsRef: {name: local-docker-credentials, key: token}
+  allowPorts: ["1024-65535"]
+`))).To(Succeed())
+
+		By("seeding status.allocations[5000] via the status subresource")
+		_, err := utils.Run(exec.Command("kubectl", "patch", "exitserver", "wh-grow",
+			"-n", "default", "--type=merge", "--subresource=status",
+			"-p", `{"status":{"allocations":{"5000":"default/test"}}}`))
+		Expect(err).NotTo(HaveOccurred())
+
+		By("attempting to shrink AllowPorts to a range that drops port 5000")
+		_, err = utils.Run(exec.Command("kubectl", "patch", "exitserver", "wh-grow",
+			"-n", "default", "--type=merge",
+			"-p", `{"spec":{"allowPorts":["1024-4999"]}}`))
+		Expect(err).To(HaveOccurred(), "expected admission rejection")
+	})
+})

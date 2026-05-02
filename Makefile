@@ -1,6 +1,12 @@
 # Image URL to use all building/pushing image targets
 IMG ?= controller:latest
 
+# Unset GOROOT in recipes: devbox exports it for editor/tooling, but it pins
+# stdlib to the launcher's version and breaks Go's auto-toolchain (go.mod
+# `go 1.25.x` fetches a different toolchain than $GOROOT points at, causing
+# "compile: version go1.X does not match go tool version go1.Y").
+unexport GOROOT
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -90,21 +96,29 @@ test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expect
 cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
 	@$(KIND) delete cluster --name $(KIND_CLUSTER)
 
-##@ Local cluster (k3d) — rootless-Docker friendly alternative to kind for manual dev
+##@ Local cluster (kind) — manual dev cluster, isolated from e2e cluster
 
-K3D_CLUSTER ?= frp-operator-dev
+KIND_DEV_CLUSTER ?= frp-operator-dev
+KIND_KUBECONFIG  ?= $(CURDIR)/.kind-kubeconfig.yaml
+KIND_NODE_IMAGE  ?= kindest/node:v1.34.0
 
-.PHONY: k3d-up
-k3d-up: ## Create a local k3d cluster (rootless-Docker friendly) and install CRDs.
-	@k3d cluster list -o json | jq -e '.[] | select(.name=="$(K3D_CLUSTER)")' >/dev/null 2>&1 || \
-		k3d cluster create $(K3D_CLUSTER)
-	@kubectl config use-context k3d-$(K3D_CLUSTER)
-	@$(MAKE) install
-	@echo "k3d cluster '$(K3D_CLUSTER)' ready. Run 'make run' to start the operator out-of-cluster."
+.PHONY: kind-up
+kind-up: ## Create a local kind cluster and install CRDs.
+	@command -v $(KIND) >/dev/null 2>&1 || { echo "kind not installed"; exit 1; }
+	@case "$$($(KIND) get clusters)" in \
+		*"$(KIND_DEV_CLUSTER)"*) echo "kind cluster '$(KIND_DEV_CLUSTER)' exists, reusing." ;; \
+		*) $(KIND) create cluster --name $(KIND_DEV_CLUSTER) --image $(KIND_NODE_IMAGE) --kubeconfig $(KIND_KUBECONFIG) ;; \
+	esac
+	@$(KIND) export kubeconfig --name $(KIND_DEV_CLUSTER) --kubeconfig $(KIND_KUBECONFIG)
+	@chmod 600 $(KIND_KUBECONFIG)
+	@KUBECONFIG=$(KIND_KUBECONFIG) $(MAKE) install
+	@echo "kind cluster '$(KIND_DEV_CLUSTER)' ready (KUBECONFIG=$(KIND_KUBECONFIG))."
+	@echo "  make run   # operator out-of-cluster"
 
-.PHONY: k3d-down
-k3d-down: ## Delete the local k3d cluster.
-	@k3d cluster delete $(K3D_CLUSTER) || true
+.PHONY: kind-down
+kind-down: ## Delete the local kind dev cluster.
+	@$(KIND) delete cluster --name $(KIND_DEV_CLUSTER) || true
+	@rm -f $(KIND_KUBECONFIG)
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter

@@ -10,12 +10,14 @@
     "go@1.24",
     "kubebuilder@latest",
     "kustomize@latest",
-    "k3d@latest",
+    "kind@latest",
     "kubectl@latest"
   ],
   "env": {
-    "GOPATH": "$HOME/go/",
-    "PATH":   "$PATH:$HOME/go/bin"
+    "GOPATH":             "$HOME/go/",
+    "PATH":               "$PATH:$HOME/go/bin",
+    "KUBECONFIG":         "$PWD/.kind-kubeconfig.yaml",
+    "LOCALDOCKER_NETWORK": "kind"
   },
   "shell": {
     "init_hook": [

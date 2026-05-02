@@ -29,3 +29,6 @@ go.work.sum
 *.swp
 *.swo
 *~
+
+# kind local dev kubeconfig
+.kind-kubeconfig.yaml

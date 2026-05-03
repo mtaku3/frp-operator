@@ -25,13 +25,11 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/mtaku3/frp-operator/test/utils"
-	"github.com/mtaku3/frp-operator/test/utils/exitserver"
 	"github.com/mtaku3/frp-operator/test/utils/kubernetes"
 )
 
@@ -44,11 +42,7 @@ var _ = Describe("Webhook validation", Ordered, func() {
 		_, _ = utils.Run(exec.Command("kubectl", "delete", "exitserver", "wh-grow",
 			"-n", ns, "--ignore-not-found", "--wait=false"))
 
-		Eventually(func() int {
-			ts, _ := listTunnels(ns)
-			es, _ := exitserver.List(context.Background(), k8sClient, ns)
-			return len(ts) + len(es)
-		}, 3*time.Minute, 2*time.Second).Should(Equal(0))
+		drainNamespace(context.Background(), ns)
 	})
 
 	// TODO: this spec races with the tunnel controller resetting status.phase

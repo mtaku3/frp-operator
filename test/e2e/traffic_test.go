@@ -36,7 +36,6 @@ import (
 
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 	"github.com/mtaku3/frp-operator/test/utils"
-	"github.com/mtaku3/frp-operator/test/utils/exitserver"
 	"github.com/mtaku3/frp-operator/test/utils/kubernetes"
 	"github.com/mtaku3/frp-operator/test/utils/tunnel"
 )
@@ -59,11 +58,7 @@ var _ = Describe("Traffic", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		_ = kubernetes.DeleteServerSide(context.Background(), yaml)
 
-		Eventually(func() int {
-			ts, _ := listTunnels(ns)
-			es, _ := exitserver.List(context.Background(), k8sClient, ns)
-			return len(ts) + len(es)
-		}, 3*time.Minute, 2*time.Second).Should(Equal(0))
+		drainNamespace(context.Background(), ns)
 	})
 
 	It("kind node curl through frps reaches the backend", func() {

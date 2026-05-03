@@ -60,11 +60,7 @@ var _ = Describe("Resilience", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		_ = kubernetes.DeleteServerSide(context.Background(), yaml)
 
-		Eventually(func() int {
-			ts, _ := listTunnels(ns)
-			es, _ := exitserver.List(context.Background(), k8sClient, ns)
-			return len(ts) + len(es)
-		}, 3*time.Minute, 2*time.Second).Should(Equal(0))
+		drainNamespace(context.Background(), ns)
 	})
 
 	It("frpc reconnects after frps container restart", func() {

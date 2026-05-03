@@ -57,10 +57,10 @@ func WaitForPhase(ctx context.Context, c client.Client, ns, name string, want fr
 		}
 		if time.Now().After(deadline) {
 			if lastErr != nil {
-				return fmt.Errorf("Tunnel %s/%s did not reach phase %q within %s: last error %w",
+				return fmt.Errorf("tunnel %s/%s did not reach phase %q within %s: last error %w",
 					ns, name, want, timeout, lastErr)
 			}
-			return fmt.Errorf("Tunnel %s/%s did not reach phase %q within %s: last phase %q",
+			return fmt.Errorf("tunnel %s/%s did not reach phase %q within %s: last phase %q",
 				ns, name, want, timeout, lastPhase)
 		}
 		time.Sleep(2 * time.Second)

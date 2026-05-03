@@ -88,6 +88,26 @@ var _ = Describe("Scheduling", Ordered, func() {
 		Expect(kubernetes.ApplyServerSide(context.Background(), schedSvcAYAML)).To(Succeed())
 		Expect(tunnel.WaitForPhase(context.Background(), k8sClient, ns, schedSvcA,
 			frpv1alpha1.TunnelReady, 4*time.Minute)).To(Succeed())
+
+		// Tunnel A Ready means the exit has admin-OK and reservePorts ran,
+		// but in CI we still hit a race where the apiserver hasn't yet
+		// reflected exit A's status.allocations when Tunnel B's first
+		// reconcile fires, so the binpack picks an empty exit identity
+		// and provisions a duplicate. Wait until any exit in the
+		// namespace shows allocations[80]=default/sched-a before applying
+		// Service B.
+		Eventually(func() bool {
+			exits, err := exitserver.List(context.Background(), k8sClient, ns)
+			if err != nil {
+				return false
+			}
+			for _, e := range exits {
+				if e.Status.Allocations["80"] == ns+"/"+schedSvcA {
+					return true
+				}
+			}
+			return false
+		}, 1*time.Minute, 2*time.Second).Should(BeTrue())
 	})
 
 	AfterAll(func() {

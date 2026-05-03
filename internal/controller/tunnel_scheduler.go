@@ -40,8 +40,12 @@ func resolvePolicy(ctx context.Context, c client.Client, t *frpv1alpha1.Tunnel) 
 	return &p, nil
 }
 
-// listExitsInScope returns ExitServers in the tunnel's namespace.
-func listExitsInScope(ctx context.Context, c client.Client, t *frpv1alpha1.Tunnel) ([]frpv1alpha1.ExitServer, error) {
+// listExitsInScope returns ExitServers in the tunnel's namespace. The
+// reader passed in should be an apiserver-direct reader (not the
+// informer cache) so the scheduler can't miss an exit that has just
+// reached Phase=Ready: cache lag here would cause the scheduler to
+// provision a fresh exit instead of binpacking onto the existing one.
+func listExitsInScope(ctx context.Context, c client.Reader, t *frpv1alpha1.Tunnel) ([]frpv1alpha1.ExitServer, error) {
 	var list frpv1alpha1.ExitServerList
 	if err := c.List(ctx, &list, client.InNamespace(t.Namespace)); err != nil {
 		return nil, fmt.Errorf("list exits: %w", err)

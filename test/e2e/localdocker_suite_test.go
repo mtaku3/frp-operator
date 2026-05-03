@@ -112,6 +112,7 @@ var _ = BeforeSuite(func() {
 		"--leader-elect=false",
 		"--metrics-bind-address=:0",
 		"--health-probe-bind-address=:18081",
+		"--enable-webhooks=false",
 	)
 	ldOperatorCmd.Env = append(envWithoutKubeconfig(),
 		"KUBECONFIG="+ldKubeconfig,

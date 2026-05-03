@@ -40,7 +40,14 @@ import (
 // TunnelReconciler reconciles Tunnel CRs.
 type TunnelReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	// APIReader bypasses the controller-runtime informer cache when
+	// listing ExitServers in allocateExit. The cache can lag behind
+	// apiserver across the small window between an ExitServer
+	// reaching Phase=Ready and a freshly-created Tunnel reconciling
+	// — without a direct read the scheduler sees no eligible exits
+	// and provisions a duplicate instead of binpacking.
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
 
 	Allocators          *scheduler.AllocatorRegistry
 	ProvisionStrategies *scheduler.ProvisionStrategyRegistry
@@ -196,7 +203,11 @@ func (r *TunnelReconciler) allocateExit(ctx context.Context, tunnel *frpv1alpha1
 	if err != nil {
 		return nil, false, err
 	}
-	exits, err := listExitsInScope(ctx, r.Client, tunnel)
+	reader := client.Reader(r.Client)
+	if r.APIReader != nil {
+		reader = r.APIReader
+	}
+	exits, err := listExitsInScope(ctx, reader, tunnel)
 	if err != nil {
 		return nil, false, err
 	}
@@ -215,6 +226,22 @@ func (r *TunnelReconciler) allocateExit(ctx context.Context, tunnel *frpv1alpha1
 	}
 	if decision.Exit != nil {
 		return decision.Exit, false, nil
+	}
+	// Allocator returned no exit. Log the candidate set so binpack
+	// regressions are visible in operator logs without instrumentation.
+	{
+		logger := log.FromContext(ctx)
+		summary := make([]string, 0, len(exits))
+		for i := range exits {
+			e := &exits[i]
+			summary = append(summary, fmt.Sprintf(
+				"%s[phase=%s,allowPorts=%v,allocations=%v]",
+				e.Name, e.Status.Phase, e.Spec.AllowPorts, e.Status.Allocations))
+		}
+		logger.Info("scheduler: no eligible exit, will provision",
+			"reason", decision.Reason,
+			"tunnelPorts", tunnelPublicPorts(tunnel),
+			"candidates", summary)
 	}
 
 	provName := string(policy.Spec.Provisioner)

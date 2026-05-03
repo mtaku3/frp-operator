@@ -495,13 +495,7 @@ spec:
 		}, 60*time.Second, 2*time.Second).Should(BeEmpty())
 	})
 
-	It("schedules both tunnels onto a single ExitServer", Pending, func() {
-		// Pending: under e2e the second tunnel reliably gets its own
-		// ExitServer instead of binpacking onto the first. Unit tests
-		// (allocator_test.go) confirm BinPack picks the existing
-		// eligible exit, so the operator-side flow has a race or
-		// cache-staleness issue worth a focused fix before this spec
-		// can be enabled. Tracked as a follow-up.
+	It("schedules both tunnels onto a single ExitServer", func() {
 		By("waiting for both Tunnels to reach Ready")
 		for _, name := range []string{svcA, svcB} {
 			Eventually(func() string {

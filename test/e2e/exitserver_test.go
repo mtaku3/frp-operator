@@ -23,6 +23,7 @@ package e2e
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -33,12 +34,30 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 	"github.com/mtaku3/frp-operator/test/utils"
 	"github.com/mtaku3/frp-operator/test/utils/exitserver"
+	"github.com/mtaku3/frp-operator/test/utils/kubernetes"
+	"github.com/mtaku3/frp-operator/test/utils/tunnel"
 )
 
 var _ = Describe("ExitServer finalizer", Ordered, func() {
 	const ns = "default"
+	const tunnelName = "tunnel-basic"
+
+	BeforeAll(func() {
+		yaml, err := os.ReadFile("fixtures/tunnel_basic.yaml")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(kubernetes.ApplyServerSide(context.Background(), yaml)).To(Succeed())
+		Expect(tunnel.WaitForPhase(context.Background(), k8sClient, ns, tunnelName,
+			frpv1alpha1.TunnelReady, 4*time.Minute)).To(Succeed())
+	})
+
+	AfterAll(func() {
+		yaml, err := os.ReadFile("fixtures/tunnel_basic.yaml")
+		Expect(err).NotTo(HaveOccurred())
+		_ = kubernetes.DeleteServerSide(context.Background(), yaml)
+	})
 
 	It("releases the docker container and credentials Secret on delete", func() {
 		ctx := context.Background()

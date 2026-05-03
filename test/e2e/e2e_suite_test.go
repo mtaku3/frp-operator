@@ -49,14 +49,13 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	// Default-skip cert-manager unless E2E_WEBHOOK=1 (webhook specs need
-	// serving certs). Explicit CERT_MANAGER_INSTALL_SKIP wins over both.
+	// cert-manager is always installed: `make deploy` now applies the
+	// Certificate / Issuer the validating webhook needs, so without
+	// cert-manager's CRDs the kustomize stack fails. Explicit
+	// CERT_MANAGER_INSTALL_SKIP=true still wins for users running their
+	// own cert-manager.
 	if os.Getenv("CERT_MANAGER_INSTALL_SKIP") == "" {
-		if os.Getenv("E2E_WEBHOOK") == "1" {
-			_ = os.Setenv("CERT_MANAGER_INSTALL_SKIP", "false")
-		} else {
-			_ = os.Setenv("CERT_MANAGER_INSTALL_SKIP", "true")
-		}
+		_ = os.Setenv("CERT_MANAGER_INSTALL_SKIP", "false")
 	}
 
 	By("building the manager image")

@@ -35,7 +35,7 @@ func ApplyServerSide(_ context.Context, yaml []byte) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 	if _, err := f.Write(yaml); err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func DeleteServerSide(_ context.Context, yaml []byte) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 	if _, err := f.Write(yaml); err != nil {
 		return err
 	}

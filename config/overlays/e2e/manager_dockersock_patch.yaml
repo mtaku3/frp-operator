@@ -20,3 +20,13 @@
   value:
     name: LOCALDOCKER_NETWORK
     value: kind
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: tmp
+    emptyDir: {}
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: tmp
+    mountPath: /tmp

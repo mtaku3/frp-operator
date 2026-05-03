@@ -104,7 +104,18 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	} else {
 		var got frpv1alpha1.ExitServer
-		if err := r.Get(ctx, types.NamespacedName{Name: tunnel.Status.AssignedExit, Namespace: tunnel.Namespace}, &got); err != nil {
+		err := r.Get(ctx, types.NamespacedName{Name: tunnel.Status.AssignedExit, Namespace: tunnel.Namespace}, &got)
+		if apierrors.IsNotFound(err) {
+			// Assigned exit vanished (reclaimed, manually deleted, etc).
+			// Clear AssignedExit and let the next pass re-schedule.
+			patch := client.MergeFrom(tunnel.DeepCopy())
+			tunnel.Status.AssignedExit = ""
+			if perr := r.Status().Patch(ctx, &tunnel, patch); perr != nil {
+				return ctrl.Result{}, fmt.Errorf("clear stale assignedExit: %w", perr)
+			}
+			return ctrl.Result{Requeue: true}, nil
+		}
+		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("refetch assigned exit: %w", err)
 		}
 		exit = &got

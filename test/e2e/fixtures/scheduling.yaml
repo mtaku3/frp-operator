@@ -1,0 +1,55 @@
+---
+apiVersion: frp.operator.io/v1alpha1
+kind: SchedulingPolicy
+metadata:
+  name: default
+spec:
+  consolidation:
+    reclaimEmpty: false
+  vps:
+    default:
+      provider: local-docker
+      allowPorts: ["80", "81", "1024-65535"]
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: local-docker-credentials
+  namespace: default
+type: Opaque
+stringData:
+  token: sched-unused
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sched-a-be
+  namespace: default
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: sched-a}}
+  template:
+    metadata: {labels: {app: sched-a}}
+    spec:
+      containers:
+      - name: http-echo
+        image: hashicorp/http-echo
+        args: ["-text=sched-a", "-listen=:8080"]
+        ports: [{containerPort: 8080}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sched-b-be
+  namespace: default
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: sched-b}}
+  template:
+    metadata: {labels: {app: sched-b}}
+    spec:
+      containers:
+      - name: http-echo
+        image: hashicorp/http-echo
+        args: ["-text=sched-b", "-listen=:8081"]
+        ports: [{containerPort: 8081}]

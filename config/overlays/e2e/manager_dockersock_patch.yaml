@@ -30,3 +30,15 @@
   value:
     name: tmp
     mountPath: /tmp
+- op: replace
+  path: /spec/template/spec/containers/0/securityContext
+  value:
+    runAsUser: 0
+    runAsGroup: 0
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+- op: remove
+  path: /spec/template/spec/securityContext

@@ -98,6 +98,12 @@ var _ = Describe("Scheduling", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		_ = kubernetes.DeleteServerSide(context.Background(), yaml)
 
+		// Spec 2 narrowed the shared SchedulingPolicy AllowPorts; restore
+		// it so subsequent Describes see the suite-wide default.
+		shared, err := os.ReadFile("fixtures/shared.yaml")
+		Expect(err).NotTo(HaveOccurred())
+		_ = kubernetes.ApplyServerSide(context.Background(), shared)
+
 		drainNamespace(context.Background(), ns)
 	})
 
@@ -156,11 +162,14 @@ spec:
 		By("applying a Service requesting a sub-1024 port")
 		Expect(kubernetes.ApplyServerSide(ctx, schedSvcCYAML)).To(Succeed())
 
-		By("waiting for ServiceWatcher to create the Tunnel")
-		Eventually(func() error {
-			_, e := tunnel.Get(ctx, k8sClient, ns, schedSvcC)
-			return e
-		}, 30*time.Second, 2*time.Second).Should(Succeed())
+		By("waiting for ServiceWatcher to create the Tunnel and reach Allocating")
+		Eventually(func() frpv1alpha1.TunnelPhase {
+			t, e := tunnel.Get(ctx, k8sClient, ns, schedSvcC)
+			if e != nil {
+				return ""
+			}
+			return t.Status.Phase
+		}, 60*time.Second, 2*time.Second).Should(Equal(frpv1alpha1.TunnelAllocating))
 
 		By("asserting the Tunnel stays in Allocating for 30s")
 		Consistently(func() frpv1alpha1.TunnelPhase {

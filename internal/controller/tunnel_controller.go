@@ -223,6 +223,19 @@ func (r *TunnelReconciler) allocateExit(ctx context.Context, tunnel *frpv1alpha1
 		return nil, false, err
 	}
 
+	// Idempotency: if a prior reconcile already created an exit for this
+	// tunnel (label created-for-tunnel=<name>), reuse it instead of
+	// running the allocator/provisioner again. Without this guard, a
+	// status patch failure between Create and AssignedExit-set would
+	// re-enter allocateExit with AssignedExit="" and provision a
+	// duplicate exit on every retry.
+	for i := range exits {
+		e := &exits[i]
+		if e.Labels["frp-operator.io/created-for-tunnel"] == tunnel.Name {
+			return e, false, nil
+		}
+	}
+
 	allocName := string(policy.Spec.Allocator)
 	if allocName == "" {
 		allocName = "CapacityAware"

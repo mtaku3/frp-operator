@@ -78,7 +78,10 @@ func createExitServerFromDecision(
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: t.Name + "-",
 			Namespace:    t.Namespace,
-			Labels:       map[string]string{"frp-operator.io/created-by": "tunnel-controller"},
+			Labels: map[string]string{
+				"frp-operator.io/created-by":         "tunnel-controller",
+				"frp-operator.io/created-for-tunnel": t.Name,
+			},
 		},
 		Spec: spec,
 	}

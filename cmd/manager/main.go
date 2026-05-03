@@ -17,8 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
+	"net/http"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -29,6 +32,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -36,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
+	controllercfg "github.com/mtaku3/frp-operator/internal/cmd/manager/controller"
 	"github.com/mtaku3/frp-operator/internal/controller"
 	"github.com/mtaku3/frp-operator/internal/frp/admin"
 	"github.com/mtaku3/frp-operator/internal/provider"
@@ -43,6 +48,7 @@ import (
 	"github.com/mtaku3/frp-operator/internal/provider/localdocker"
 	"github.com/mtaku3/frp-operator/internal/scheduler"
 	webhookv1alpha1 "github.com/mtaku3/frp-operator/internal/webhook/v1alpha1"
+	"github.com/mtaku3/frp-operator/pkg/certs"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -85,10 +91,6 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
-	var enableWebhooks bool
-	flag.BoolVar(&enableWebhooks, "enable-webhooks", true,
-		"If true, register the validating webhooks. Set false when running "+
-			"out-of-cluster without serving certs (e.g., the localdocker e2e suite).")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -284,19 +286,16 @@ func main() {
 	}
 	// +kubebuilder:scaffold:builder
 
-	// Webhooks: register the validators (skip when running without serving
-	// certs, e.g. the localdocker e2e harness).
-	if enableWebhooks {
-		if err := (&webhookv1alpha1.TunnelValidator{}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create webhook", "webhook", "Tunnel")
-			os.Exit(1)
-		}
-		if err := (&webhookv1alpha1.ExitServerValidator{}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create webhook", "webhook", "ExitServer")
-			os.Exit(1)
-		}
-	} else {
-		setupLog.Info("Webhook registration disabled (--enable-webhooks=false)")
+	// Webhooks: always register the validators. The cert mount + optional
+	// Secret in manager.yaml plus pki.Setup's retry-on-mount-not-refreshed
+	// is what bridges first-boot when no Secret exists yet.
+	if err := (&webhookv1alpha1.TunnelValidator{}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Tunnel")
+		os.Exit(1)
+	}
+	if err := (&webhookv1alpha1.ExitServerValidator{}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "ExitServer")
+		os.Exit(1)
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -308,9 +307,65 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx := ctrl.SetupSignalHandler()
+
+	// Self-provision the validating webhook serving cert + CA bundle.
+	// This must run before mgr.Start() so the webhook server has TLS
+	// material on disk before its listener comes up. Mirrors CNPG's
+	// ensurePKI in internal/cmd/manager/controller/controller.go.
+	//
+	// We build a direct (non-cached) client because the manager's cache
+	// has not started yet; mgr.GetClient() reads would block.
+	kubeClient, err := client.New(mgr.GetConfig(), client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "unable to build kube client for PKI setup")
+		os.Exit(1)
+	}
+	if err := ensurePKI(ctx, kubeClient, webhookCertPath); err != nil {
+		setupLog.Error(err, "unable to set up PKI")
+		os.Exit(1)
+	}
+
+	// /readyz on the webhook mux: the kubelet probe goes here, so the
+	// Pod can't become Ready until the TLS listener is serving.
+	mgr.GetWebhookServer().Register("/readyz", &readinessProbe{})
+
 	setupLog.Info("Starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "Failed to run manager")
 		os.Exit(1)
 	}
+}
+
+type readinessProbe struct{}
+
+func (readinessProbe) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	_, _ = fmt.Fprint(w, "OK")
+}
+
+// ensurePKI installs the operator's self-managed CA + leaf cert + CA
+// bundle injection into the ValidatingWebhookConfiguration.
+func ensurePKI(ctx context.Context, c client.Client, mgrCertDir string) error {
+	ns := os.Getenv("OPERATOR_NAMESPACE")
+	if ns == "" {
+		// Fall back to the namespace the Pod is running in (in-cluster
+		// service-account mount). Local dev runs without namespace
+		// mounts; the operator will fail loudly here, which is what
+		// we want.
+		nsBytes, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+		if err != nil {
+			return fmt.Errorf("OPERATOR_NAMESPACE not set and namespace file unreadable: %w", err)
+		}
+		ns = string(nsBytes)
+	}
+	pki := certs.PublicKeyInfrastructure{
+		CaSecretName:                       controllercfg.CaSecretName,
+		CertDir:                            mgrCertDir,
+		SecretName:                         controllercfg.WebhookSecretName,
+		ServiceName:                        controllercfg.WebhookServiceName,
+		OperatorNamespace:                  ns,
+		ValidatingWebhookConfigurationName: controllercfg.ValidatingWebhookConfigurationName,
+		OperatorDeploymentLabelSelector:    controllercfg.OperatorDeploymentLabelSelector,
+	}
+	return pki.Setup(ctx, c)
 }

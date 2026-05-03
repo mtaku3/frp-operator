@@ -690,10 +690,6 @@ var _ = Describe("Resilience", Ordered, func() {
 	const resBody = "res-hello"
 
 	BeforeAll(func() {
-		if os.Getenv("E2E_LOCALDOCKER_RESILIENCE") != "1" {
-			Skip("set E2E_LOCALDOCKER_RESILIENCE=1 to run resilience specs")
-		}
-
 		Eventually(func() string {
 			out, _ := runKC("get", "tunnel,exitserver", "-n", "default",
 				"-o", "jsonpath={range .items[*]}{.metadata.name} {end}")

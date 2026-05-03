@@ -33,7 +33,7 @@ What it covers:
 - ExitServer deletion runs the finalizer (container + cred Secret cleaned).
 - A tunnel whose requested port falls outside the policy's default `AllowPorts` stays Allocating; no exit is provisioned.
 - Service.status.loadBalancer.ingress reflects the assigned ExitServer.publicIP.
-- `E2E_LOCALDOCKER_RESILIENCE=1`: frpc reconnects after frps container restart.
+- frpc reconnects after frps container restart.
 
 Pending:
 

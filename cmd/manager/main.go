@@ -200,8 +200,9 @@ func main() {
 	// the manager still starts in cloud-only environments.
 	provReg := provider.NewRegistry()
 	if ld, err := localdocker.New(localdocker.Config{
-		Name:    "local-docker",
-		Network: os.Getenv("LOCALDOCKER_NETWORK"),
+		Name:                   "local-docker",
+		Network:                os.Getenv("LOCALDOCKER_NETWORK"),
+		SkipHostPortPublishing: os.Getenv("LOCALDOCKER_SKIP_HOST_PORT_PUBLISH") == "1",
 	}); err != nil {
 		setupLog.Info("Skipping LocalDocker provider registration", "reason", err.Error())
 	} else if err := provReg.Register(ld); err != nil {

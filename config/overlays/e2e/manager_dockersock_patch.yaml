@@ -26,6 +26,11 @@
     name: TMPDIR
     value: /tmp/frp-operator-shared
 - op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: LOCALDOCKER_SKIP_HOST_PORT_PUBLISH
+    value: "1"
+- op: add
   path: /spec/template/spec/volumes/-
   value:
     name: shared-tmp

@@ -37,6 +37,7 @@ import (
 
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 	"github.com/mtaku3/frp-operator/test/utils"
+	"github.com/mtaku3/frp-operator/test/utils/kubernetes"
 	"github.com/mtaku3/frp-operator/test/utils/operator"
 )
 
@@ -78,6 +79,11 @@ var _ = BeforeSuite(func() {
 
 	By("waiting for the operator to become Ready (Deployment + cert + dry-run admission probe)")
 	Expect(operator.WaitForReady(suiteCtx, k8sClient, 5*time.Minute, true)).To(Succeed())
+
+	By("applying shared SchedulingPolicy and credentials Secret")
+	yaml, err := os.ReadFile("fixtures/shared.yaml")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(kubernetes.ApplyServerSide(suiteCtx, yaml)).To(Succeed())
 })
 
 var _ = AfterSuite(func() {

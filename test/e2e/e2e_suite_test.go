@@ -2,109 +2,95 @@
 // +build e2e
 
 /*
-Copyright 2026.
+Copyright (C) 2026.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
 
-    http://www.apache.org/licenses/LICENSE-2.0
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+Affero General Public License for more details.
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+You should have received a copy of the GNU Affero General Public
+License along with this program. If not, see
+<https://www.gnu.org/licenses/agpl-3.0.html>.
 */
 
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 	"github.com/mtaku3/frp-operator/test/utils"
+	"github.com/mtaku3/frp-operator/test/utils/kubernetes"
+	"github.com/mtaku3/frp-operator/test/utils/operator"
+)
+
+const (
+	managerImage = "example.com/frp-operator:v0.0.1"
 )
 
 var (
-	// managerImage is the manager image to be built and loaded for testing.
-	managerImage = "example.com/frp-operator:v0.0.1"
-	// shouldCleanupCertManager tracks whether CertManager was installed by this suite.
-	shouldCleanupCertManager = false
+	k8sClient client.Client
+	suiteCtx  = context.Background()
 )
 
-// TestE2E runs the e2e test suite to validate the solution in an isolated environment.
-// The default setup requires Kind and CertManager.
-//
-// To skip CertManager installation, set: CERT_MANAGER_INSTALL_SKIP=true
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	_, _ = fmt.Fprintf(GinkgoWriter, "Starting frp-operator e2e test suite\n")
-	RunSpecs(t, "e2e suite")
+	_, _ = fmt.Fprintln(GinkgoWriter, "frp-operator e2e suite")
+	RunSpecs(t, "e2e")
 }
 
 var _ = BeforeSuite(func() {
-	// cert-manager is always installed: `make deploy` now applies the
-	// Certificate / Issuer the validating webhook needs, so without
-	// cert-manager's CRDs the kustomize stack fails. Explicit
-	// CERT_MANAGER_INSTALL_SKIP=true still wins for users running their
-	// own cert-manager.
-	if os.Getenv("CERT_MANAGER_INSTALL_SKIP") == "" {
-		_ = os.Setenv("CERT_MANAGER_INSTALL_SKIP", "false")
-	}
+	By("registering CRDs in the scheme")
+	Expect(frpv1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
 
-	By("building the manager image")
-	cmd := exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", managerImage))
-	_, err := utils.Run(cmd)
-	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to build the manager image")
+	cfg := ctrl.GetConfigOrDie()
+	c, err := client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).NotTo(HaveOccurred())
+	k8sClient = c
 
-	// TODO(user): If you want to change the e2e test vendor from Kind,
-	// ensure the image is built and available, then remove the following block.
-	By("loading the manager image on Kind")
-	err = utils.LoadImageToKindClusterWithName(managerImage)
-	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to load the manager image into Kind")
+	By("building and loading the manager image")
+	_, err = utils.Run(exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", managerImage)))
+	Expect(err).NotTo(HaveOccurred())
+	Expect(utils.LoadImageToKindClusterWithName(managerImage)).To(Succeed())
 
-	setupCertManager()
+	By("applying the e2e overlay")
+	_, err = utils.Run(exec.Command(
+		"kubectl", "apply", "-k", "config/overlays/e2e",
+		"--server-side", "--force-conflicts",
+	))
+	Expect(err).NotTo(HaveOccurred())
+
+	By("waiting for the operator to become Ready (Deployment + cert + dry-run admission probe)")
+	Expect(operator.WaitForReady(suiteCtx, k8sClient, 5*time.Minute, true)).To(Succeed())
+
+	By("applying shared SchedulingPolicy and credentials Secret")
+	yaml, err := os.ReadFile("fixtures/shared.yaml")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(kubernetes.ApplyServerSide(suiteCtx, yaml)).To(Succeed())
 })
 
 var _ = AfterSuite(func() {
-	teardownCertManager()
+	if os.Getenv("KEEP_E2E_RESOURCES") == "1" {
+		return
+	}
+	By("deleting the e2e overlay")
+	_, _ = utils.Run(exec.Command("kubectl", "delete", "-k", "config/overlays/e2e",
+		"--ignore-not-found", "--wait=false"))
 })
-
-// setupCertManager installs CertManager if needed for webhook tests.
-// Skips installation if CERT_MANAGER_INSTALL_SKIP=true or if already present.
-func setupCertManager() {
-	if os.Getenv("CERT_MANAGER_INSTALL_SKIP") == "true" {
-		_, _ = fmt.Fprintf(GinkgoWriter, "Skipping CertManager installation (CERT_MANAGER_INSTALL_SKIP=true)\n")
-		return
-	}
-
-	By("checking if CertManager is already installed")
-	if utils.IsCertManagerCRDsInstalled() {
-		_, _ = fmt.Fprintf(GinkgoWriter, "CertManager is already installed. Skipping installation.\n")
-		return
-	}
-
-	// Mark for cleanup before installation to handle interruptions and partial installs.
-	shouldCleanupCertManager = true
-
-	By("installing CertManager")
-	Expect(utils.InstallCertManager()).To(Succeed(), "Failed to install CertManager")
-}
-
-// teardownCertManager uninstalls CertManager if it was installed by setupCertManager.
-// This ensures we only remove what we installed.
-func teardownCertManager() {
-	if !shouldCleanupCertManager {
-		_, _ = fmt.Fprintf(GinkgoWriter, "Skipping CertManager cleanup (not installed by this suite)\n")
-		return
-	}
-
-	By("uninstalling CertManager")
-	utils.UninstallCertManager()
-}

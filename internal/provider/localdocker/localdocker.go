@@ -53,6 +53,12 @@ type Config struct {
 	// network (e.g., kind nodes/Pods) can dial frps directly without
 	// host-port publishing. The network must already exist.
 	Network string
+
+	// SkipHostPortPublishing, when true, skips publishing BindPort/AdminPort
+	// to host. Useful when callers reach the container via a shared network
+	// (e.g., kind) — eliminates host-port collisions across multiple frps
+	// instances that share a single bind/admin port.
+	SkipHostPortPublishing bool
 }
 
 // LocalDocker is a Provisioner that runs frps as Docker containers.
@@ -140,6 +146,9 @@ func (d *LocalDocker) Create(ctx context.Context, spec provider.Spec) (provider.
 			"frp-operator.io/exit":     spec.Name,
 		},
 	}
+	if d.cfg.SkipHostPortPublishing {
+		portMap = nat.PortMap{}
+	}
 	hostCfg := &container.HostConfig{
 		PortBindings: portMap,
 		Mounts: []mount.Mount{{
@@ -156,7 +165,13 @@ func (d *LocalDocker) Create(ctx context.Context, spec provider.Spec) (provider.
 			d.cfg.Network: {},
 		}
 	}
-	created, err := d.client.ContainerCreate(ctx, containerCfg, hostCfg, netCfg, nil, sanitize(spec.Name))
+	cname := sanitize(spec.Name)
+	created, err := d.client.ContainerCreate(ctx, containerCfg, hostCfg, netCfg, nil, cname)
+	if err != nil && errdefs.IsConflict(err) {
+		// Stale container from a prior failed attempt; remove and retry once.
+		_ = d.client.ContainerRemove(ctx, cname, container.RemoveOptions{Force: true})
+		created, err = d.client.ContainerCreate(ctx, containerCfg, hostCfg, netCfg, nil, cname)
+	}
 	if err != nil {
 		return provider.State{}, fmt.Errorf("container create: %w", err)
 	}

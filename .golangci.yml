@@ -41,10 +41,29 @@ linters:
       - linters:
           - lll
         path: api/*
+      # kubebuilder rbac markers are single-line and routinely exceed 120 chars.
+      - linters:
+          - lll
+        source: "^// \\+kubebuilder:"
+      # test helper signatures often span many parameters; readability beats wrapping.
+      - linters:
+          - lll
+        path: test/*
       - linters:
           - dupl
           - lll
         path: internal/*
+      # pkg/certs is a 1:1 port of CloudNativePG's certificate package; keep upstream patterns.
+      - path: pkg/certs/
+        linters:
+          - errcheck
+          - goconst
+          - gocyclo
+          - lll
+          - modernize
+          - revive
+          - staticcheck
+          - unparam
     paths:
       - third_party$
       - builtin$

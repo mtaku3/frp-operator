@@ -14,6 +14,16 @@ import (
 // captures only the local "what should I be right now" decision based on
 // the most recent observation.
 func nextPhase(current frpv1alpha1.ExitPhase, providerState provider.Phase, adminOK bool) frpv1alpha1.ExitPhase {
+	// Reclaim controller owns Draining; don't overwrite it with Ready or
+	// Provisioning when the provider is still running. Lost (gone/failed)
+	// still wins because the container is actually gone.
+	if current == frpv1alpha1.PhaseDraining {
+		switch providerState {
+		case provider.PhaseGone, provider.PhaseFailed:
+			return frpv1alpha1.PhaseLost
+		}
+		return frpv1alpha1.PhaseDraining
+	}
 	switch providerState {
 	case provider.PhaseGone, provider.PhaseFailed:
 		return frpv1alpha1.PhaseLost

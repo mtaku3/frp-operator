@@ -32,3 +32,4 @@ go.work.sum
 
 # kind local dev kubeconfig
 .kind-kubeconfig.yaml
+.claude/

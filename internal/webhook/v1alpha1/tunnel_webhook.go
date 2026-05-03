@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
@@ -28,36 +26,25 @@ type TunnelValidator struct{}
 
 // SetupWithManager wires this validator into the manager.
 func (v *TunnelValidator) SetupWithManager(mgr ctrl.Manager) error {
-	// TODO: Wire the webhook with the manager when running on a cluster
-	return nil
+	return ctrl.NewWebhookManagedBy(mgr, &frpv1alpha1.Tunnel{}).
+		WithValidator(v).
+		Complete()
 }
 
 // +kubebuilder:webhook:path=/validate-frp-operator-io-v1alpha1-tunnel,mutating=false,failurePolicy=fail,sideEffects=None,groups=frp.operator.io,resources=tunnels,verbs=create;update,versions=v1alpha1,name=vtunnel.kb.io,admissionReviewVersions=v1
 
-// ValidateCreate implements webhook.CustomValidator. Always allows;
-// invariants apply only on update.
-func (v *TunnelValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	if _, ok := obj.(*frpv1alpha1.Tunnel); !ok {
-		return nil, fmt.Errorf("expected Tunnel, got %T", obj)
-	}
+// ValidateCreate implements admission.Validator. Always allows; invariants
+// apply only on update.
+func (v *TunnelValidator) ValidateCreate(ctx context.Context, obj *frpv1alpha1.Tunnel) (admission.Warnings, error) {
 	return nil, nil
 }
 
-// ValidateUpdate implements webhook.CustomValidator. The lock is enforced
-// only when the OLD object had Spec.ImmutableWhenReady=true AND
-// Status.Phase=Ready. This means the user can flip the flag to false on
-// an unlocked tunnel and immediately edit; or flip it to true on a Ready
-// tunnel and have the lock take effect from the next update.
-func (v *TunnelValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
-	oldT, ok := oldObj.(*frpv1alpha1.Tunnel)
-	if !ok {
-		return nil, fmt.Errorf("expected old Tunnel, got %T", oldObj)
-	}
-	newT, ok := newObj.(*frpv1alpha1.Tunnel)
-	if !ok {
-		return nil, fmt.Errorf("expected new Tunnel, got %T", newObj)
-	}
-
+// ValidateUpdate implements admission.Validator. The lock is enforced only
+// when the OLD object had Spec.ImmutableWhenReady=true AND Status.Phase=Ready.
+// This means the user can flip the flag to false on an unlocked tunnel
+// and immediately edit; or flip it to true on a Ready tunnel and have the
+// lock take effect from the next update.
+func (v *TunnelValidator) ValidateUpdate(ctx context.Context, oldT, newT *frpv1alpha1.Tunnel) (admission.Warnings, error) {
 	// Lock applies only when old.Spec.ImmutableWhenReady was true AND
 	// old.Status.Phase was Ready. If the user just toggled the flag or
 	// the tunnel isn't Ready yet, nothing is locked.
@@ -83,11 +70,11 @@ func (v *TunnelValidator) ValidateUpdate(ctx context.Context, oldObj, newObj run
 	return nil, nil
 }
 
-// ValidateDelete implements webhook.CustomValidator. Allows; finalizers
-// handle teardown.
-func (v *TunnelValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+// ValidateDelete implements admission.Validator. Allows; finalizers handle
+// teardown.
+func (v *TunnelValidator) ValidateDelete(ctx context.Context, obj *frpv1alpha1.Tunnel) (admission.Warnings, error) {
 	return nil, nil
 }
 
 // Compile-time check.
-var _ webhook.CustomValidator = (*TunnelValidator)(nil)
+var _ admission.Validator[*frpv1alpha1.Tunnel] = (*TunnelValidator)(nil)

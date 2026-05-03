@@ -70,7 +70,7 @@ func translateServiceToTunnelSpec(svc *corev1.Service) (frpv1alpha1.TunnelSpec, 
 		placementSet = true
 	}
 	if v := a[annRegion]; v != "" {
-		for _, r := range strings.Split(v, ",") {
+		for r := range strings.SplitSeq(v, ",") {
 			r = strings.TrimSpace(r)
 			if r != "" {
 				placement.Regions = append(placement.Regions, r)

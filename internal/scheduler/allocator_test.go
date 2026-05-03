@@ -13,7 +13,7 @@ import (
 func allocatorTestExits() []frpv1alpha1.ExitServer {
 	mk := func(name string, allocs int, tunnels int32) frpv1alpha1.ExitServer {
 		a := map[string]string{}
-		for i := 0; i < allocs; i++ {
+		for i := range allocs {
 			a[itoa(20000+i)] = "ns/x"
 		}
 		return frpv1alpha1.ExitServer{
@@ -41,19 +41,19 @@ func itoa(n int) string {
 	return string([]byte{byte('0' + (n/10000)%10), byte('0' + (n/1000)%10), byte('0' + (n/100)%10), byte('0' + (n/10)%10), byte('0' + n%10)})
 }
 
-func basicTunnel(port int32) *frpv1alpha1.Tunnel {
+func basicTunnel() *frpv1alpha1.Tunnel {
 	return &frpv1alpha1.Tunnel{
 		ObjectMeta: metav1.ObjectMeta{Name: "t", Namespace: "default"},
 		Spec: frpv1alpha1.TunnelSpec{
 			Service: frpv1alpha1.ServiceRef{Name: "s", Namespace: "default"},
-			Ports:   []frpv1alpha1.TunnelPort{{Name: "p", ServicePort: port}},
+			Ports:   []frpv1alpha1.TunnelPort{{Name: "p", ServicePort: 80}},
 		},
 	}
 }
 
 func TestAllocators(t *testing.T) {
 	exits := allocatorTestExits()
-	tunnel := basicTunnel(80)
+	tunnel := basicTunnel()
 
 	cases := []struct {
 		name      string
@@ -81,7 +81,7 @@ func TestAllocators(t *testing.T) {
 }
 
 func TestAllocators_NoEligibleExitReturnsReason(t *testing.T) {
-	tunnel := basicTunnel(80)
+	tunnel := basicTunnel()
 	// All exits in PhaseProvisioning → none eligible.
 	exits := allocatorTestExits()
 	for i := range exits {
@@ -109,7 +109,7 @@ func TestAllocators_PortConflictExcludesExit(t *testing.T) {
 	exits := allocatorTestExits()
 	exits[2].Status.Allocations["80"] = "ns/blocker"
 
-	tunnel := basicTunnel(80)
+	tunnel := basicTunnel()
 	d, err := (&BinPackAllocator{}).Allocate(AllocateInput{Tunnel: tunnel, Exits: exits})
 	if err != nil {
 		t.Fatalf("Allocate: %v", err)

@@ -170,7 +170,7 @@ var _ = Describe("ExitServerController integration", func() {
 
 		req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "exit-del", Namespace: "default"}}
 		// Drive provisioning so we have a ProviderID.
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			_, err := recon.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 		}
@@ -237,7 +237,7 @@ var _ = Describe("ExitServerController integration", func() {
 		})
 
 		// Drive reconciles to Ready with the fake admin reporting OK.
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			_, err := recon.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 		}

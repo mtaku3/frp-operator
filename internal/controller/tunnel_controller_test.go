@@ -124,7 +124,7 @@ var _ = Describe("TunnelController integration", func() {
 			got := &frpv1alpha1.Tunnel{}
 			if err := k8sClient.Get(tctx, tReq.NamespacedName, got); err == nil {
 				_ = k8sClient.Delete(tctx, got)
-				for i := 0; i < 5; i++ {
+				for range 5 {
 					_, _ = tunnelRecon.Reconcile(tctx, tReq)
 				}
 			}
@@ -135,7 +135,7 @@ var _ = Describe("TunnelController integration", func() {
 				e := &exits.Items[i]
 				_ = k8sClient.Delete(tctx, e)
 				eReq := ctrl.Request{NamespacedName: types.NamespacedName{Name: e.Name, Namespace: e.Namespace}}
-				for j := 0; j < 5; j++ {
+				for range 5 {
 					_, _ = exitRecon.Reconcile(tctx, eReq)
 				}
 			}
@@ -164,7 +164,7 @@ var _ = Describe("TunnelController integration", func() {
 		Expect(createdByTunnelController).To(HaveLen(1))
 		exitName := createdByTunnelController[0].Name
 		eReq := ctrl.Request{NamespacedName: types.NamespacedName{Name: exitName, Namespace: "default"}}
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			_, err := exitRecon.Reconcile(tctx, eReq)
 			Expect(err).NotTo(HaveOccurred())
 		}
@@ -173,7 +173,7 @@ var _ = Describe("TunnelController integration", func() {
 		Expect(ex.Status.Phase).To(Equal(frpv1alpha1.PhaseReady))
 
 		// Final reconcile loops on the tunnel: schedule + frpc.
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			_, err := tunnelRecon.Reconcile(tctx, tReq)
 			Expect(err).NotTo(HaveOccurred())
 		}
@@ -211,7 +211,7 @@ var _ = Describe("TunnelController integration", func() {
 			got := &frpv1alpha1.Tunnel{}
 			if err := k8sClient.Get(tctx, tReq.NamespacedName, got); err == nil {
 				_ = k8sClient.Delete(tctx, got)
-				for i := 0; i < 5; i++ {
+				for range 5 {
 					_, _ = tunnelRecon.Reconcile(tctx, tReq)
 				}
 			}
@@ -221,7 +221,7 @@ var _ = Describe("TunnelController integration", func() {
 				e := &exits.Items[i]
 				_ = k8sClient.Delete(tctx, e)
 				eReq := ctrl.Request{NamespacedName: types.NamespacedName{Name: e.Name, Namespace: e.Namespace}}
-				for j := 0; j < 5; j++ {
+				for range 5 {
 					_, _ = exitRecon.Reconcile(tctx, eReq)
 				}
 			}
@@ -241,12 +241,12 @@ var _ = Describe("TunnelController integration", func() {
 		Expect(exits.Items).To(HaveLen(1))
 		exitName = exits.Items[0].Name
 		eReq := ctrl.Request{NamespacedName: types.NamespacedName{Name: exitName, Namespace: "default"}}
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			_, err := exitRecon.Reconcile(tctx, eReq)
 			Expect(err).NotTo(HaveOccurred())
 		}
 		// Tunnel reconciles to placement.
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			_, err := tunnelRecon.Reconcile(tctx, tReq)
 			Expect(err).NotTo(HaveOccurred())
 		}

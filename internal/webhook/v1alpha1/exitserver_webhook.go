@@ -6,9 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
@@ -21,32 +19,21 @@ type ExitServerValidator struct{}
 
 // SetupWithManager wires this validator into the manager.
 func (v *ExitServerValidator) SetupWithManager(mgr ctrl.Manager) error {
-	// TODO: Wire the webhook with the manager when running on a cluster
-	return nil
+	return ctrl.NewWebhookManagedBy(mgr, &frpv1alpha1.ExitServer{}).
+		WithValidator(v).
+		Complete()
 }
 
 // +kubebuilder:webhook:path=/validate-frp-operator-io-v1alpha1-exitserver,mutating=false,failurePolicy=fail,sideEffects=None,groups=frp.operator.io,resources=exitservers,verbs=create;update,versions=v1alpha1,name=vexitserver.kb.io,admissionReviewVersions=v1
 
-// ValidateCreate implements webhook.CustomValidator.
-func (v *ExitServerValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	if _, ok := obj.(*frpv1alpha1.ExitServer); !ok {
-		return nil, fmt.Errorf("expected ExitServer, got %T", obj)
-	}
+// ValidateCreate implements admission.Validator.
+func (v *ExitServerValidator) ValidateCreate(ctx context.Context, obj *frpv1alpha1.ExitServer) (admission.Warnings, error) {
 	return nil, nil
 }
 
-// ValidateUpdate implements webhook.CustomValidator. AllowPorts must cover
-// every port currently allocated.
-func (v *ExitServerValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
-	_, ok := oldObj.(*frpv1alpha1.ExitServer)
-	if !ok {
-		return nil, fmt.Errorf("expected old ExitServer, got %T", oldObj)
-	}
-	newE, ok := newObj.(*frpv1alpha1.ExitServer)
-	if !ok {
-		return nil, fmt.Errorf("expected new ExitServer, got %T", newObj)
-	}
-
+// ValidateUpdate implements admission.Validator. AllowPorts must cover every
+// port currently allocated.
+func (v *ExitServerValidator) ValidateUpdate(ctx context.Context, oldE, newE *frpv1alpha1.ExitServer) (admission.Warnings, error) {
 	ranges, err := parseAllowPorts(newE.Spec.AllowPorts)
 	if err != nil {
 		return nil, fmt.Errorf("spec.allowPorts: %w", err)
@@ -65,8 +52,8 @@ func (v *ExitServerValidator) ValidateUpdate(ctx context.Context, oldObj, newObj
 	return nil, nil
 }
 
-// ValidateDelete implements webhook.CustomValidator.
-func (v *ExitServerValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+// ValidateDelete implements admission.Validator.
+func (v *ExitServerValidator) ValidateDelete(ctx context.Context, obj *frpv1alpha1.ExitServer) (admission.Warnings, error) {
 	return nil, nil
 }
 
@@ -82,9 +69,9 @@ func parseAllowPorts(specs []string) ([]portRange, error) {
 		if s == "" {
 			continue
 		}
-		if i := strings.IndexByte(s, '-'); i >= 0 {
-			start, err1 := strconv.Atoi(s[:i])
-			end, err2 := strconv.Atoi(s[i+1:])
+		if before, after, ok := strings.Cut(s, "-"); ok {
+			start, err1 := strconv.Atoi(before)
+			end, err2 := strconv.Atoi(after)
 			if err1 != nil || err2 != nil || start > end || start < 1 || end > 65535 {
 				return nil, fmt.Errorf("invalid range %q", s)
 			}
@@ -110,4 +97,4 @@ func portCovered(p int, ranges []portRange) bool {
 	return false
 }
 
-var _ webhook.CustomValidator = (*ExitServerValidator)(nil)
+var _ admission.Validator[*frpv1alpha1.ExitServer] = (*ExitServerValidator)(nil)

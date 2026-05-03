@@ -101,7 +101,7 @@ func loadProviderCredentials(ctx context.Context, c client.Client, exit *frpv1al
 	}
 	val, ok := sec.Data[exit.Spec.CredentialsRef.Key]
 	if !ok {
-		return nil, fmt.Errorf("Secret %s/%s missing key %q",
+		return nil, fmt.Errorf("secret %s/%s missing key %q",
 			exit.Namespace, exit.Spec.CredentialsRef.Name, exit.Spec.CredentialsRef.Key)
 	}
 	return val, nil
@@ -116,9 +116,9 @@ func parseAllowPorts(specStrings []string) []config.FrpsPortRange {
 		if s == "" {
 			continue
 		}
-		if i := strings.Index(s, "-"); i >= 0 {
-			start, err1 := strconv.Atoi(strings.TrimSpace(s[:i]))
-			end, err2 := strconv.Atoi(strings.TrimSpace(s[i+1:]))
+		if before, after, ok := strings.Cut(s, "-"); ok {
+			start, err1 := strconv.Atoi(strings.TrimSpace(before))
+			end, err2 := strconv.Atoi(strings.TrimSpace(after))
 			if err1 != nil || err2 != nil {
 				continue
 			}

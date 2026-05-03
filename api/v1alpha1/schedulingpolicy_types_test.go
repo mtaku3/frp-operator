@@ -55,7 +55,7 @@ func TestSchedulingPolicyRoundTrip(t *testing.T) {
 	if !got.Spec.Consolidation.ReclaimEmpty {
 		t.Errorf("reclaimEmpty not preserved")
 	}
-	if got.Spec.Probes.AdminInterval.Duration.Seconds() != 30 {
+	if got.Spec.Probes.AdminInterval.Seconds() != 30 {
 		t.Errorf("adminInterval mismatch: %v", got.Spec.Probes.AdminInterval)
 	}
 }

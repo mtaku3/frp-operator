@@ -85,6 +85,10 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	var enableWebhooks bool
+	flag.BoolVar(&enableWebhooks, "enable-webhooks", true,
+		"If true, register the validating webhooks. Set false when running "+
+			"out-of-cluster without serving certs (e.g., the localdocker e2e suite).")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -246,6 +250,7 @@ func main() {
 	}
 	if err := (&controller.TunnelReconciler{
 		Client:              mgr.GetClient(),
+		APIReader:           mgr.GetAPIReader(),
 		Scheme:              mgr.GetScheme(),
 		Allocators:          allocReg,
 		ProvisionStrategies: psReg,
@@ -279,14 +284,19 @@ func main() {
 	}
 	// +kubebuilder:scaffold:builder
 
-	// Webhooks: register the validators.
-	if err := (&webhookv1alpha1.TunnelValidator{}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Tunnel")
-		os.Exit(1)
-	}
-	if err := (&webhookv1alpha1.ExitServerValidator{}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "ExitServer")
-		os.Exit(1)
+	// Webhooks: register the validators (skip when running without serving
+	// certs, e.g. the localdocker e2e harness).
+	if enableWebhooks {
+		if err := (&webhookv1alpha1.TunnelValidator{}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Tunnel")
+			os.Exit(1)
+		}
+		if err := (&webhookv1alpha1.ExitServerValidator{}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "ExitServer")
+			os.Exit(1)
+		}
+	} else {
+		setupLog.Info("Webhook registration disabled (--enable-webhooks=false)")
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

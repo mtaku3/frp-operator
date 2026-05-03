@@ -227,6 +227,95 @@ spec:
 		// Owner ref should cascade-delete the Tunnel; if not, force.
 		_, _ = utils.Run(exec.Command("kubectl", "delete", "tunnel", "e2e-svc", "-n", "default", "--wait=false", "--ignore-not-found"))
 	})
+
+	// Webhook validation lives inside the Manager Describe so it
+	// shares the in-cluster operator deployment created by the outer
+	// BeforeAll. Outer AfterAll undeploys the operator, so a separate
+	// Describe would run against an empty cluster.
+
+	It("rejects spec change to a Ready+ImmutableWhenReady Tunnel", func() {
+		if os.Getenv("E2E_WEBHOOK") != "1" {
+			Skip("set E2E_WEBHOOK=1 to run webhook specs (requires cert-manager)")
+		}
+
+		By("creating a Tunnel with ImmutableWhenReady=true")
+		Expect(applyManifest([]byte(`
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata: {name: wh-immutable, namespace: default}
+spec:
+  immutableWhenReady: true
+  service: {name: wh-svc, namespace: default}
+  ports: [{name: http, servicePort: 80}]
+  schedulingPolicyRef: {name: default}
+`))).To(Succeed())
+
+		By("forcing status.phase=Ready via the status subresource")
+		patch := `{"status":{"phase":"Ready"}}`
+		_, err := utils.Run(exec.Command("kubectl", "patch", "tunnel", "wh-immutable",
+			"-n", "default", "--type=merge", "--subresource=status", "-p", patch))
+		Expect(err).NotTo(HaveOccurred())
+
+		By("attempting to mutate the locked spec.service.name; expect rejection")
+		mutated := []byte(`
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata: {name: wh-immutable, namespace: default}
+spec:
+  immutableWhenReady: true
+  service: {name: wh-svc-MUTATED, namespace: default}
+  ports: [{name: http, servicePort: 80}]
+  schedulingPolicyRef: {name: default}
+`)
+		f, ferr := os.CreateTemp("", "wh-*.yaml")
+		Expect(ferr).NotTo(HaveOccurred())
+		defer os.Remove(f.Name())
+		_, _ = f.Write(mutated)
+		_ = f.Close()
+
+		out, err := utils.Run(exec.Command("kubectl", "apply", "-f", f.Name()))
+		Expect(err).To(HaveOccurred(), "expected admission rejection, got success: %s", out)
+		Expect(out + err.Error()).To(ContainSubstring("immutable"))
+
+		By("cleaning up")
+		_, _ = utils.Run(exec.Command("kubectl", "delete", "tunnel", "wh-immutable",
+			"-n", "default", "--ignore-not-found", "--wait=false"))
+	})
+
+	It("rejects shrinking ExitServer AllowPorts below allocations", func() {
+		if os.Getenv("E2E_WEBHOOK") != "1" {
+			Skip("set E2E_WEBHOOK=1 to run webhook specs (requires cert-manager)")
+		}
+
+		By("creating an ExitServer with a wide AllowPorts and frps spec")
+		Expect(applyManifest([]byte(`
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitServer
+metadata: {name: wh-grow, namespace: default}
+spec:
+  provider: local-docker
+  frps: {version: v0.68.1, bindPort: 7000, adminPort: 7500}
+  ssh: {port: 22}
+  credentialsRef: {name: local-docker-credentials, key: token}
+  allowPorts: ["1024-65535"]
+`))).To(Succeed())
+
+		By("seeding status.allocations[5000] via the status subresource")
+		_, err := utils.Run(exec.Command("kubectl", "patch", "exitserver", "wh-grow",
+			"-n", "default", "--type=merge", "--subresource=status",
+			"-p", `{"status":{"allocations":{"5000":"default/test"}}}`))
+		Expect(err).NotTo(HaveOccurred())
+
+		By("attempting to shrink AllowPorts to a range that drops port 5000")
+		_, err = utils.Run(exec.Command("kubectl", "patch", "exitserver", "wh-grow",
+			"-n", "default", "--type=merge",
+			"-p", `{"spec":{"allowPorts":["1024-4999"]}}`))
+		Expect(err).To(HaveOccurred(), "expected admission rejection")
+
+		By("cleaning up")
+		_, _ = utils.Run(exec.Command("kubectl", "delete", "exitserver", "wh-grow",
+			"-n", "default", "--ignore-not-found", "--wait=false"))
+	})
 })
 
 // applyManifest writes the YAML to a temp file and runs `kubectl apply -f`.
@@ -245,3 +334,4 @@ func applyManifest(yaml []byte) error {
 	_, err = utils.Run(exec.Command("kubectl", "apply", "-f", f.Name()))
 	return err
 }
+

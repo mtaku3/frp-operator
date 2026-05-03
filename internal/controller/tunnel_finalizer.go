@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -32,12 +33,7 @@ const tunnelFinalizer = "frp.operator.io/tunnel-finalizer"
 
 // hasTunnelFinalizer reports whether the named finalizer is on the Tunnel.
 func hasTunnelFinalizer(t *frpv1alpha1.Tunnel) bool {
-	for _, f := range t.Finalizers {
-		if f == tunnelFinalizer {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(t.Finalizers, tunnelFinalizer)
 }
 
 // addTunnelFinalizer appends the finalizer if missing and patches.

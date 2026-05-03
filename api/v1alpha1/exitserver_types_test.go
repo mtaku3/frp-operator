@@ -88,7 +88,7 @@ func TestExitServerStatusDrainStartedAtRoundTrip(t *testing.T) {
 	}
 	// JSON marshaling of metav1.Time truncates to seconds precision,
 	// so compare Unix timestamps rather than exact time values.
-	if got.Status.DrainStartedAt.Time.Unix() != now.Time.Unix() {
+	if got.Status.DrainStartedAt.Unix() != now.Unix() {
 		t.Errorf("DrainStartedAt mismatch: got %v want %v", got.Status.DrainStartedAt, &now)
 	}
 }

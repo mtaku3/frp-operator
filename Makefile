@@ -88,27 +88,15 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 	esac
 
 .PHONY: test-e2e
-test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
-	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2e/ -v -ginkgo.v
-	$(MAKE) cleanup-test-e2e
+test-e2e: setup-test-e2e manifests generate fmt vet ## Run e2e against a kind cluster.
+	go test -tags=e2e ./test/e2e/ -v -ginkgo.v -timeout=20m; \
+	rc=$$?; \
+	if [ "$(KEEP_CLUSTER)" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
+	exit $$rc
 
 .PHONY: cleanup-test-e2e
 cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
 	@$(KIND) delete cluster --name $(KIND_CLUSTER)
-
-.PHONY: test-e2e-localdocker
-test-e2e-localdocker: setup-test-e2e manifests generate fmt vet ## Run the LocalDocker e2e tests. Operator runs out-of-cluster against a kind cluster.
-	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e_localdocker ./test/e2e/ -v -ginkgo.v -timeout=15m; \
-	rc=$$?; \
-	if [ "$(KEEP_CLUSTER)" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
-	exit $$rc
-
-.PHONY: test-e2e-webhook
-test-e2e-webhook: setup-test-e2e manifests generate fmt vet ## Run the e2e suite with cert-manager + webhook validation specs.
-	E2E_WEBHOOK=1 KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2e/ -v -ginkgo.v -timeout=15m; \
-	rc=$$?; \
-	if [ "$(KEEP_CLUSTER)" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
-	exit $$rc
 
 ##@ Local cluster (kind) — manual dev cluster, isolated from e2e cluster
 
@@ -198,8 +186,7 @@ endif
 
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	@out="$$( "$(KUSTOMIZE)" build config/crd 2>/dev/null || true )"; \
-	if [ -n "$$out" ]; then echo "$$out" | "$(KUBECTL)" apply -f -; else echo "No CRDs to install; skipping."; fi
+	$(KUSTOMIZE) build config/crd | kubectl apply --server-side --force-conflicts -f -
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
@@ -208,8 +195,8 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && "$(KUSTOMIZE)" edit set image controller=${IMG}
-	"$(KUSTOMIZE)" build config/default | "$(KUBECTL)" apply -f -
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	$(KUSTOMIZE) build config/default | kubectl apply --server-side --force-conflicts -f -
 
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

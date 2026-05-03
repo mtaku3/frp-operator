@@ -6,7 +6,7 @@ metadata:
 spec:
   consolidation:
     reclaimEmpty: true
-    drainAfter: 1s
+    drainAfter: 30s
   vps:
     default:
       provider: local-docker

@@ -30,7 +30,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
-	"github.com/mtaku3/frp-operator/test/utils/exitserver"
 	"github.com/mtaku3/frp-operator/test/utils/kubernetes"
 	"github.com/mtaku3/frp-operator/test/utils/tunnel"
 )
@@ -52,11 +51,7 @@ var _ = Describe("Tunnel lifecycle", Ordered, func() {
 
 		// Wait for tunnel/exitserver list to drain so the next Describe
 		// doesn't see ghosts from this one.
-		Eventually(func() int {
-			ts, _ := listTunnels(ns)
-			es, _ := exitserver.List(context.Background(), k8sClient, ns)
-			return len(ts) + len(es)
-		}, 2*time.Minute, 2*time.Second).Should(Equal(0))
+		drainNamespace(context.Background(), ns)
 	})
 
 	It("ServiceWatcher creates a sibling Tunnel that reaches Ready", func() {

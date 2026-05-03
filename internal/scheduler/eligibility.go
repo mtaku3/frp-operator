@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -125,21 +126,11 @@ func PlacementMatches(exit frpv1alpha1.ExitServer, p *frpv1alpha1.Placement) boo
 }
 
 func containsProvider(haystack []frpv1alpha1.Provider, needle frpv1alpha1.Provider) bool {
-	for _, h := range haystack {
-		if h == needle {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(haystack, needle)
 }
 
 func containsString(haystack []string, needle string) bool {
-	for _, h := range haystack {
-		if h == needle {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(haystack, needle)
 }
 
 // EligibleExits returns the subset of exits that are ready, port-compatible,

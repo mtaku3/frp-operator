@@ -69,9 +69,9 @@ func parseAllowPorts(specs []string) ([]portRange, error) {
 		if s == "" {
 			continue
 		}
-		if i := strings.IndexByte(s, '-'); i >= 0 {
-			start, err1 := strconv.Atoi(s[:i])
-			end, err2 := strconv.Atoi(s[i+1:])
+		if before, after, ok := strings.Cut(s, "-"); ok {
+			start, err1 := strconv.Atoi(before)
+			end, err2 := strconv.Atoi(after)
 			if err1 != nil || err2 != nil || start > end || start < 1 || end > 65535 {
 				return nil, fmt.Errorf("invalid range %q", s)
 			}

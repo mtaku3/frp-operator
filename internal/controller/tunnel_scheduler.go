@@ -28,7 +28,7 @@ import (
 func resolvePolicy(ctx context.Context, c client.Client, t *frpv1alpha1.Tunnel) (*frpv1alpha1.SchedulingPolicy, error) {
 	name := t.Spec.SchedulingPolicyRef.Name
 	if name == "" {
-		name = "default"
+		name = defaultSchedulingPolicyName
 	}
 	var p frpv1alpha1.SchedulingPolicy
 	if err := c.Get(ctx, types.NamespacedName{Name: name}, &p); err != nil {

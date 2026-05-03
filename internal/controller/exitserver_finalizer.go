@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -32,12 +33,7 @@ const exitServerFinalizer = "frp.operator.io/exitserver-finalizer"
 
 // hasFinalizer reports whether the named finalizer is on the object.
 func hasFinalizer(exit *frpv1alpha1.ExitServer, name string) bool {
-	for _, f := range exit.Finalizers {
-		if f == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(exit.Finalizers, name)
 }
 
 // addFinalizer appends the finalizer if it isn't already present and

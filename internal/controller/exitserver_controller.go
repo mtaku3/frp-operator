@@ -247,7 +247,7 @@ func (r *ExitServerReconciler) reconcileDelete(ctx context.Context, exit *frpv1a
 			case errors.Is(err, provider.ErrNotRegistered):
 				logger.Info("Provisioner not registered; skipping Destroy", "provider", exit.Spec.Provider)
 			default:
-				return ctrl.Result{}, fmt.Errorf("Provisioner lookup: %w", err)
+				return ctrl.Result{}, fmt.Errorf("provisioner lookup: %w", err)
 			}
 		}
 

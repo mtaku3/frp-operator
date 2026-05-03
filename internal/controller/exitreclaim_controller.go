@@ -85,10 +85,7 @@ func (r *ExitReclaimReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		var remaining time.Duration
 		if exit.Status.DrainStartedAt != nil {
 			elapsed := now.Sub(exit.Status.DrainStartedAt.Time)
-			remaining = drainAfter - elapsed
-			if remaining < time.Second {
-				remaining = time.Second
-			}
+			remaining = max(drainAfter-elapsed, time.Second)
 		} else {
 			remaining = drainAfter
 		}

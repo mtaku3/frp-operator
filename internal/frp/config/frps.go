@@ -39,9 +39,9 @@ type FrpsPortRange struct {
 // versions; the operator uses the table form for clarity and round-trip.)
 func (p FrpsPortRange) MarshalTOML() ([]byte, error) {
 	if p.Single != 0 {
-		return []byte(fmt.Sprintf("{ single = %d }", p.Single)), nil
+		return fmt.Appendf(nil, "{ single = %d }", p.Single), nil
 	}
-	return []byte(fmt.Sprintf("{ start = %d, end = %d }", p.Start, p.End)), nil
+	return fmt.Appendf(nil, "{ start = %d, end = %d }", p.Start, p.End), nil
 }
 
 // FrpsConfig is the in-memory representation of frps.toml.

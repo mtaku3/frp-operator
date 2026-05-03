@@ -28,7 +28,7 @@ func TestOnDemand_ProvisionsWhenUnderBudget(t *testing.T) {
 	p := &OnDemandStrategy{}
 	max := int32(3)
 	d, err := p.Plan(ProvisionInput{
-		Tunnel:  basicTunnel(80),
+		Tunnel:  basicTunnel(),
 		Policy:  basicPolicy(&max),
 		Current: nil,
 	})
@@ -53,7 +53,7 @@ func TestOnDemand_RefusesWhenPortNotInDefaultAllowPorts(t *testing.T) {
 	p := &OnDemandStrategy{}
 	policy := basicPolicy(nil)
 	policy.Spec.VPS.Default.AllowPorts = []string{"1024-65535"}
-	d, err := p.Plan(ProvisionInput{Tunnel: basicTunnel(80), Policy: policy})
+	d, err := p.Plan(ProvisionInput{Tunnel: basicTunnel(), Policy: policy})
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestOnDemand_RefusesWhenAtBudget(t *testing.T) {
 		{ObjectMeta: metav1.ObjectMeta{Name: "e1"}},
 		{ObjectMeta: metav1.ObjectMeta{Name: "e2"}},
 	}
-	d, _ := p.Plan(ProvisionInput{Tunnel: basicTunnel(80), Policy: basicPolicy(&max), Current: current})
+	d, _ := p.Plan(ProvisionInput{Tunnel: basicTunnel(), Policy: basicPolicy(&max), Current: current})
 	if d.Provision {
 		t.Errorf("expected Provision=false; got Spec=%+v", d.Spec)
 	}
@@ -86,7 +86,7 @@ func TestOnDemand_RefusesWhenNamespaceCapped(t *testing.T) {
 	maxNs := int32(1)
 	policy := basicPolicy(nil)
 	policy.Spec.Budget.MaxExitsPerNamespace = &maxNs
-	t1 := basicTunnel(80)
+	t1 := basicTunnel()
 	t1.Namespace = "team-a"
 	current := []frpv1alpha1.ExitServer{
 		{ObjectMeta: metav1.ObjectMeta{Name: "e1", Namespace: "team-a"}},
@@ -101,7 +101,7 @@ func TestOnDemand_RefusesWhenNamespaceCapped(t *testing.T) {
 func TestOnDemand_AppliesPlacementOverrides(t *testing.T) {
 	p := &OnDemandStrategy{}
 	max := int32(5)
-	tunnel := basicTunnel(80)
+	tunnel := basicTunnel()
 	tunnel.Spec.Placement = &frpv1alpha1.Placement{
 		Regions:      []string{"sfo3"},
 		SizeOverride: "s-2vcpu-4gb",
@@ -128,7 +128,7 @@ func TestFixedPool_RefusesBeyondPool(t *testing.T) {
 		{ObjectMeta: metav1.ObjectMeta{Name: "e1"}},
 		{ObjectMeta: metav1.ObjectMeta{Name: "e2"}},
 	}
-	d, _ := p.Plan(ProvisionInput{Tunnel: basicTunnel(80), Policy: basicPolicy(&max), Current: current})
+	d, _ := p.Plan(ProvisionInput{Tunnel: basicTunnel(), Policy: basicPolicy(&max), Current: current})
 	if d.Provision {
 		t.Error("FixedPool must refuse beyond MaxExits")
 	}
@@ -137,7 +137,7 @@ func TestFixedPool_RefusesBeyondPool(t *testing.T) {
 func TestFixedPool_ProvisionsBelowPool(t *testing.T) {
 	p := &FixedPoolStrategy{}
 	max := int32(3)
-	d, _ := p.Plan(ProvisionInput{Tunnel: basicTunnel(80), Policy: basicPolicy(&max), Current: nil})
+	d, _ := p.Plan(ProvisionInput{Tunnel: basicTunnel(), Policy: basicPolicy(&max), Current: nil})
 	if !d.Provision {
 		t.Error("FixedPool must provision below MaxExits")
 	}

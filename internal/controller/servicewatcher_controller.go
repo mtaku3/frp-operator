@@ -18,6 +18,9 @@ import (
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 )
 
+// defaultSchedulingPolicyName is the name used when no policy annotation is set.
+const defaultSchedulingPolicyName = "default"
+
 // ServiceWatcherReconciler watches LoadBalancer Services with our class and
 // drives a sibling Tunnel CR. Reverse-syncs Tunnel.Status.AssignedIP into
 // Service.status.loadBalancer.ingress so kubectl shows it as an external IP.
@@ -58,7 +61,7 @@ func (r *ServiceWatcherReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// CRD requires schedulingPolicyRef.name be at least 1 char. Fall back
 	// to "default" when the user didn't pin a policy via annotation.
 	if desiredSpec.SchedulingPolicyRef.Name == "" {
-		desiredSpec.SchedulingPolicyRef.Name = "default"
+		desiredSpec.SchedulingPolicyRef.Name = defaultSchedulingPolicyName
 	}
 
 	// Reconcile the sibling Tunnel.

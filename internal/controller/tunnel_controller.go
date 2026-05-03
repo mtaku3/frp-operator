@@ -222,7 +222,7 @@ func (r *TunnelReconciler) allocateExit(ctx context.Context, tunnel *frpv1alpha1
 	}
 	decision, err := alloc.Allocate(scheduler.AllocateInput{Tunnel: tunnel, Exits: exits})
 	if err != nil {
-		return nil, false, fmt.Errorf("Allocate: %w", err)
+		return nil, false, fmt.Errorf("allocate: %w", err)
 	}
 	if decision.Exit != nil {
 		return decision.Exit, false, nil
@@ -254,7 +254,7 @@ func (r *TunnelReconciler) allocateExit(ctx context.Context, tunnel *frpv1alpha1
 	}
 	pd, err := ps.Plan(scheduler.ProvisionInput{Tunnel: tunnel, Policy: policy, Current: exits})
 	if err != nil {
-		return nil, false, fmt.Errorf("Plan: %w", err)
+		return nil, false, fmt.Errorf("plan: %w", err)
 	}
 	if !pd.Provision {
 		return nil, false, nil

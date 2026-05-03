@@ -24,7 +24,7 @@ func dockerAvailable(t *testing.T) bool {
 		t.Logf("docker not available: %v", err)
 		return false
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	_, err = d.client.Ping(context.Background())
 	if err != nil {
 		t.Logf("docker ping failed: %v", err)
@@ -38,7 +38,7 @@ func TestLocalDocker_NameMatchesConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	if d.Name() != "ldtest" {
 		t.Errorf("Name: got %q", d.Name())
 	}
@@ -49,7 +49,7 @@ func TestLocalDocker_SatisfiesProvisioner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	var _ provider.Provisioner = d
 }
 
@@ -61,7 +61,7 @@ func TestLocalDocker_CreateInspectDestroy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -106,7 +106,7 @@ func TestLocalDocker_CreateInspectDestroy(t *testing.T) {
 	if err != nil {
 		t.Errorf("dial admin port: %v", err)
 	} else {
-		conn.Close()
+		_ = conn.Close()
 	}
 
 	// Destroy then verify Inspect returns ErrNotFound.

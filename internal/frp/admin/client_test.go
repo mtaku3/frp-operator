@@ -10,6 +10,11 @@ import (
 	"testing"
 )
 
+const (
+	pathAPIConfig = "/api/config"
+	pathAPIReload = "/api/reload"
+)
+
 func TestServerInfo(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/serverinfo" {
@@ -46,11 +51,11 @@ func TestPutConfigSendsBodyAndReloads(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenPaths = append(seenPaths, r.Method+" "+r.URL.Path)
 		switch {
-		case r.Method == http.MethodPut && r.URL.Path == "/api/config":
+		case r.Method == http.MethodPut && r.URL.Path == pathAPIConfig:
 			b, _ := io.ReadAll(r.Body)
 			seenBody = string(b)
 			w.WriteHeader(http.StatusOK)
-		case r.Method == http.MethodGet && r.URL.Path == "/api/reload":
+		case r.Method == http.MethodGet && r.URL.Path == pathAPIReload:
 			w.WriteHeader(http.StatusOK)
 		default:
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -97,14 +102,14 @@ func TestPutConfigClosesBodies(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodPut && r.URL.Path == "/api/config":
+		case r.Method == http.MethodPut && r.URL.Path == pathAPIConfig:
 			// Write a body that must be read to track if it was drained.
 			w.Header().Set("Content-Length", "10")
-			w.Write([]byte("config-ok!"))
-		case r.Method == http.MethodGet && r.URL.Path == "/api/reload":
+			_, _ = w.Write([]byte("config-ok!"))
+		case r.Method == http.MethodGet && r.URL.Path == pathAPIReload:
 			// Similarly for the reload endpoint.
 			w.Header().Set("Content-Length", "8")
-			w.Write([]byte("reload-ok"))
+			_, _ = w.Write([]byte("reload-ok"))
 		default:
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -122,9 +127,10 @@ func TestPutConfigClosesBodies(t *testing.T) {
 			resp.Body = &trackingReadCloser{
 				rc: originalBody,
 				onFullyRead: func() {
-					if resp.Request.URL.Path == "/api/config" {
+					switch resp.Request.URL.Path {
+					case pathAPIConfig:
 						configBodyRead = true
-					} else if resp.Request.URL.Path == "/api/reload" {
+					case pathAPIReload:
 						reloadBodyRead = true
 					}
 				},

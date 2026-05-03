@@ -16,7 +16,7 @@ func mkExit(phase frpv1alpha1.ExitPhase, allocs int, opts ...func(*frpv1alpha1.E
 			Allocations: map[string]string{},
 		},
 	}
-	for i := 0; i < allocs; i++ {
+	for i := range allocs {
 		e.Status.Allocations[strconvI(20000+i)] = "ns/x"
 	}
 	for _, o := range opts {

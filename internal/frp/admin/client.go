@@ -38,7 +38,7 @@ func (c *Client) ServerInfo(ctx context.Context) (*ServerInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var info ServerInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
 		return nil, fmt.Errorf("decode serverinfo: %w", err)
@@ -54,15 +54,15 @@ func (c *Client) PutConfigAndReload(ctx context.Context, configBody []byte) erro
 	if err != nil {
 		return fmt.Errorf("put config: %w", err)
 	}
-	io.Copy(io.Discard, resp.Body) // drain to allow keep-alive reuse
-	resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body) // drain to allow keep-alive reuse
+	_ = resp.Body.Close()
 
 	resp, err = c.do(ctx, http.MethodGet, "/api/reload", nil)
 	if err != nil {
 		return fmt.Errorf("reload: %w", err)
 	}
-	io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
 
 	return nil
 }
@@ -74,7 +74,7 @@ func (c *Client) ListProxies(ctx context.Context, proxyType string) ([]Proxy, er
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var wrap struct {
 		Proxies []Proxy `json:"proxies"`
 	}

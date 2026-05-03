@@ -150,7 +150,7 @@ func TestEligibleExits(t *testing.T) {
 	}
 	got := EligibleExits(exits, tunnel)
 	if len(got) != 1 || got[0].Name != "ready" {
-		var names []string
+		names := make([]string, 0, len(got))
 		for _, e := range got {
 			names = append(names, e.Name)
 		}

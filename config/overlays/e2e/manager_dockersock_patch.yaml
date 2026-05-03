@@ -24,7 +24,9 @@
   path: /spec/template/spec/volumes/-
   value:
     name: tmp
-    emptyDir: {}
+    hostPath:
+      path: /tmp
+      type: Directory
 - op: add
   path: /spec/template/spec/containers/0/volumeMounts/-
   value:

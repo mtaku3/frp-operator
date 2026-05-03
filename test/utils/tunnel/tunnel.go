@@ -20,6 +20,7 @@ package tunnel
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -41,13 +42,26 @@ func Get(ctx context.Context, c client.Client, ns, name string) (*frpv1alpha1.Tu
 // or the timeout elapses.
 func WaitForPhase(ctx context.Context, c client.Client, ns, name string, want frpv1alpha1.TunnelPhase, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
+	var lastPhase frpv1alpha1.TunnelPhase
+	var lastErr error
 	for {
 		t, err := Get(ctx, c, ns, name)
-		if err == nil && t.Status.Phase == want {
-			return nil
+		if err == nil {
+			lastPhase = t.Status.Phase
+			lastErr = nil
+			if t.Status.Phase == want {
+				return nil
+			}
+		} else {
+			lastErr = err
 		}
 		if time.Now().After(deadline) {
-			return err
+			if lastErr != nil {
+				return fmt.Errorf("Tunnel %s/%s did not reach phase %q within %s: last error %w",
+					ns, name, want, timeout, lastErr)
+			}
+			return fmt.Errorf("Tunnel %s/%s did not reach phase %q within %s: last phase %q",
+				ns, name, want, timeout, lastPhase)
 		}
 		time.Sleep(2 * time.Second)
 	}

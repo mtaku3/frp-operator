@@ -95,6 +95,12 @@ test-e2e: setup-test-e2e manifests generate fmt vet ## Run e2e against a kind cl
 	KUBECONFIG=/tmp/frp-operator-e2e.kubeconfig KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) \
 		go test -tags=e2e ./test/e2e/ -v -ginkgo.v -timeout=20m; \
 	rc=$$?; \
+	if [ $$rc -ne 0 ]; then \
+		echo "===== operator logs (post-failure) ====="; \
+		KUBECONFIG=/tmp/frp-operator-e2e.kubeconfig kubectl logs -n frp-operator-system -l app.kubernetes.io/name=frp-operator --tail=5000 || true; \
+		echo "===== cluster state ====="; \
+		KUBECONFIG=/tmp/frp-operator-e2e.kubeconfig kubectl get tunnels,exitservers,services -A -o wide || true; \
+	fi; \
 	if [ "$(KEEP_CLUSTER)" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
 	exit $$rc
 

@@ -63,9 +63,18 @@ spec:
         args:
           - --leader-elect
           - --health-probe-bind-address=:8081
+          - --webhook-cert-path=/run/secrets/frp-operator.io/webhook
         image: controller:latest
         name: manager
-        ports: []
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        env:
+        - name: OPERATOR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         securityContext:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
@@ -74,16 +83,25 @@ spec:
             - "ALL"
         livenessProbe:
           httpGet:
-            path: /healthz
-            port: 8081
+            path: /readyz
+            port: 9443
+            scheme: HTTPS
           initialDelaySeconds: 15
           periodSeconds: 20
         readinessProbe:
           httpGet:
             path: /readyz
-            port: 8081
+            port: 9443
+            scheme: HTTPS
           initialDelaySeconds: 5
           periodSeconds: 10
+        startupProbe:
+          httpGet:
+            path: /readyz
+            port: 9443
+            scheme: HTTPS
+          failureThreshold: 6
+          periodSeconds: 5
         # TODO(user): Configure the resources accordingly based on the project requirements.
         # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
         resources:
@@ -93,7 +111,14 @@ spec:
           requests:
             cpu: 10m
             memory: 64Mi
-        volumeMounts: []
-      volumes: []
+        volumeMounts:
+        - name: webhook-cert
+          mountPath: /run/secrets/frp-operator.io/webhook
+          readOnly: true
+      volumes:
+      - name: webhook-cert
+        secret:
+          secretName: frp-operator-webhook-cert
+          optional: true
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10

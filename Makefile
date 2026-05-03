@@ -84,12 +84,14 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 			echo "Kind cluster '$(KIND_CLUSTER)' already exists. Skipping creation." ;; \
 		*) \
 			echo "Creating Kind cluster '$(KIND_CLUSTER)'..."; \
-			$(KIND) create cluster --name $(KIND_CLUSTER) ;; \
+			$(KIND) create cluster --name $(KIND_CLUSTER) --config test/e2e/kind-config.yaml ;; \
 	esac
 
 .PHONY: test-e2e
 test-e2e: setup-test-e2e manifests generate fmt vet ## Run e2e against a kind cluster.
-	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2e/ -v -ginkgo.v -timeout=20m; \
+	@$(KIND) export kubeconfig --name $(KIND_CLUSTER) --kubeconfig /tmp/frp-operator-e2e.kubeconfig
+	KUBECONFIG=/tmp/frp-operator-e2e.kubeconfig KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) \
+		go test -tags=e2e ./test/e2e/ -v -ginkgo.v -timeout=20m; \
 	rc=$$?; \
 	if [ "$(KEEP_CLUSTER)" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
 	exit $$rc

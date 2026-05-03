@@ -5,5 +5,5 @@ nodes:
   extraMounts:
   - hostPath: /var/run/docker.sock
     containerPath: /var/run/docker.sock
-  - hostPath: /tmp
-    containerPath: /tmp
+  - hostPath: /tmp/frp-operator-shared
+    containerPath: /tmp/frp-operator-shared

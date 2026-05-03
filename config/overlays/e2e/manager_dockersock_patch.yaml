@@ -21,17 +21,22 @@
     name: LOCALDOCKER_NETWORK
     value: kind
 - op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: TMPDIR
+    value: /tmp/frp-operator-shared
+- op: add
   path: /spec/template/spec/volumes/-
   value:
-    name: tmp
+    name: shared-tmp
     hostPath:
-      path: /tmp
+      path: /tmp/frp-operator-shared
       type: Directory
 - op: add
   path: /spec/template/spec/containers/0/volumeMounts/-
   value:
-    name: tmp
-    mountPath: /tmp
+    name: shared-tmp
+    mountPath: /tmp/frp-operator-shared
 - op: replace
   path: /spec/template/spec/containers/0/securityContext
   value:

@@ -1,0 +1,22 @@
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
+      type: Socket
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: docker-sock
+    mountPath: /var/run/docker.sock
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: DOCKER_HOST
+    value: unix:///var/run/docker.sock
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: LOCALDOCKER_NETWORK
+    value: kind

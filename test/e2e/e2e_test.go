@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -319,6 +320,12 @@ spec:
 })
 
 // applyManifest writes the YAML to a temp file and runs `kubectl apply -f`.
+// Retries transient admission-webhook startup errors: the manager Pod can
+// be Ready (controller-runtime readyz returns OK once the manager starts)
+// before the webhook server's TLS listener accepts connections, and the
+// apiserver's first call to a freshly-installed
+// ValidatingWebhookConfiguration then fails with "connection refused" or
+// "no endpoints available". Existing CRs land instantly on retry.
 func applyManifest(yaml []byte) error {
 	f, err := os.CreateTemp("", "e2e-*.yaml")
 	if err != nil {
@@ -331,7 +338,22 @@ func applyManifest(yaml []byte) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	_, err = utils.Run(exec.Command("kubectl", "apply", "-f", f.Name()))
-	return err
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		_, err = utils.Run(exec.Command("kubectl", "apply", "-f", f.Name()))
+		if err == nil {
+			return nil
+		}
+		msg := err.Error()
+		webhookHiccup := strings.Contains(msg, "failed calling webhook") &&
+			(strings.Contains(msg, "connection refused") ||
+				strings.Contains(msg, "no endpoints available") ||
+				strings.Contains(msg, "x509") ||
+				strings.Contains(msg, "context deadline"))
+		if !webhookHiccup || time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(2 * time.Second)
+	}
 }
 

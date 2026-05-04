@@ -206,13 +206,19 @@ type ResourceRequirements struct {
     // Requests is an extensible ResourceList. Same shape as Karpenter's
     // NodeClaim.Spec.Resources.Requests and Pod.Spec.Containers[].Resources.Requests.
     //
-    // Standard k8s keys: cpu, memory.
-    // Domain-prefixed keys:
-    //   frp.operator.io/portSlots          public port reservations
-    //   frp.operator.io/bandwidthMbps      bandwidth reservation
-    //   frp.operator.io/monthlyTrafficGB   monthly traffic budget
+    // Recognized keys:
+    //   cpu                                standard k8s name (fungible)
+    //   memory                             standard k8s name (fungible)
+    //   frp.operator.io/bandwidthMbps      bandwidth reservation (fungible)
+    //   frp.operator.io/monthlyTrafficGB   monthly traffic budget (fungible)
     //
-    // Any key the InstanceType.Capacity reports can be a binpack dimension.
+    // PORTS are NOT in ResourceList. Ports are discrete labeled slots
+    // (port 80 is unique, can't be substituted), not a fungible quantity.
+    // Port-conflict is a separate scheduler check (PortsFit) that walks
+    // Spec.Frps.AllowPorts \ Spec.Frps.ReservedPorts \ in-memory usedPorts
+    // for each tunnel-requested port. Same split as Karpenter:
+    // resources.Fits() vs hostPortUsage.Conflicts() are two distinct
+    // predicates in pkg/controllers/provisioning/scheduling/existingnode.go.
     Requests corev1.ResourceList `json:"requests,omitempty"`
 }
 
@@ -544,7 +550,13 @@ func (s *Scheduler) add(ctx, t *Tunnel) error {
 }
 ```
 
-**`addToExistingExit`** — iterate `s.existingExits` (`*ExistingExit` wrapping `*state.StateExit`), parallelize candidate evaluation, take earliest-indexed success. `CanAdd(t)` checks: Phase=Ready, Pool requirements satisfied, port slots available, capacity available, do-not-disrupt-OK.
+**`addToExistingExit`** — iterate `s.existingExits` (`*ExistingExit` wrapping `*state.StateExit`), parallelize candidate evaluation, take earliest-indexed success. `CanAdd(t)` runs three orthogonal checks (mirroring Karpenter's resource/hostPort/requirements split):
+
+1. `RequirementsCompatible(claim.Requirements, tunnel.Requirements)` — labels/operators/values intersect.
+2. `ResourcesFit(claim.Allocatable - sum(bound), tunnel.Resources.Requests)` — fungible dimensions (cpu, memory, bandwidthMbps, monthlyTrafficGB).
+3. `PortsFit(claim.Frps.AllowPorts, claim.Frps.ReservedPorts, stateExit.UsedPorts, tunnel.Ports)` — discrete port-conflict check; for auto-assign tunnels (PublicPort=0) picks first free.
+
+Plus liveness gates: Phase=Ready, not MarkedForDeletion, do-not-disrupt-OK.
 
 **`addToInflightClaim`** — iterate `s.newClaims` (claims this Solve already decided to create). Pre-sorted ascending by `len(Tunnels)` so lightly-loaded packed first. Reuses an in-flight claim's reserved AllowPorts.
 

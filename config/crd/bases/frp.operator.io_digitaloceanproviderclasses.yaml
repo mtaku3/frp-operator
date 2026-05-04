@@ -4,32 +4,19 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: tunnels.frp.operator.io
+  name: digitaloceanproviderclasses.frp.operator.io
 spec:
   group: frp.operator.io
   names:
-    kind: Tunnel
-    listKind: TunnelList
-    plural: tunnels
+    kind: DigitalOceanProviderClass
+    listKind: DigitalOceanProviderClassList
+    plural: digitaloceanproviderclasses
     shortNames:
-    - tn
-    singular: tunnel
-  scope: Namespaced
+    - dopc
+    singular: digitaloceanproviderclass
+  scope: Cluster
   versions:
-  - additionalPrinterColumns:
-    - jsonPath: .status.phase
-      name: Phase
-      type: string
-    - jsonPath: .status.assignedExit
-      name: Exit
-      type: string
-    - jsonPath: .status.assignedIP
-      name: IP
-      type: string
-    - jsonPath: .metadata.creationTimestamp
-      name: Age
-      type: date
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         properties:
@@ -52,111 +39,52 @@ spec:
             type: object
           spec:
             properties:
-              exitClaimRef:
-                description: |-
-                  ExitClaimRef hard-pins the tunnel to a specific ExitClaim, bypassing
-                  the scheduler.
+              apiTokenSecretRef:
+                description: APITokenSecretRef references the Secret holding a DO
+                  API token.
                 properties:
+                  key:
+                    type: string
                   name:
                     type: string
                 required:
+                - key
                 - name
                 type: object
-              ports:
+              defaultImage:
+                default: fatedier/frps:%s
+                description: |-
+                  DefaultImage is the frps binary version pulled in cloud-init,
+                  templated as "%s" -> version.
+                type: string
+              imageID:
+                default: ubuntu-22-04-x64
+                description: ImageID is the droplet base image; default ubuntu-22-04-x64.
+                type: string
+              monitoring:
+                description: Monitoring enables DO monitoring agent.
+                type: boolean
+              region:
+                description: Region is the DO region slug (nyc3, sfo3, ...).
+                type: string
+              size:
+                description: Size is the droplet size slug (s-1vcpu-1gb, ...).
+                type: string
+              sshKeyIDs:
+                description: SSHKeyIDs lists DO ssh key IDs to inject.
                 items:
-                  properties:
-                    name:
-                      description: Name is a free-form identifier; required when there
-                        is more than one port.
-                      type: string
-                    protocol:
-                      default: TCP
-                      description: Protocol is "TCP" (default) or "UDP".
-                      enum:
-                      - TCP
-                      - UDP
-                      type: string
-                    publicPort:
-                      description: |-
-                        PublicPort is the requested public port on the exit. 0 means
-                        auto-assign from AllowPorts.
-                      format: int32
-                      type: integer
-                    servicePort:
-                      description: ServicePort is the in-cluster port frpc forwards
-                        traffic from.
-                      format: int32
-                      type: integer
-                  required:
-                  - servicePort
-                  type: object
+                  type: string
                 type: array
-              requirements:
-                items:
-                  description: |-
-                    NodeSelectorRequirementWithMinValues is the requirement struct used in
-                    ExitPool/ExitClaim/Tunnel requirements lists. It mirrors Karpenter's
-                    equivalent and adds the optional MinValues knob.
-                  properties:
-                    key:
-                      description: Key is the label/requirement key.
-                      type: string
-                    minValues:
-                      description: |-
-                        MinValues forces the scheduler to consider at least N distinct
-                        values for this key when packing.
-                      type: integer
-                    operator:
-                      description: Operator is one of In, NotIn, Exists, DoesNotExist,
-                        Gt, Lt.
-                      type: string
-                    values:
-                      description: |-
-                        Values is the operand list. Required for In, NotIn, Gt, Lt;
-                        must be empty for Exists, DoesNotExist.
-                      items:
-                        type: string
-                      type: array
-                  required:
-                  - key
-                  - operator
-                  type: object
-                type: array
-              resources:
-                description: Resources.Requests is the binpack input. Optional; empty
-                  fits anywhere.
-                properties:
-                  requests:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: ResourceList is a set of (resource name, quantity)
-                      pairs.
-                    type: object
-                type: object
+              vpcUUID:
+                description: VPCUUID optionally pins the VPC.
+                type: string
             required:
-            - ports
+            - apiTokenSecretRef
+            - region
+            - size
             type: object
           status:
             properties:
-              assignedExit:
-                description: AssignedExit is the name of the ExitClaim this tunnel
-                  is bound to.
-                type: string
-              assignedIP:
-                description: AssignedIP is the public IP of the assigned ExitClaim.
-                type: string
-              assignedPorts:
-                description: |-
-                  AssignedPorts are the resolved public port numbers (auto-assigned
-                  values filled in for PublicPort=0 inputs).
-                items:
-                  format: int32
-                  type: integer
-                type: array
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current
@@ -213,9 +141,6 @@ spec:
                   - type
                   type: object
                 type: array
-              phase:
-                description: Phase is a coarse summary of Conditions.
-                type: string
             type: object
         type: object
     served: true

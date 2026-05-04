@@ -1,0 +1,402 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: exitpools.frp.operator.io
+spec:
+  group: frp.operator.io
+  names:
+    kind: ExitPool
+    listKind: ExitPoolList
+    plural: exitpools
+    shortNames:
+    - ep
+    singular: exitpool
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .status.exits
+      name: Exits
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              disruption:
+                properties:
+                  budgets:
+                    items:
+                      properties:
+                        duration:
+                          type: string
+                        nodes:
+                          description: Nodes is "10%" or "5"; max disruptions allowed
+                            concurrently.
+                          type: string
+                        reasons:
+                          items:
+                            type: string
+                          type: array
+                        schedule:
+                          type: string
+                      required:
+                      - nodes
+                      type: object
+                    type: array
+                  consolidateAfter:
+                    type: string
+                  consolidationPolicy:
+                    enum:
+                    - WhenEmpty
+                    - WhenEmptyOrUnderutilized
+                    type: string
+                type: object
+              limits:
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
+                description: |-
+                  Limits is an extensible ResourceList ceiling. Recognized keys:
+                    cpu, memory                                standard k8s names
+                    frp.operator.io/exits                      count of ExitClaims
+                    frp.operator.io/bandwidthMbps              aggregate bandwidth
+                    frp.operator.io/monthlyTrafficGB           aggregate traffic budget
+                type: object
+              replicas:
+                description: |-
+                  Replicas enables static-mode (alpha, gated by feature gate
+                  StaticReplicas). When set, the operator maintains exactly N
+                  ExitClaims regardless of demand.
+                format: int64
+                type: integer
+              template:
+                properties:
+                  metadata:
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        type: object
+                    type: object
+                  spec:
+                    description: |-
+                      ExitClaimTemplateSpec deliberately omits Resources — per Karpenter
+                      convention, users cannot pre-allocate per-claim resource requests on
+                      the pool template. Scheduler fills ExitClaim.Spec.Resources.Requests
+                      at provision time.
+                    properties:
+                      expireAfter:
+                        type: string
+                      frps:
+                        description: |-
+                          FrpsConfig is the full set of frps daemon options carried on
+                          ExitPool template + ExitClaim spec. Defaults applied by the
+                          scheduler/lifecycle controller when fields are omitted.
+                        properties:
+                          adminPort:
+                            default: 7400
+                            description: AdminPort is the frps admin HTTP API port.
+                            format: int32
+                            type: integer
+                          allowPorts:
+                            description: |-
+                              AllowPorts is the set of public port slots, e.g.
+                              ["80","443","1024-65535"]. Scheduler binpacks port-conflicts here.
+                            items:
+                              type: string
+                            type: array
+                          auth:
+                            description: Auth declares how frpc clients authenticate
+                              to frps.
+                            properties:
+                              method:
+                                description: Method selects the auth mode. Currently
+                                  only "token" is implemented.
+                                enum:
+                                - token
+                                type: string
+                              tokenSecretRef:
+                                description: |-
+                                  TokenSecretRef references a Secret holding the shared token under
+                                  the named key. If unset, the operator generates a token at
+                                  provision time and writes a managed Secret.
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    type: string
+                                required:
+                                - key
+                                - name
+                                type: object
+                            required:
+                            - method
+                            type: object
+                          bindPort:
+                            default: 7000
+                            description: BindPort is the control-plane TCP port frpc
+                              connects to.
+                            format: int32
+                            type: integer
+                          kcpBindPort:
+                            description: KCPBindPort is the optional KCP transport
+                              listener.
+                            format: int32
+                            type: integer
+                          quicBindPort:
+                            description: QUICBindPort is the optional QUIC transport
+                              listener.
+                            format: int32
+                            type: integer
+                          reservedPorts:
+                            description: |-
+                              ReservedPorts are subtracted from AllowPorts; frps internal/admin
+                              ports auto-merged in by the scheduler.
+                            items:
+                              format: int32
+                              type: integer
+                            type: array
+                          tls:
+                            description: TLS pins the TLS material for the control
+                              plane.
+                            properties:
+                              caSecret:
+                                description: |-
+                                  CASecret enables mTLS by requiring clients to present a cert
+                                  signed by this CA.
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    type: string
+                                required:
+                                - key
+                                - name
+                                type: object
+                              certSecret:
+                                description: CertSecret references the server certificate.
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    type: string
+                                required:
+                                - key
+                                - name
+                                type: object
+                              force:
+                                description: Force requires TLS for incoming frpc
+                                  connections.
+                                type: boolean
+                              keySecret:
+                                description: KeySecret references the server private
+                                  key.
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    type: string
+                                required:
+                                - key
+                                - name
+                                type: object
+                            type: object
+                          version:
+                            description: |-
+                              Version is the frps binary version, e.g. "v0.68.1". Drives image
+                              tag (localdocker) or binary URL (DO cloud-init).
+                            type: string
+                          vhostHTTPPort:
+                            description: VhostHTTPPort is the optional HTTP vhost
+                              listener.
+                            format: int32
+                            type: integer
+                          vhostHTTPSPort:
+                            description: VhostHTTPSPort is the optional HTTPS vhost
+                              listener.
+                            format: int32
+                            type: integer
+                        required:
+                        - allowPorts
+                        - auth
+                        - version
+                        type: object
+                      providerClassRef:
+                        description: |-
+                          ProviderClassRef is a typed pointer to a per-provider config CRD.
+                          Mirrors Karpenter NodeClassReference{Group, Kind, Name}.
+                        properties:
+                          group:
+                            description: Group is the API group of the ProviderClass
+                              kind, e.g. frp.operator.io.
+                            type: string
+                          kind:
+                            description: Kind is the ProviderClass kind, e.g. LocalDockerProviderClass.
+                            type: string
+                          name:
+                            description: Name is the metadata.name of the ProviderClass
+                              instance.
+                            type: string
+                        required:
+                        - group
+                        - kind
+                        - name
+                        type: object
+                      requirements:
+                        items:
+                          description: |-
+                            NodeSelectorRequirementWithMinValues is the requirement struct used in
+                            ExitPool/ExitClaim/Tunnel requirements lists. It mirrors Karpenter's
+                            equivalent and adds the optional MinValues knob.
+                          properties:
+                            key:
+                              description: Key is the label/requirement key.
+                              type: string
+                            minValues:
+                              description: |-
+                                MinValues forces the scheduler to consider at least N distinct
+                                values for this key when packing.
+                              type: integer
+                            operator:
+                              description: Operator is one of In, NotIn, Exists, DoesNotExist,
+                                Gt, Lt.
+                              type: string
+                            values:
+                              description: |-
+                                Values is the operand list. Required for In, NotIn, Gt, Lt;
+                                must be empty for Exists, DoesNotExist.
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                      terminationGracePeriod:
+                        type: string
+                    required:
+                    - frps
+                    - providerClassRef
+                    type: object
+                required:
+                - spec
+                type: object
+              weight:
+                format: int32
+                maximum: 100
+                minimum: 0
+                type: integer
+            required:
+            - template
+            type: object
+          status:
+            properties:
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              exits:
+                format: int64
+                type: integer
+              resources:
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
+                description: ResourceList is a set of (resource name, quantity) pairs.
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -90,19 +90,9 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 	esac
 
 .PHONY: test-e2e
-test-e2e: setup-test-e2e manifests generate fmt vet ## Run e2e against a kind cluster.
-	@$(KIND) export kubeconfig --name $(KIND_CLUSTER) --kubeconfig /tmp/frp-operator-e2e.kubeconfig
-	KUBECONFIG=/tmp/frp-operator-e2e.kubeconfig KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) \
-		go test -tags=e2e ./test/e2e/ -v -ginkgo.v -timeout=20m; \
-	rc=$$?; \
-	if [ $$rc -ne 0 ]; then \
-		echo "===== operator logs (post-failure) ====="; \
-		KUBECONFIG=/tmp/frp-operator-e2e.kubeconfig kubectl logs -n frp-operator-system -l app.kubernetes.io/name=frp-operator --tail=5000 || true; \
-		echo "===== cluster state ====="; \
-		KUBECONFIG=/tmp/frp-operator-e2e.kubeconfig kubectl get tunnels,exitservers,services -A -o wide || true; \
-	fi; \
-	if [ "$(KEEP_CLUSTER)" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
-	exit $$rc
+test-e2e:
+	@echo "test-e2e is disabled while Phase 1-9 land; see docs/superpowers/plans/2026-05-04-phase-10-e2e.md"
+	@exit 1
 
 .PHONY: cleanup-test-e2e
 cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests

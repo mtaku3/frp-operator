@@ -15,24 +15,43 @@ resources:
   controller: true
   domain: operator.io
   group: frp
-  kind: ExitServer
-  path: github.com/mtaku3/frp-operator/api/v1alpha1
-  version: v1alpha1
-- api:
-    crdVersion: v1
-    namespaced: true
-  controller: true
-  domain: operator.io
-  group: frp
   kind: Tunnel
   path: github.com/mtaku3/frp-operator/api/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
-  controller: true
+    namespaced: false
+  controller: false
   domain: operator.io
   group: frp
-  kind: SchedulingPolicy
+  kind: ExitPool
   path: github.com/mtaku3/frp-operator/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: false
+  controller: false
+  domain: operator.io
+  group: frp
+  kind: ExitClaim
+  path: github.com/mtaku3/frp-operator/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: false
+  controller: false
+  domain: operator.io
+  group: frp
+  kind: LocalDockerProviderClass
+  path: github.com/mtaku3/frp-operator/pkg/cloudprovider/localdocker/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: false
+  controller: false
+  domain: operator.io
+  group: frp
+  kind: DigitalOceanProviderClass
+  path: github.com/mtaku3/frp-operator/pkg/cloudprovider/digitalocean/v1alpha1
   version: v1alpha1
 version: "3"

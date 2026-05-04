@@ -10,6 +10,8 @@ import (
 	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 )
 
+// +kubebuilder:printcolumn:name=Ready,type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
+// +kubebuilder:printcolumn:name=Age,type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster,shortName=dopc
 // +kubebuilder:subresource:status

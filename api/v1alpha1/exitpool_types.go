@@ -117,6 +117,14 @@ type DisruptionBudget struct {
 //   frp.operator.io/exits                      count of ExitClaims
 //   frp.operator.io/bandwidthMbps              aggregate bandwidth
 //   frp.operator.io/monthlyTrafficGB           aggregate traffic budget
+//
+// The named alias (rather than inlining corev1.ResourceList directly on
+// the field) is preserved deliberately for the documentation hook above.
+// Verified with controller-gen v0.20.1: the alias is transparently
+// expanded in the generated CRD schema, producing the same
+// additionalProperties (resource.Quantity int-or-string with the standard
+// quantity pattern) that ExitPoolStatus.Resources gets from inlining
+// corev1.ResourceList. See config/crd/bases/frp.operator.io_exitpools.yaml.
 type Limits corev1.ResourceList
 
 type ExitPoolStatus struct {

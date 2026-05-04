@@ -238,7 +238,6 @@ type ExitClaimStatus struct {
     // from cloudProvider.Create return value, NOT ground truth.
     Capacity         corev1.ResourceList `json:"capacity,omitempty"`
     Allocatable      corev1.ResourceList `json:"allocatable,omitempty"`
-    HourlyCostCents  *int64              `json:"hourlyCostCents,omitempty"` // deferred to v1beta1 (Pricing controller)
     Conditions       []metav1.Condition  `json:"conditions,omitempty"`
     // NOTE: NO `Allocations` field. Per Karpenter convention, runtime
     // allocations (which tunnel holds which port on this exit) are NOT

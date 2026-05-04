@@ -49,8 +49,14 @@ type DigitalOceanProviderClassSpec struct {
 	// Monitoring enables DO monitoring agent.
 	// +optional
 	Monitoring bool `json:"monitoring,omitempty"`
-	// DefaultImage is the frps binary version pulled in cloud-init,
-	// templated as "%s" -> version.
+	// DefaultImage is the frps binary download URL template used by
+	// cloud-init. DigitalOcean provisions plain VMs (cloud-init), NOT
+	// containers, so this MUST be a binary URL like
+	// "https://github.com/fatedier/frp/releases/download/%s/frp_%s_linux_amd64.tar.gz".
+	// The historic default value below is a container reference and is
+	// retained for CRD compatibility; cloud-init substitutes the URL
+	// template when this looks non-URL. The default fix is deferred to
+	// Phase 9 (requires CRD regeneration).
 	// +kubebuilder:default="fatedier/frps:%s"
 	DefaultImage string `json:"defaultImage,omitempty"`
 }

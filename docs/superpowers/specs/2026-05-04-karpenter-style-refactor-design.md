@@ -86,11 +86,16 @@ type ExitClaimTemplate struct {
     Spec ExitClaimTemplateSpec `json:"spec"`
 }
 
+// ExitClaimTemplateSpec is the per-claim template carried on the
+// ExitPool. Per Karpenter convention (NodeClaimTemplateSpec), it
+// deliberately OMITS Resources — users cannot pre-allocate per-claim
+// requests. The scheduler fills ExitClaim.Spec.Resources.Requests at
+// provision time from the tunnels packed onto the new claim plus
+// frps overhead.
 type ExitClaimTemplateSpec struct {
     ProviderClassRef        ProviderClassRef                          `json:"providerClassRef"`
     Requirements            []NodeSelectorRequirementWithMinValues    `json:"requirements,omitempty"`
     Frps                    FrpsConfig                                `json:"frps"`
-    Capacity                *ExitCapacity                             `json:"capacity,omitempty"`
     ExpireAfter             Duration                                  `json:"expireAfter,omitempty"`
     TerminationGracePeriod  *Duration                                 `json:"terminationGracePeriod,omitempty"`
 }
@@ -148,14 +153,19 @@ type DisruptionBudget struct {
     Reasons  []DisruptionReason `json:"reasons,omitempty"`   // Drifted, Empty, Expired, Underutilized
 }
 
-type Limits struct {
-    Exits             *int64    `json:"exits,omitempty"`
-    BandwidthMbps     *int64    `json:"bandwidthMbps,omitempty"`
-    MonthlyTrafficGB  *int64    `json:"monthlyTrafficGB,omitempty"`
-    // MonthlyCostCents deferred to v1beta1 — requires per-provider Pricing
-    // controller (Karpenter has one for AWS pulling spot/on-demand prices).
-    // localdocker = 0; DO = static table or API. Add when Pricing CRD lands.
-}
+// Limits is an extensible ResourceList aggregate ceiling. Karpenter uses
+// the same shape (corev1.ResourceList) so any registered resource name
+// works. Standard k8s names (cpu, memory) and our domain-prefixed
+// extended resources both accepted.
+//
+// Recognized keys:
+//   cpu                              standard k8s name
+//   memory                           standard k8s name
+//   frp.operator.io/exits            count of ExitClaims this pool produced
+//   frp.operator.io/bandwidthMbps    aggregate bandwidth across exits
+//   frp.operator.io/monthlyTrafficGB aggregate monthly traffic budget
+//   frp.operator.io/monthlyCostCents (deferred to v1beta1, Pricing controller)
+type Limits corev1.ResourceList
 
 type ExitPoolStatus struct {
     Conditions []metav1.Condition `json:"conditions,omitempty"` // Ready, ProviderClassReady, ValidationSucceeded
@@ -184,30 +194,52 @@ type ExitClaimSpec struct {
     ProviderClassRef        ProviderClassRef                       `json:"providerClassRef"`
     Requirements            []NodeSelectorRequirementWithMinValues `json:"requirements,omitempty"`
     Frps                    FrpsConfig                             `json:"frps"`
+    // Resources.Requests is controller-derived: sum of tunnel requests
+    // bound to this exit + frps overhead. Users do NOT set this directly.
+    // Same Karpenter rule as NodeClaim.Spec.Resources.Requests.
     Resources               ResourceRequirements                   `json:"resources,omitempty"`
-    Capacity                *ExitCapacity                          `json:"capacity,omitempty"`
     ExpireAfter             Duration                               `json:"expireAfter,omitempty"`
     TerminationGracePeriod  *Duration                              `json:"terminationGracePeriod,omitempty"`
 }
 
 type ResourceRequirements struct {
-    Requests map[string]resource.Quantity `json:"requests,omitempty"`
-    // dimensions: portSlots, bandwidthMbps, monthlyTrafficGB
-    // NOT cpu/memory — our binpack key is port slots, not VPS resources.
-    // VPS cpu/mem live on InstanceType.Capacity (informational only).
+    // Requests is an extensible ResourceList. Same shape as Karpenter's
+    // NodeClaim.Spec.Resources.Requests and Pod.Spec.Containers[].Resources.Requests.
+    //
+    // Standard k8s keys: cpu, memory.
+    // Domain-prefixed keys:
+    //   frp.operator.io/portSlots          public port reservations
+    //   frp.operator.io/bandwidthMbps      bandwidth reservation
+    //   frp.operator.io/monthlyTrafficGB   monthly traffic budget
+    //
+    // Any key the InstanceType.Capacity reports can be a binpack dimension.
+    Requests corev1.ResourceList `json:"requests,omitempty"`
 }
 
 type ExitClaimStatus struct {
     ProviderID       string             `json:"providerID,omitempty"`
     PublicIP         string             `json:"publicIP,omitempty"`
     ExitName         string             `json:"exitName,omitempty"`         // provider-side identifier (container name, droplet name)
-    ProviderImageID  string             `json:"providerImageID,omitempty"`  // localdocker: image digest; DO: droplet image ID
-    FrpsVersion      string             `json:"frpsVersion,omitempty"`      // actually-running version reported by admin API
-    Capacity         map[string]string  `json:"capacity,omitempty"`
-    Allocatable      map[string]string  `json:"allocatable,omitempty"`
-    Allocations      map[string]string  `json:"allocations,omitempty"`      // port → "<ns>/<tunnel>"
-    HourlyCostCents  *int64             `json:"hourlyCostCents,omitempty"`  // stamped at launch from InstanceType.Offerings (deferred to v1beta1)
-    Conditions       []metav1.Condition `json:"conditions,omitempty"`
+    // ImageID matches Karpenter NodeClaim.Status.ImageID — provider's image
+    // identifier (localdocker container digest, DO droplet base image).
+    ImageID          string             `json:"imageID,omitempty"`
+    // FrpsVersion is the actually-running frps binary version, reported
+    // by admin API after Registration. Distinct from Spec.Frps.Version
+    // (declarative) and ImageID (provider VM/container image).
+    FrpsVersion      string             `json:"frpsVersion,omitempty"`
+    // Capacity / Allocatable are estimates of the exit's total / remaining
+    // resources. Same convention as Karpenter NodeClaim.Status — populated
+    // from cloudProvider.Create return value, NOT ground truth.
+    Capacity         corev1.ResourceList `json:"capacity,omitempty"`
+    Allocatable      corev1.ResourceList `json:"allocatable,omitempty"`
+    HourlyCostCents  *int64              `json:"hourlyCostCents,omitempty"` // deferred to v1beta1 (Pricing controller)
+    Conditions       []metav1.Condition  `json:"conditions,omitempty"`
+    // NOTE: NO `Allocations` field. Per Karpenter convention, runtime
+    // allocations (which tunnel holds which port on this exit) are NOT
+    // persisted. Truth lives on each Tunnel: `Tunnel.Status.AssignedExit`
+    // + `Tunnel.Status.AssignedPorts`. The state.Cluster aggregates these
+    // in-memory into a `port → tunnel-key` map per StateExit. Same as
+    // Karpenter deriving pod-to-node bindings live from Pod.Spec.NodeName.
 }
 ```
 
@@ -275,13 +307,15 @@ type TunnelSpec struct {
     Requirements              []NodeSelectorRequirementWithMinValues `json:"requirements,omitempty"`
     TopologySpreadConstraints []TopologySpread                       `json:"topologySpreadConstraints,omitempty"` // future
     ExitClaimRef              *LocalObjectReference                  `json:"exitClaimRef,omitempty"`              // hard pin
-    Resources                 *TunnelResources                       `json:"resources,omitempty"`                 // bandwidth, traffic
+    // Resources.Requests is the binpack input to the scheduler. Same
+    // shape as Pod.Spec.Containers[].Resources.Requests and
+    // ExitClaim.Spec.Resources.Requests — a corev1.ResourceList keyed
+    // by recognized resource name. All optional; empty map means "fits
+    // anywhere with capacity remaining."
+    Resources                 ResourceRequirements                   `json:"resources,omitempty"`
 }
 
-type TunnelResources struct {
-    BandwidthMbps    *int32 `json:"bandwidthMbps,omitempty"`
-    MonthlyTrafficGB *int64 `json:"monthlyTrafficGB,omitempty"`
-}
+// ResourceRequirements above (shared with ExitClaim).
 
 type TunnelStatus struct {
     Phase           TunnelPhase        `json:"phase,omitempty"`
@@ -296,7 +330,30 @@ type TunnelStatus struct {
 - `frp.operator.io/do-not-disrupt: "true"` — block reclaim while tunnel alive.
 - `frp.operator.io/do-not-disrupt: "30m"` — duration form.
 
-**ServiceWatcher** stays unchanged — creates Tunnel from `Service.spec.loadBalancerClass=frp-operator.io/frp`.
+### ServiceWatcher (Service → Tunnel translation)
+
+Two creation paths for a Tunnel:
+
+1. **Direct Tunnel CR.** User writes Tunnel YAML with full `Spec.Resources.Requests` etc. Same as a raw Pod.
+2. **Service with `loadBalancerClass: frp-operator.io/frp`.** ServiceWatcher creates a sibling Tunnel CR from the Service. Service spec carries no scheduling info, so ServiceWatcher reads **annotations** to fill in the Tunnel.
+
+Annotation contract (read by ServiceWatcher, copied into the synthesized `Tunnel.Spec`):
+
+| Annotation | Maps to | Type | Example |
+|---|---|---|---|
+| `frp.operator.io/resources.requests.cpu` | `Spec.Resources.Requests["cpu"]` | k8s Quantity | `100m` |
+| `frp.operator.io/resources.requests.memory` | `Spec.Resources.Requests["memory"]` | k8s Quantity | `128Mi` |
+| `frp.operator.io/resources.requests.bandwidthMbps` | `Spec.Resources.Requests["frp.operator.io/bandwidthMbps"]` | int | `10` |
+| `frp.operator.io/resources.requests.monthlyTrafficGB` | `Spec.Resources.Requests["frp.operator.io/monthlyTrafficGB"]` | int | `100` |
+| `frp.operator.io/requirements` | `Spec.Requirements` | JSON `[]NodeSelectorRequirementWithMinValues` | `[{"key":"frp.operator.io/region","operator":"In","values":["us-east-1"]}]` |
+| `frp.operator.io/exit-pool` | shorthand for `Spec.Requirements: [{key:frp.operator.io/exitpool,operator:In,values:[<v>]}]` | string | `premium` |
+| `frp.operator.io/exit-claim-ref` | `Spec.ExitClaimRef.Name` (hard pin) | string | `my-pinned-exit` |
+| `frp.operator.io/do-not-disrupt` | annotation copied to Tunnel | bool or duration | `true`, `30m` |
+| `frp.operator.io/expire-after` | (future) | duration | `24h` |
+
+Unrecognized annotations starting with `frp.operator.io/` are passed through to the Tunnel verbatim. Empty annotations → defaults (Tunnel with no requests fits anywhere with capacity).
+
+**TunnelTemplate CRD deferred.** When user demand surfaces (annotation soup gets unwieldy), add a `TunnelTemplate` CR and an annotation `frp.operator.io/template: <name>` that ServiceWatcher dereferences. v1 ships with annotations only.
 
 ### 3.5 Well-known labels
 
@@ -431,7 +488,9 @@ loop {
         create ExitClaim API object (deterministic name from pool + UID hash)
 
     for each (tunnel, exit) in results.Bindings:
-        patch tunnel.Status.AssignedExit, exit.Status.Allocations[port] = tunnel-key
+        patch tunnel.Status.AssignedExit + Status.AssignedPorts (single source of truth)
+        // No write to exit.Status.Allocations — that field doesn't exist.
+        // state.Cluster aggregates port→tunnel from Tunnel statuses in-memory.
 }
 ```
 
@@ -569,7 +628,7 @@ If `Launched=True` but `Registered≠True`:
 
 If `Registered=True` but `Initialized≠True`:
 1. Reserve internal ports (admin, control) on the exit.
-2. Persist to `Spec.AllowPorts \ ReservedPorts` view.
+2. Persist to `Spec.Frps.AllowPorts \ Spec.Frps.ReservedPorts` view.
 3. Patch `Conditions[Initialized]=True` and `Conditions[Ready]=True`.
 
 ### liveness.go
@@ -581,7 +640,7 @@ If `Launched=True` but `Registered≠True` for `> RegistrationTTL`:
 ### finalize() — termination path
 
 Triggered by `claim.DeletionTimestamp != nil` and finalizer present:
-1. Wait for `len(claim.Status.Allocations) == 0` OR `TerminationGracePeriod` elapsed.
+1. Wait for `state.Cluster.ExitForProviderID(id).Allocations` to be empty (in-memory aggregate from Tunnels with `Status.AssignedExit==claim.Name`) OR `TerminationGracePeriod` elapsed.
 2. Drain: notify each tunnel in allocations to release (`Tunnel.Status.AssignedExit = ""`).
 3. Call `cloudProvider.Delete(ctx, &claim)`. Provider returns `NotFoundError` once gone.
 4. Strip finalizer.
@@ -639,7 +698,7 @@ type Command struct {
 
 ### Methods
 
-**Emptiness** — `Status.Allocations` empty AND `Conditions[Empty]=True for > ConsolidateAfter`. Cheapest.
+**Emptiness** — `state.StateExit.Allocations` empty (no Tunnels with `Status.AssignedExit == claim.Name`) AND `Conditions[Empty]=True for > ConsolidateAfter`. Cheapest. The `Empty` condition is set by the `exitclaim/disruption` controller observing the in-memory aggregate; it is the persisted signal a Method consumes.
 
 **StaticDrift** — pool template hash mismatch, no replacement needed (e.g. only label change).
 
@@ -1014,7 +1073,7 @@ test/e2e/                           # existing kind-based suite, retargeted
 
 1. **Naming**: `ProviderClass` per-provider or single `ProviderClass` with embedded config? Single-CRD-with-`Type`-discriminator is simpler but less type-safe. Karpenter chose per-provider; we follow.
 2. **State.Cluster scope**: cluster-scoped (all exits visible) or namespaced? Karpenter is cluster-scoped (NodeClaim is cluster-scoped). We make ExitClaim cluster-scoped, Tunnel namespaced. Cross-namespace binding via label selector.
-3. **Allocations on ExitClaim.Status**: status subresource means status-only updates. Patches must use `--subresource=status`. Acceptable.
+3. ~~Allocations on ExitClaim.Status~~ — resolved: dropped per Karpenter convention (Karpenter persists no per-Node pod list either; truth is `Pod.Spec.NodeName`, derived in-memory). Truth lives on `Tunnel.Status.AssignedExit + AssignedPorts`. `state.StateExit` aggregates in-memory.
 4. **Pool template hash algorithm**: SHA256 of canonical-JSON-serialized `Spec.Template.Spec`? Excluded fields list?
 5. **Webhook removal timing**: drop in same PR as refactor or keep parallel? Drop in same PR.
 6. **Provider rename**: current `internal/provider/{fake,localdocker,digitalocean}` → `pkg/cloudprovider/{fake,localdocker,digitalocean}`. Public package boundary clarifies the contract.

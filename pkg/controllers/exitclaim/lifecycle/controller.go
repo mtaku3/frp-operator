@@ -7,6 +7,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
@@ -90,14 +91,22 @@ func (r *Controller) finalize(ctx context.Context, claim *v1alpha1.ExitClaim) (r
 	deletedAt := claim.DeletionTimestamp.Time
 	if len(bound) > 0 && time.Since(deletedAt) < grace {
 		// Notify tunnels to release: clear their AssignedExit so the
-		// scheduler reschedules them.
+		// scheduler reschedules them. Surface the first patch error so
+		// stuck tunnels show up in events / metrics rather than silently
+		// requeuing forever.
+		var firstErr error
 		for i := range bound {
 			t := &bound[i]
 			patch := client.MergeFrom(t.DeepCopy())
 			t.Status.AssignedExit = ""
 			t.Status.AssignedIP = ""
 			t.Status.AssignedPorts = nil
-			_ = r.Client.Status().Patch(ctx, t, patch)
+			if err := r.Client.Status().Patch(ctx, t, patch); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		if firstErr != nil {
+			return reconcile.Result{RequeueAfter: 5 * time.Second}, firstErr
 		}
 		return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 	}
@@ -106,6 +115,9 @@ func (r *Controller) finalize(ctx context.Context, claim *v1alpha1.ExitClaim) (r
 		if err := cp.Delete(ctx, claim); err != nil && !cloudprovider.IsExitNotFound(err) {
 			return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+	} else {
+		log.FromContext(ctx).V(1).Info("provider lookup failed during finalize; proceeding to strip finalizer",
+			"kind", claim.Spec.ProviderClassRef.Kind, "err", err.Error())
 	}
 
 	if controllerutil.RemoveFinalizer(claim, v1alpha1.TerminationFinalizer) {

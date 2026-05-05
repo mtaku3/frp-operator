@@ -113,10 +113,11 @@ type DisruptionBudget struct {
 }
 
 // Limits is an extensible ResourceList ceiling. Recognized keys:
-//   cpu, memory                                standard k8s names
-//   frp.operator.io/exits                      count of ExitClaims
-//   frp.operator.io/bandwidthMbps              aggregate bandwidth
-//   frp.operator.io/monthlyTrafficGB           aggregate traffic budget
+//
+//	cpu, memory                                standard k8s names
+//	frp.operator.io/exits                      count of ExitClaims
+//	frp.operator.io/bandwidthMbps              aggregate bandwidth
+//	frp.operator.io/monthlyTrafficGB           aggregate traffic budget
 //
 // The named alias (rather than inlining corev1.ResourceList directly on
 // the field) is preserved deliberately for the documentation hook above.

@@ -73,7 +73,9 @@ func (c *CloudProvider) SetDropletAPIFactory(f func(ctx context.Context, token s
 
 func (c *CloudProvider) Name() string { return "digital-ocean" }
 
-func (c *CloudProvider) resolveClass(ctx context.Context, claim *v1alpha1.ExitClaim) (*dov1alpha1.DigitalOceanProviderClass, error) {
+func (c *CloudProvider) resolveClass(
+	ctx context.Context, claim *v1alpha1.ExitClaim,
+) (*dov1alpha1.DigitalOceanProviderClass, error) {
 	if claim.Spec.ProviderClassRef.Kind != "DigitalOceanProviderClass" {
 		return nil, fmt.Errorf("digitalocean: refusing kind %q", claim.Spec.ProviderClassRef.Kind)
 	}

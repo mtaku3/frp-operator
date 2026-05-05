@@ -21,7 +21,7 @@ import (
 func freeAddr() string {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	Expect(err).NotTo(HaveOccurred())
-	defer l.Close()
+	defer func() { _ = l.Close() }()
 	return l.Addr().String()
 }
 
@@ -52,8 +52,8 @@ var _ = Describe("health", func() {
 			if err != nil {
 				return 0
 			}
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
 			return resp.StatusCode
 		}, 10*time.Second, 100*time.Millisecond).Should(Equal(http.StatusOK))
 
@@ -62,8 +62,8 @@ var _ = Describe("health", func() {
 			if err != nil {
 				return 0
 			}
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
 			return resp.StatusCode
 		}, 10*time.Second, 100*time.Millisecond).Should(Equal(http.StatusOK))
 	})

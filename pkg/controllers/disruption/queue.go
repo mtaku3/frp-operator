@@ -34,12 +34,12 @@ const DefaultReplacementPollInterval = 5 * time.Second
 // callers serialize Enqueue invocations (the disruption controller is the
 // only caller).
 type Queue struct {
-	Client                     client.Client
-	Cluster                    *state.Cluster
-	Provisioner                ProvisionerTrigger
-	ReplacementReadyTimeout    time.Duration
-	ReplacementPollInterval    time.Duration
-	Now                        func() time.Time
+	Client                  client.Client
+	Cluster                 *state.Cluster
+	Provisioner             ProvisionerTrigger
+	ReplacementReadyTimeout time.Duration
+	ReplacementPollInterval time.Duration
+	Now                     func() time.Time
 }
 
 // NewQueue constructs a Queue with default timing.

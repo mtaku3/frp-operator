@@ -29,96 +29,101 @@ func Compatible(pool, tunnel Requirements) error {
 	return nil
 }
 
-// operatorsCompatible implements the per-operator-pair truth table.
-// Mirrors Karpenter's pkg/scheduling/requirement.go logic.
+// operatorsCompatible dispatches by pool operator to a per-operator
+// helper. Mirrors Karpenter's pkg/scheduling/requirement.go logic.
+// Split this way to keep individual cyclomatic complexity in check.
 func operatorsCompatible(p, t v1alpha1.NodeSelectorRequirementWithMinValues) bool {
 	switch p.Operator {
 	case v1alpha1.NodeSelectorOpIn:
-		switch t.Operator {
-		case v1alpha1.NodeSelectorOpIn:
-			return intersects(p.Values, t.Values)
-		case v1alpha1.NodeSelectorOpNotIn:
-			// Pool's In must contain at least one value not forbidden by tunnel.
-			return hasValueNotIn(p.Values, t.Values)
-		case v1alpha1.NodeSelectorOpExists:
-			return true
-		case v1alpha1.NodeSelectorOpDoesNotExist:
-			return false
-		case v1alpha1.NodeSelectorOpGt:
-			return anyGreater(p.Values, t.Values)
-		case v1alpha1.NodeSelectorOpLt:
-			return anyLess(p.Values, t.Values)
-		}
+		return inCompatible(p, t)
 	case v1alpha1.NodeSelectorOpNotIn:
-		switch t.Operator {
-		case v1alpha1.NodeSelectorOpIn:
-			return hasValueNotIn(t.Values, p.Values)
-		case v1alpha1.NodeSelectorOpNotIn, v1alpha1.NodeSelectorOpExists, v1alpha1.NodeSelectorOpDoesNotExist:
-			return true
-		case v1alpha1.NodeSelectorOpGt, v1alpha1.NodeSelectorOpLt:
-			// Conservative: the unbounded NotIn intersected with Gt/Lt almost
-			// always has a non-empty solution set.
-			return true
-		}
+		return notInCompatible(p, t)
 	case v1alpha1.NodeSelectorOpExists:
-		switch t.Operator {
-		case v1alpha1.NodeSelectorOpIn, v1alpha1.NodeSelectorOpNotIn,
-			v1alpha1.NodeSelectorOpExists, v1alpha1.NodeSelectorOpGt, v1alpha1.NodeSelectorOpLt:
-			return true
-		case v1alpha1.NodeSelectorOpDoesNotExist:
-			return false
-		}
+		return existsCompatible(t)
 	case v1alpha1.NodeSelectorOpDoesNotExist:
-		switch t.Operator {
-		case v1alpha1.NodeSelectorOpDoesNotExist:
-			return true
-		default:
-			// Pool forbids the key, tunnel asserts it must be present.
-			return false
-		}
+		return t.Operator == v1alpha1.NodeSelectorOpDoesNotExist
 	case v1alpha1.NodeSelectorOpGt:
-		pv, ok := firstInt(p.Values)
-		if !ok {
-			return false
-		}
-		switch t.Operator {
-		case v1alpha1.NodeSelectorOpIn:
-			return anyIntGreater(t.Values, pv)
-		case v1alpha1.NodeSelectorOpGt:
-			// Both Gt: range pv..inf intersect tv..inf is non-empty.
-			return true
-		case v1alpha1.NodeSelectorOpLt:
-			tv, ok := firstInt(t.Values)
-			if !ok {
-				return false
-			}
-			return pv < tv-1 || pv < tv // pv+1 <= tv-1 -> pv < tv-1; allow if pv < tv
-		case v1alpha1.NodeSelectorOpExists, v1alpha1.NodeSelectorOpNotIn:
-			return true
-		case v1alpha1.NodeSelectorOpDoesNotExist:
-			return false
-		}
+		return gtCompatible(p, t)
 	case v1alpha1.NodeSelectorOpLt:
-		pv, ok := firstInt(p.Values)
+		return ltCompatible(p, t)
+	}
+	return false
+}
+
+func inCompatible(p, t v1alpha1.NodeSelectorRequirementWithMinValues) bool {
+	switch t.Operator {
+	case v1alpha1.NodeSelectorOpIn:
+		return intersects(p.Values, t.Values)
+	case v1alpha1.NodeSelectorOpNotIn:
+		return hasValueNotIn(p.Values, t.Values)
+	case v1alpha1.NodeSelectorOpExists:
+		return true
+	case v1alpha1.NodeSelectorOpDoesNotExist:
+		return false
+	case v1alpha1.NodeSelectorOpGt:
+		return anyGreater(p.Values, t.Values)
+	case v1alpha1.NodeSelectorOpLt:
+		return anyLess(p.Values, t.Values)
+	}
+	return false
+}
+
+func notInCompatible(p, t v1alpha1.NodeSelectorRequirementWithMinValues) bool {
+	switch t.Operator {
+	case v1alpha1.NodeSelectorOpIn:
+		return hasValueNotIn(t.Values, p.Values)
+	case v1alpha1.NodeSelectorOpNotIn, v1alpha1.NodeSelectorOpExists,
+		v1alpha1.NodeSelectorOpDoesNotExist,
+		v1alpha1.NodeSelectorOpGt, v1alpha1.NodeSelectorOpLt:
+		return true
+	}
+	return false
+}
+
+func existsCompatible(t v1alpha1.NodeSelectorRequirementWithMinValues) bool {
+	return t.Operator != v1alpha1.NodeSelectorOpDoesNotExist
+}
+
+func gtCompatible(p, t v1alpha1.NodeSelectorRequirementWithMinValues) bool {
+	pv, ok := firstInt(p.Values)
+	if !ok {
+		return false
+	}
+	switch t.Operator {
+	case v1alpha1.NodeSelectorOpIn:
+		return anyIntGreater(t.Values, pv)
+	case v1alpha1.NodeSelectorOpGt, v1alpha1.NodeSelectorOpExists, v1alpha1.NodeSelectorOpNotIn:
+		return true
+	case v1alpha1.NodeSelectorOpLt:
+		tv, ok := firstInt(t.Values)
 		if !ok {
 			return false
 		}
-		switch t.Operator {
-		case v1alpha1.NodeSelectorOpIn:
-			return anyIntLess(t.Values, pv)
-		case v1alpha1.NodeSelectorOpLt:
-			return true
-		case v1alpha1.NodeSelectorOpGt:
-			tv, ok := firstInt(t.Values)
-			if !ok {
-				return false
-			}
-			return tv < pv
-		case v1alpha1.NodeSelectorOpExists, v1alpha1.NodeSelectorOpNotIn:
-			return true
-		case v1alpha1.NodeSelectorOpDoesNotExist:
+		return pv < tv
+	case v1alpha1.NodeSelectorOpDoesNotExist:
+		return false
+	}
+	return false
+}
+
+func ltCompatible(p, t v1alpha1.NodeSelectorRequirementWithMinValues) bool {
+	pv, ok := firstInt(p.Values)
+	if !ok {
+		return false
+	}
+	switch t.Operator {
+	case v1alpha1.NodeSelectorOpIn:
+		return anyIntLess(t.Values, pv)
+	case v1alpha1.NodeSelectorOpLt, v1alpha1.NodeSelectorOpExists, v1alpha1.NodeSelectorOpNotIn:
+		return true
+	case v1alpha1.NodeSelectorOpGt:
+		tv, ok := firstInt(t.Values)
+		if !ok {
 			return false
 		}
+		return tv < pv
+	case v1alpha1.NodeSelectorOpDoesNotExist:
+		return false
 	}
 	return false
 }

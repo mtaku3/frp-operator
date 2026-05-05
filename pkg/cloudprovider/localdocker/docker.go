@@ -296,4 +296,3 @@ func (d *dockerOps) listManaged(ctx context.Context) ([]*v1alpha1.ExitClaim, err
 	}
 	return out, nil
 }
-

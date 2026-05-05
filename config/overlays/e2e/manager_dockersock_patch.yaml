@@ -10,6 +10,12 @@ metadata:
 spec:
   template:
     spec:
+      # Operator must reach frps containers on the kind docker bridge
+      # (172.18.0.0/16). Cluster pod CIDR (10.244.0.0/16) is unrouted to
+      # the bridge. hostNetwork puts the operator on the kind node's
+      # network namespace so admin-API HTTP probes resolve.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       securityContext: null
       volumes:
       - name: docker-sock

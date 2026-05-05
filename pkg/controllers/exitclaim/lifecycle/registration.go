@@ -55,9 +55,11 @@ func (r *Registrar) Reconcile(ctx context.Context, claim *v1alpha1.ExitClaim) (r
 		_ = r.KubeClient.Status().Patch(ctx, claim, client.MergeFrom(orig))
 		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 	}
-	logger.Info("registration: admin API reachable", "version", info.Version)
 	if info != nil && info.Version != "" {
+		logger.Info("registration: admin API reachable", "version", info.Version)
 		claim.Status.FrpsVersion = info.Version
+	} else {
+		logger.Info("registration: admin API reachable")
 	}
 	setCond(claim, v1alpha1.ConditionTypeRegistered, metav1.ConditionTrue,
 		v1alpha1.ReasonReconciled, "admin API reachable")

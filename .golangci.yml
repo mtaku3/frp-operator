@@ -53,6 +53,13 @@ linters:
           - dupl
           - lll
         path: internal/*
+      # Informer controllers are intentional one-line-per-CRD twins
+      # (write-only translators from one CRD into a Cluster cache method).
+      # Extracting them into a generic helper would obscure the per-type
+      # client.Client embed and the typed Cluster method calls.
+      - linters:
+          - dupl
+        path: pkg/controllers/state/informer/
       # pkg/certs is a 1:1 port of CloudNativePG's certificate package; keep upstream patterns.
       - path: pkg/certs/
         linters:

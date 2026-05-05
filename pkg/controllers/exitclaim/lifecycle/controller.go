@@ -72,8 +72,10 @@ func (r *Controller) Reconcile(ctx context.Context, req ctrl.Request) (reconcile
 		return r.finalize(ctx, &claim)
 	}
 
-	if controllerutil.AddFinalizer(&claim, v1alpha1.TerminationFinalizer) {
-		return reconcile.Result{Requeue: true}, r.Client.Update(ctx, &claim)
+	if !controllerutil.ContainsFinalizer(&claim, v1alpha1.TerminationFinalizer) {
+		patch := client.MergeFrom(claim.DeepCopy())
+		controllerutil.AddFinalizer(&claim, v1alpha1.TerminationFinalizer)
+		return reconcile.Result{Requeue: true}, r.Client.Patch(ctx, &claim, patch)
 	}
 
 	for _, phase := range []func(context.Context, *v1alpha1.ExitClaim) (reconcile.Result, error){
@@ -135,8 +137,10 @@ func (r *Controller) finalize(ctx context.Context, claim *v1alpha1.ExitClaim) (r
 			"kind", claim.Spec.ProviderClassRef.Kind, "err", err.Error())
 	}
 
-	if controllerutil.RemoveFinalizer(claim, v1alpha1.TerminationFinalizer) {
-		if err := r.Client.Update(ctx, claim); err != nil {
+	if controllerutil.ContainsFinalizer(claim, v1alpha1.TerminationFinalizer) {
+		patch := client.MergeFrom(claim.DeepCopy())
+		controllerutil.RemoveFinalizer(claim, v1alpha1.TerminationFinalizer)
+		if err := r.Client.Patch(ctx, claim, patch); err != nil {
 			return reconcile.Result{}, err
 		}
 	}

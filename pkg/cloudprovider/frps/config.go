@@ -32,9 +32,7 @@ func RenderConfig(cfg v1alpha1.FrpsConfig, authToken string) (string, error) {
 	if cfg.QUICBindPort != nil {
 		fmt.Fprintf(&b, "quicBindPort = %d\n", *cfg.QUICBindPort)
 	}
-	if err := writeAllowPorts(&b, cfg.AllowPorts); err != nil {
-		return "", err
-	}
+	writeAllowPorts(&b, cfg.AllowPorts)
 	if cfg.AdminPort != 0 {
 		// Section form mandatory for nested keys per frp v0.61+ TOML schema;
 		// flat-dotted notation parses but silently drops the values in some
@@ -61,9 +59,9 @@ func RenderConfig(cfg v1alpha1.FrpsConfig, authToken string) (string, error) {
 // writeAllowPorts emits TOML for the allowPorts inline-table-array shape
 // frps expects: [{single = 80}, {start = 1024, end = 65535}, ...].
 // Input strings are either "<n>" or "<lo>-<hi>".
-func writeAllowPorts(b *strings.Builder, allow []string) error {
+func writeAllowPorts(b *strings.Builder, allow []string) {
 	if len(allow) == 0 {
-		return nil
+		return
 	}
 	b.WriteString("allowPorts = [\n")
 	for _, p := range allow {
@@ -76,5 +74,4 @@ func writeAllowPorts(b *strings.Builder, allow []string) error {
 		fmt.Fprintf(b, "  { single = %s },\n", strings.TrimSpace(p))
 	}
 	b.WriteString("]\n")
-	return nil
 }

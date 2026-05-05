@@ -21,9 +21,11 @@ func TestRenderConfig_Minimal(t *testing.T) {
 	out, err := frps.RenderConfig(cfg, "secret-token")
 	require.NoError(t, err)
 	require.Contains(t, out, "bindPort = 7000")
-	require.Contains(t, out, "webServer.port = 7400")
-	require.Contains(t, out, `auth.method = "token"`)
-	require.Contains(t, out, `auth.token = "secret-token"`)
+	require.Contains(t, out, "[webServer]")
+	require.Contains(t, out, "port = 7400")
+	require.Contains(t, out, "[auth]")
+	require.Contains(t, out, `method = "token"`)
+	require.Contains(t, out, `token = "secret-token"`)
 	require.True(t, strings.Contains(out, "allowPorts"))
 }
 
@@ -37,7 +39,8 @@ func TestRenderConfig_TLS(t *testing.T) {
 	}
 	out, err := frps.RenderConfig(cfg, "tok")
 	require.NoError(t, err)
-	require.Contains(t, out, "transport.tls.force = true")
+	require.Contains(t, out, "[transport.tls]")
+	require.Contains(t, out, "force = true")
 }
 
 func TestRenderConfig_DefaultBindPort(t *testing.T) {

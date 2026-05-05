@@ -57,6 +57,9 @@ var _ = BeforeSuite(func() {
 	c := &servicewatcher.Controller{Client: mgr.GetClient()}
 	Expect(c.SetupWithManager(mgr)).To(Succeed())
 
+	rs := &servicewatcher.ReverseSync{Client: mgr.GetClient()}
+	Expect(rs.SetupWithManager(mgr)).To(Succeed())
+
 	var ctx context.Context
 	ctx, cancel = context.WithCancel(context.Background())
 	go func() {

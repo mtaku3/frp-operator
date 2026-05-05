@@ -116,7 +116,16 @@ func dumpDiagnostics(label string) {
 	dump("kubectl", "get", "exitclaims", "-A", "-o", "yaml")
 	dump("kubectl", "get", "events", "-A", "--sort-by=.lastTimestamp")
 	dump("docker", "ps", "-a")
-	dump("docker", "exec", "frp-operator-test-e2e-control-plane", "docker", "ps", "-a")
+	// Dump logs from each frps container so we see frp's own
+	// startup diagnostics (TOML parse, listen errors, etc).
+	if out, err := utils.Run(exec.Command("bash", "-c",
+		"for c in $(docker ps -q --filter ancestor=fatedier/frps:v0.68.1); do "+
+			"echo '>>> docker logs '$c; docker logs --tail=200 $c 2>&1 || true; "+
+			"echo '>>> docker exec '$c' cat /etc/frp/frps.toml'; "+
+			"docker exec $c cat /etc/frp/frps.toml 2>&1 || true; "+
+			"done")); err == nil {
+		fmt.Fprintln(GinkgoWriter, out)
+	}
 }
 
 var _ = AfterEach(func() {

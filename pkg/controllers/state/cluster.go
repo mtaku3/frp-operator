@@ -169,6 +169,11 @@ func (c *Cluster) UpdatePool(pool *v1alpha1.ExitPool) {
 	}
 	sp.mu.Lock()
 	sp.Pool = pool.DeepCopy()
+	// Mirror the counter-controller's status rollup so scheduler hot-paths
+	// (poolLimitsExceeded) can read the running totals without a status
+	// fetch. Status is the source of truth; this just shadows it.
+	sp.Resources = pool.Status.Resources.DeepCopy()
+	sp.Exits = pool.Status.Exits
 	sp.mu.Unlock()
 	p, d := c.bumpAndCollectTriggers()
 	c.mu.Unlock()

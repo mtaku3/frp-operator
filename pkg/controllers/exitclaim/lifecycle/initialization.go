@@ -24,7 +24,8 @@ func (i *Initializer) Reconcile(ctx context.Context, claim *v1alpha1.ExitClaim) 
 	if isCondTrue(claim, v1alpha1.ConditionTypeInitialized) && isCondTrue(claim, v1alpha1.ConditionTypeReady) {
 		return reconcile.Result{}, nil
 	}
+	orig := claim.DeepCopy()
 	setCond(claim, v1alpha1.ConditionTypeInitialized, metav1.ConditionTrue, v1alpha1.ReasonReconciled, "ready for tunnels")
 	setCond(claim, v1alpha1.ConditionTypeReady, metav1.ConditionTrue, v1alpha1.ReasonReconciled, "")
-	return reconcile.Result{}, i.KubeClient.Status().Update(ctx, claim)
+	return reconcile.Result{}, i.KubeClient.Status().Patch(ctx, claim, client.MergeFrom(orig))
 }

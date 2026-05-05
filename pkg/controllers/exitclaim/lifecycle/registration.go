@@ -41,12 +41,13 @@ func (r *Registrar) Reconcile(ctx context.Context, claim *v1alpha1.ExitClaim) (r
 	if factory == nil {
 		factory = admin.New
 	}
+	orig := claim.DeepCopy()
 	c := factory(fmt.Sprintf("http://%s:%d", claim.Status.PublicIP, adminPort))
 	info, err := c.GetServerInfo(ctx)
 	if err != nil {
 		setCond(claim, v1alpha1.ConditionTypeRegistered, metav1.ConditionFalse,
 			v1alpha1.ReasonAdminAPIUnreachable, err.Error())
-		_ = r.KubeClient.Status().Update(ctx, claim)
+		_ = r.KubeClient.Status().Patch(ctx, claim, client.MergeFrom(orig))
 		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 	if info != nil && info.Version != "" {
@@ -54,7 +55,7 @@ func (r *Registrar) Reconcile(ctx context.Context, claim *v1alpha1.ExitClaim) (r
 	}
 	setCond(claim, v1alpha1.ConditionTypeRegistered, metav1.ConditionTrue,
 		v1alpha1.ReasonReconciled, "admin API reachable")
-	if err := r.KubeClient.Status().Update(ctx, claim); err != nil {
+	if err := r.KubeClient.Status().Patch(ctx, claim, client.MergeFrom(orig)); err != nil {
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{Requeue: true}, nil

@@ -37,11 +37,13 @@ func (l *Launcher) Reconcile(ctx context.Context, claim *v1alpha1.ExitClaim) (re
 		return reconcile.Result{}, nil
 	}
 
+	orig := claim.DeepCopy()
+
 	cp, err := l.CloudProvider.For(claim.Spec.ProviderClassRef.Kind)
 	if err != nil {
 		setCond(claim, v1alpha1.ConditionTypeLaunched, metav1.ConditionFalse, v1alpha1.ReasonProviderError, err.Error())
-		if uerr := l.KubeClient.Status().Update(ctx, claim); uerr != nil {
-			return reconcile.Result{}, fmt.Errorf("status update: %w", uerr)
+		if uerr := l.KubeClient.Status().Patch(ctx, claim, client.MergeFrom(orig)); uerr != nil {
+			return reconcile.Result{}, fmt.Errorf("status patch: %w", uerr)
 		}
 		return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 	}
@@ -49,7 +51,7 @@ func (l *Launcher) Reconcile(ctx context.Context, claim *v1alpha1.ExitClaim) (re
 	hydrated, err := cp.Create(ctx, claim)
 	if err != nil {
 		setCond(claim, v1alpha1.ConditionTypeLaunched, metav1.ConditionFalse, v1alpha1.ReasonProviderError, err.Error())
-		_ = l.KubeClient.Status().Update(ctx, claim)
+		_ = l.KubeClient.Status().Patch(ctx, claim, client.MergeFrom(orig))
 		return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
@@ -59,8 +61,8 @@ func (l *Launcher) Reconcile(ctx context.Context, claim *v1alpha1.ExitClaim) (re
 	claim.Status = hydrated.Status
 	claim.Status.Conditions = conditions
 	setCond(claim, v1alpha1.ConditionTypeLaunched, metav1.ConditionTrue, v1alpha1.ReasonProvisioned, "exit launched")
-	if err := l.KubeClient.Status().Update(ctx, claim); err != nil {
-		return reconcile.Result{}, fmt.Errorf("status update: %w", err)
+	if err := l.KubeClient.Status().Patch(ctx, claim, client.MergeFrom(orig)); err != nil {
+		return reconcile.Result{}, fmt.Errorf("status patch: %w", err)
 	}
 	return reconcile.Result{Requeue: true}, nil
 }

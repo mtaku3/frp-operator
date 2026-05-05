@@ -217,7 +217,7 @@ func weight(p *v1alpha1.ExitPool) int32 {
 }
 
 // poolLimitsExceeded reports whether the pool's running totals already
-// match or exceed any configured Limit. Reads c.Pool(name).Resources.
+// match or exceed any configured Limit. Reads via Pool.SnapshotResources.
 //
 // TODO(phase7): the Resources counter is populated by the
 // counter-controller in Phase 7. For Phase 4 this is zero-valued, so
@@ -234,7 +234,7 @@ func poolLimitsExceeded(pool *v1alpha1.ExitPool, c *state.Cluster) (bool, string
 	if sp == nil {
 		return false, ""
 	}
-	used := sp.Resources
+	used, _ := sp.SnapshotResources()
 	for k, lim := range limits {
 		cur, ok := used[k]
 		if !ok {

@@ -204,12 +204,13 @@ func TestSolve_PoolLimitsExceeded_TunnelErrors(t *testing.T) {
 	pool := newPool("p1", 10, []string{"80"}, v1alpha1.Limits{
 		corev1.ResourceName(v1alpha1.ResourceExits): resource.MustParse("1"),
 	})
-	c.UpdatePool(pool)
-	// Bump pool counter to 1 (>= limit) by hand.
-	sp := c.Pool("p1")
-	sp.Resources = corev1.ResourceList{
+	// Bump pool counter to 1 (>= limit) by setting Status.Resources;
+	// UpdatePool mirrors that into the StatePool's running totals.
+	pool.Status.Resources = corev1.ResourceList{
 		corev1.ResourceName(v1alpha1.ResourceExits): resource.MustParse("1"),
 	}
+	pool.Status.Exits = 1
+	c.UpdatePool(pool)
 
 	s := New(c, cloudprovider.NewRegistry(), nil)
 	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("default", "t1", 80)})

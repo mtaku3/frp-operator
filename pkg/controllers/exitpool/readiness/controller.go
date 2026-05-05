@@ -10,7 +10,6 @@ import (
 	"context"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -18,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
+	"github.com/mtaku3/frp-operator/pkg/controllers/conditions"
 )
 
 // Controller resolves Pool.Spec.Template.Spec.ProviderClassRef.
@@ -31,6 +31,10 @@ type Controller struct {
 }
 
 // Reconcile sets Conditions[ProviderClassReady] and Conditions[Ready].
+// Each condition is patched with a JSON Patch op so that other
+// controllers writing different Types on the same object do not
+// clobber each other (the previous MergeFrom path replaced the whole
+// conditions array on every write).
 func (r *Controller) Reconcile(ctx context.Context, req ctrl.Request) (reconcile.Result, error) {
 	var pool v1alpha1.ExitPool
 	if err := r.Client.Get(ctx, req.NamespacedName, &pool); err != nil {
@@ -40,45 +44,60 @@ func (r *Controller) Reconcile(ctx context.Context, req ctrl.Request) (reconcile
 		return reconcile.Result{}, nil
 	}
 
-	original := pool.DeepCopy()
 	ref := pool.Spec.Template.Spec.ProviderClassRef
-
 	factory, known := r.KindToObject[ref.Kind]
+
+	var pcrCond metav1.Condition
 	switch {
 	case !known:
-		setCond(&pool, v1alpha1.ConditionTypeProviderClassReady, metav1.ConditionFalse,
-			v1alpha1.ReasonProviderClassNotFound,
+		pcrCond = conditions.MakeCondition(pool.Status.Conditions,
+			v1alpha1.ConditionTypeProviderClassReady, metav1.ConditionFalse,
+			pool.Generation, v1alpha1.ReasonProviderClassNotFound,
 			"kind "+ref.Kind+" is not registered with any provider")
 	default:
 		obj := factory()
 		err := r.Client.Get(ctx, types.NamespacedName{Name: ref.Name}, obj)
 		switch {
 		case apierrors.IsNotFound(err):
-			setCond(&pool, v1alpha1.ConditionTypeProviderClassReady, metav1.ConditionFalse,
-				v1alpha1.ReasonProviderClassNotFound,
+			pcrCond = conditions.MakeCondition(pool.Status.Conditions,
+				v1alpha1.ConditionTypeProviderClassReady, metav1.ConditionFalse,
+				pool.Generation, v1alpha1.ReasonProviderClassNotFound,
 				ref.Kind+"/"+ref.Name+" not found")
 		case err != nil:
-			setCond(&pool, v1alpha1.ConditionTypeProviderClassReady, metav1.ConditionFalse,
-				v1alpha1.ReasonProviderError, err.Error())
+			pcrCond = conditions.MakeCondition(pool.Status.Conditions,
+				v1alpha1.ConditionTypeProviderClassReady, metav1.ConditionFalse,
+				pool.Generation, v1alpha1.ReasonProviderError, err.Error())
 		default:
-			setCond(&pool, v1alpha1.ConditionTypeProviderClassReady, metav1.ConditionTrue,
-				v1alpha1.ReasonReconciled, "")
+			pcrCond = conditions.MakeCondition(pool.Status.Conditions,
+				v1alpha1.ConditionTypeProviderClassReady, metav1.ConditionTrue,
+				pool.Generation, v1alpha1.ReasonReconciled, "")
 		}
+	}
+
+	if err := conditions.PatchCondition(ctx, r.Client, &pool, pool.Status.Conditions, pcrCond); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// Re-fetch so the Ready rollup observes the just-patched
+	// ProviderClassReady alongside whatever other writers committed.
+	if err := r.Client.Get(ctx, req.NamespacedName, &pool); err != nil {
+		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
 
 	// Roll Ready up from ProviderClassReady. Phase 7 keeps this
 	// conjunction simple; a future ready-reducer can fold in
 	// ValidationSucceeded and other surface conditions.
-	if apimeta.IsStatusConditionTrue(pool.Status.Conditions, v1alpha1.ConditionTypeProviderClassReady) {
-		setCond(&pool, v1alpha1.ConditionTypeReady, metav1.ConditionTrue,
-			v1alpha1.ReasonReconciled, "")
+	var readyCond metav1.Condition
+	if isTrue(pool.Status.Conditions, v1alpha1.ConditionTypeProviderClassReady) {
+		readyCond = conditions.MakeCondition(pool.Status.Conditions,
+			v1alpha1.ConditionTypeReady, metav1.ConditionTrue,
+			pool.Generation, v1alpha1.ReasonReconciled, "")
 	} else {
-		setCond(&pool, v1alpha1.ConditionTypeReady, metav1.ConditionFalse,
-			v1alpha1.ReasonNotReady, "ProviderClassReady is not True")
+		readyCond = conditions.MakeCondition(pool.Status.Conditions,
+			v1alpha1.ConditionTypeReady, metav1.ConditionFalse,
+			pool.Generation, v1alpha1.ReasonNotReady, "ProviderClassReady is not True")
 	}
-
-	patch := client.MergeFrom(original)
-	if err := r.Client.Status().Patch(ctx, &pool, patch); err != nil {
+	if err := conditions.PatchCondition(ctx, r.Client, &pool, pool.Status.Conditions, readyCond); err != nil {
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
@@ -92,12 +111,11 @@ func (r *Controller) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func setCond(pool *v1alpha1.ExitPool, t string, status metav1.ConditionStatus, reason, msg string) {
-	apimeta.SetStatusCondition(&pool.Status.Conditions, metav1.Condition{
-		Type:               t,
-		Status:             status,
-		Reason:             reason,
-		Message:            msg,
-		LastTransitionTime: metav1.Now(),
-	})
+func isTrue(conds []metav1.Condition, t string) bool {
+	for _, c := range conds {
+		if c.Type == t {
+			return c.Status == metav1.ConditionTrue
+		}
+	}
+	return false
 }

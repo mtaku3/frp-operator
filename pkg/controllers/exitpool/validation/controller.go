@@ -7,13 +7,13 @@ package validation
 import (
 	"context"
 
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
+	"github.com/mtaku3/frp-operator/pkg/controllers/conditions"
 )
 
 // Controller checks the pool spec for stateful invariants and writes
@@ -24,7 +24,9 @@ type Controller struct {
 
 // Reconcile validates a single pool. Failures set
 // ValidationSucceeded=False with an explanatory message; everything
-// passing yields True/Reconciled.
+// passing yields True/Reconciled. The condition is patched with a
+// JSON Patch op so concurrent writers to other condition Types don't
+// clobber each other.
 func (r *Controller) Reconcile(ctx context.Context, req ctrl.Request) (reconcile.Result, error) {
 	var pool v1alpha1.ExitPool
 	if err := r.Client.Get(ctx, req.NamespacedName, &pool); err != nil {
@@ -34,18 +36,18 @@ func (r *Controller) Reconcile(ctx context.Context, req ctrl.Request) (reconcile
 		return reconcile.Result{}, nil
 	}
 
-	original := pool.DeepCopy()
-
+	var cond metav1.Condition
 	if msg := validatePool(&pool); msg != "" {
-		setCond(&pool, v1alpha1.ConditionTypeValidationSucceeded, metav1.ConditionFalse,
-			v1alpha1.ReasonInvalidRequirements, msg)
+		cond = conditions.MakeCondition(pool.Status.Conditions,
+			v1alpha1.ConditionTypeValidationSucceeded, metav1.ConditionFalse,
+			pool.Generation, v1alpha1.ReasonInvalidRequirements, msg)
 	} else {
-		setCond(&pool, v1alpha1.ConditionTypeValidationSucceeded, metav1.ConditionTrue,
-			v1alpha1.ReasonReconciled, "")
+		cond = conditions.MakeCondition(pool.Status.Conditions,
+			v1alpha1.ConditionTypeValidationSucceeded, metav1.ConditionTrue,
+			pool.Generation, v1alpha1.ReasonReconciled, "")
 	}
 
-	patch := client.MergeFrom(original)
-	if err := r.Client.Status().Patch(ctx, &pool, patch); err != nil {
+	if err := conditions.PatchCondition(ctx, r.Client, &pool, pool.Status.Conditions, cond); err != nil {
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
@@ -66,14 +68,4 @@ func (r *Controller) SetupWithManager(mgr ctrl.Manager) error {
 		Named("exitpool-validation").
 		For(&v1alpha1.ExitPool{}).
 		Complete(r)
-}
-
-func setCond(pool *v1alpha1.ExitPool, t string, status metav1.ConditionStatus, reason, msg string) {
-	apimeta.SetStatusCondition(&pool.Status.Conditions, metav1.Condition{
-		Type:               t,
-		Status:             status,
-		Reason:             reason,
-		Message:            msg,
-		LastTransitionTime: metav1.Now(),
-	})
 }

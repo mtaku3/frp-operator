@@ -1,0 +1,22 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  e2e-kind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: helm/kind-action@v1.14.0
+        with:
+          version: v0.30.0
+          config: test/e2e/kind-config.yaml
+          cluster_name: frp-operator-test-e2e
+      - run: make test-e2e

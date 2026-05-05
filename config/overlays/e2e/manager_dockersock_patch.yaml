@@ -1,60 +1,46 @@
-# JSON-patch list applied to the manager Deployment so the operator can
-# drive the host's Docker socket on the kind node and write rendered
-# frps.toml files into a host-mounted shared dir. Mirrors the old
-# overlay that drove the v1alpha1-old e2e suite.
-- op: add
-  path: /spec/template/spec/volumes/-
-  value:
-    name: docker-sock
-    hostPath:
-      path: /var/run/docker.sock
-      type: Socket
-- op: add
-  path: /spec/template/spec/containers/0/volumeMounts/-
-  value:
-    name: docker-sock
-    mountPath: /var/run/docker.sock
-- op: add
-  path: /spec/template/spec/volumes/-
-  value:
-    name: shared-tmp
-    hostPath:
-      path: /tmp/frp-operator-shared
-      type: Directory
-- op: add
-  path: /spec/template/spec/containers/0/volumeMounts/-
-  value:
-    name: shared-tmp
-    mountPath: /tmp/frp-operator-shared
-- op: add
-  path: /spec/template/spec/containers/0/env/-
-  value:
-    name: DOCKER_HOST
-    value: unix:///var/run/docker.sock
-- op: add
-  path: /spec/template/spec/containers/0/env/-
-  value:
-    name: LOCALDOCKER_NETWORK
-    value: kind
-- op: add
-  path: /spec/template/spec/containers/0/env/-
-  value:
-    name: TMPDIR
-    value: /tmp/frp-operator-shared
-- op: add
-  path: /spec/template/spec/containers/0/env/-
-  value:
-    name: LOCALDOCKER_SKIP_HOST_PORT_PUBLISH
-    value: "1"
-- op: replace
-  path: /spec/template/spec/containers/0/securityContext
-  value:
-    runAsUser: 0
-    runAsGroup: 0
-    readOnlyRootFilesystem: true
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-      - ALL
-- op: remove
-  path: /spec/template/spec/securityContext
+# Strategic-merge patch (not JSON Patch) so kustomize merges the
+# arrays by-name even when the base Deployment doesn't declare them.
+# JSON Patch's `add /spec/template/spec/volumes/-` fails with
+# "doc is missing path" when the parent array is absent in the base.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: frp-operator-system
+spec:
+  template:
+    spec:
+      securityContext: null
+      volumes:
+      - name: docker-sock
+        hostPath:
+          path: /var/run/docker.sock
+          type: Socket
+      - name: shared-tmp
+        hostPath:
+          path: /tmp/frp-operator-shared
+          type: Directory
+      containers:
+      - name: manager
+        volumeMounts:
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+        - name: shared-tmp
+          mountPath: /tmp/frp-operator-shared
+        env:
+        - name: DOCKER_HOST
+          value: unix:///var/run/docker.sock
+        - name: LOCALDOCKER_NETWORK
+          value: kind
+        - name: TMPDIR
+          value: /tmp/frp-operator-shared
+        - name: LOCALDOCKER_SKIP_HOST_PORT_PUBLISH
+          value: "1"
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL

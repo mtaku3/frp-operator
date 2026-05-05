@@ -4,8 +4,10 @@ import (
 	"context"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
@@ -80,9 +82,23 @@ func (r *Controller) Reconcile(ctx context.Context, req ctrl.Request) (reconcile
 }
 
 // SetupWithManager registers the controller with the supplied manager.
+// Watches both ExitPool (template changes need re-stamping) AND ExitClaim
+// (a freshly-created child after the pool's last reconcile would never
+// receive its hash without this).
 func (r *Controller) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("exitpool-hash").
 		For(&v1alpha1.ExitPool{}).
+		Watches(&v1alpha1.ExitClaim{}, handler.EnqueueRequestsFromMapFunc(claimToPool)).
 		Complete(r)
+}
+
+// claimToPool maps an ExitClaim back to its owning ExitPool via the
+// frp.operator.io/exitpool label.
+func claimToPool(_ context.Context, obj client.Object) []reconcile.Request {
+	poolName := obj.GetLabels()[v1alpha1.LabelExitPool]
+	if poolName == "" {
+		return nil
+	}
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: poolName}}}
 }

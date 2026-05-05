@@ -102,6 +102,26 @@ var _ = BeforeSuite(func() {
 	Expect(kubernetes.ApplyServerSide(suiteCtx, yaml)).To(Succeed())
 })
 
+// dumpDiagnostics is callable from BeforeSuite and AfterEach.
+func dumpDiagnostics(label string) {
+	fmt.Fprintln(GinkgoWriter, "===== "+label+" =====")
+	dump := func(args ...string) {
+		out, _ := utils.Run(exec.Command(args[0], args[1:]...))
+		fmt.Fprintln(GinkgoWriter, ">>>", strings.Join(args, " "))
+		fmt.Fprintln(GinkgoWriter, out)
+	}
+	dump("kubectl", "-n", "frp-operator-system", "logs",
+		"-l", "control-plane=controller-manager", "--tail=2000", "--all-containers=true")
+	dump("kubectl", "get", "exitpools,exitclaims,tunnels", "-A", "-o", "wide")
+	dump("kubectl", "get", "events", "-A", "--sort-by=.lastTimestamp")
+}
+
+var _ = AfterEach(func() {
+	if CurrentSpecReport().Failed() {
+		dumpDiagnostics("spec failed: " + CurrentSpecReport().LeafNodeText)
+	}
+})
+
 var _ = AfterSuite(func() {
 	By("deleting the e2e overlay")
 	_, _ = utils.Run(exec.Command("kubectl", "delete", "-k", overlayPath,

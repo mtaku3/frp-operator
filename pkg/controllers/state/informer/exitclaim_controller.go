@@ -12,11 +12,15 @@ import (
 )
 
 // ExitClaimController syncs ExitClaim → state.Cluster.
+//
+// Twin of ExitPoolController; see comment there for why the body
+// duplication is intentional.
 type ExitClaimController struct {
 	client.Client
 	Cluster *state.Cluster
 }
 
+//nolint:dupl // see comment on the type — intentional twin of exitpool_controller.go.
 func (r *ExitClaimController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var claim v1alpha1.ExitClaim
 	if err := r.Get(ctx, req.NamespacedName, &claim); err != nil {

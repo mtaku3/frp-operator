@@ -12,11 +12,18 @@ import (
 )
 
 // ExitPoolController syncs ExitPool → state.Cluster.
+//
+// The Reconcile body intentionally mirrors ExitClaimController's: both
+// are write-only translators from one CRD into a Cluster cache method.
+// Extracting them into a generic helper would obscure the per-type
+// `client.Client` embed and the typed Cluster method calls without
+// reducing complexity meaningfully.
 type ExitPoolController struct {
 	client.Client
 	Cluster *state.Cluster
 }
 
+//nolint:dupl // see comment on the type — intentional twin of exitclaim_controller.go.
 func (r *ExitPoolController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var pool v1alpha1.ExitPool
 	if err := r.Get(ctx, req.NamespacedName, &pool); err != nil {

@@ -1,0 +1,14 @@
+namespace: frp-operator-system
+
+resources:
+- ../../default
+
+patches:
+- path: manager_dockersock_patch.yaml
+  target:
+    kind: Deployment
+    name: controller-manager
+- path: psa_relax.yaml
+  target:
+    kind: Namespace
+    name: frp-operator-system

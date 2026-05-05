@@ -20,9 +20,9 @@ import (
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 	"github.com/mtaku3/frp-operator/pkg/cloudprovider"
+	dov1alpha1 "github.com/mtaku3/frp-operator/pkg/cloudprovider/digitalocean/v1alpha1"
 	cpfake "github.com/mtaku3/frp-operator/pkg/cloudprovider/fake"
 	"github.com/mtaku3/frp-operator/pkg/cloudprovider/frps/admin"
-	dov1alpha1 "github.com/mtaku3/frp-operator/pkg/cloudprovider/digitalocean/v1alpha1"
 	ldv1alpha1 "github.com/mtaku3/frp-operator/pkg/cloudprovider/localdocker/v1alpha1"
 	"github.com/mtaku3/frp-operator/pkg/controllers/exitclaim/lifecycle"
 )

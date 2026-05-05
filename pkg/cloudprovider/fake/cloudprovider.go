@@ -105,7 +105,9 @@ func (c *CloudProvider) List(_ context.Context) ([]*v1alpha1.ExitClaim, error) {
 	return out, nil
 }
 
-func (c *CloudProvider) GetInstanceTypes(_ context.Context, _ *v1alpha1.ExitPool) ([]*cloudprovider.InstanceType, error) {
+func (c *CloudProvider) GetInstanceTypes(
+	_ context.Context, _ *v1alpha1.ExitPool,
+) ([]*cloudprovider.InstanceType, error) {
 	return c.instances, nil
 }
 

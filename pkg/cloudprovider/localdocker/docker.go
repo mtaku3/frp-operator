@@ -112,7 +112,12 @@ func writeConfig(pc *ldv1alpha1.LocalDockerProviderClass, claim *v1alpha1.ExitCl
 // ensureContainer is the create path. Idempotent: if a container with the
 // deterministic name already exists, it returns its ID without re-creating.
 // Returns the providerID (localdocker://<container ID>).
-func (d *dockerOps) ensureContainer(ctx context.Context, claim *v1alpha1.ExitClaim, pc *ldv1alpha1.LocalDockerProviderClass, authToken string) (string, error) {
+func (d *dockerOps) ensureContainer(
+	ctx context.Context,
+	claim *v1alpha1.ExitClaim,
+	pc *ldv1alpha1.LocalDockerProviderClass,
+	authToken string,
+) (string, error) {
 	name := containerName(claim)
 
 	// 1. Idempotency: look up by name.

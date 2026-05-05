@@ -19,7 +19,12 @@ func PortsFit(allowPorts []string, reserved []int32, used map[int32]struct{}, re
 // (in input order). Specific PublicPort values must already be present
 // in the free set; PublicPort=nil/0 entries draw from the lowest free
 // remaining ports. Returns nil,false when not allocatable.
-func ResolveAutoAssign(allowPorts []string, reserved []int32, used map[int32]struct{}, requested []v1alpha1.TunnelPort) ([]int32, bool) {
+func ResolveAutoAssign(
+	allowPorts []string,
+	reserved []int32,
+	used map[int32]struct{},
+	requested []v1alpha1.TunnelPort,
+) ([]int32, bool) {
 	free := computeFree(allowPorts, reserved, used)
 	out := make([]int32, len(requested))
 	autoIdx := []int{}

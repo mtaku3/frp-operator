@@ -26,7 +26,12 @@ const DefaultBudgetPercent = 10
 // Schedule: empty schedule = always active. Otherwise the budget is active in
 // the [Next-1, Next-1+Duration) windows produced by ParseStandard. We compare
 // "now" against the most recent past-or-current window.
-func GetAllowedDisruptionsByReason(c *state.Cluster, pool *v1alpha1.ExitPool, reason v1alpha1.DisruptionReason, now time.Time) int {
+func GetAllowedDisruptionsByReason(
+	c *state.Cluster,
+	pool *v1alpha1.ExitPool,
+	reason v1alpha1.DisruptionReason,
+	now time.Time,
+) int {
 	if pool == nil {
 		return 0
 	}

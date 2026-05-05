@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	cfg     *rest.Config
-	testEnv *envtest.Environment
+	cfg         *rest.Config
+	testEnv     *envtest.Environment
 	suiteCancel context.CancelFunc
 )
 

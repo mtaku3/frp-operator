@@ -17,8 +17,8 @@ import (
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 	"github.com/mtaku3/frp-operator/pkg/cloudprovider"
-	"github.com/mtaku3/frp-operator/pkg/cloudprovider/fake"
 	dov1alpha1 "github.com/mtaku3/frp-operator/pkg/cloudprovider/digitalocean/v1alpha1"
+	"github.com/mtaku3/frp-operator/pkg/cloudprovider/fake"
 	ldv1alpha1 "github.com/mtaku3/frp-operator/pkg/cloudprovider/localdocker/v1alpha1"
 	"github.com/mtaku3/frp-operator/pkg/controllers/provisioning"
 	"github.com/mtaku3/frp-operator/pkg/controllers/state"
@@ -114,4 +114,3 @@ var _ = AfterSuite(func() {
 	}
 	Expect(testEnv.Stop()).To(Succeed())
 })
-

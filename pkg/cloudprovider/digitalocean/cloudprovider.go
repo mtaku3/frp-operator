@@ -173,7 +173,9 @@ func (c *CloudProvider) Create(ctx context.Context, claim *v1alpha1.ExitClaim) (
 	return c.hydrate(claim, pc, d), nil
 }
 
-func (c *CloudProvider) hydrate(claim *v1alpha1.ExitClaim, pc *dov1alpha1.DigitalOceanProviderClass, d *godo.Droplet) *v1alpha1.ExitClaim {
+func (c *CloudProvider) hydrate(
+	claim *v1alpha1.ExitClaim, pc *dov1alpha1.DigitalOceanProviderClass, d *godo.Droplet,
+) *v1alpha1.ExitClaim {
 	out := claim.DeepCopy()
 	out.Status.ProviderID = providerIDFor(d.ID)
 	out.Status.ExitName = d.Name
@@ -251,7 +253,9 @@ func (c *CloudProvider) List(ctx context.Context) ([]*v1alpha1.ExitClaim, error)
 	return out, nil
 }
 
-func (c *CloudProvider) GetInstanceTypes(_ context.Context, _ *v1alpha1.ExitPool) ([]*cloudprovider.InstanceType, error) {
+func (c *CloudProvider) GetInstanceTypes(
+	_ context.Context, _ *v1alpha1.ExitPool,
+) ([]*cloudprovider.InstanceType, error) {
 	return InstanceTypes(), nil
 }
 

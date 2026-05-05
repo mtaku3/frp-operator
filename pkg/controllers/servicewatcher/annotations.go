@@ -38,10 +38,16 @@ func ParseAnnotations(svc *corev1.Service) (v1alpha1.TunnelSpec, error) {
 	if err := addRequest(corev1.ResourceMemory, a[v1alpha1.AnnotationServiceMemoryRequest], "memory"); err != nil {
 		return spec, err
 	}
-	if err := addRequest(corev1.ResourceName(v1alpha1.ResourceBandwidthMbps), a[v1alpha1.AnnotationServiceBandwidthRequest], "bandwidth"); err != nil {
+	if err := addRequest(
+		corev1.ResourceName(v1alpha1.ResourceBandwidthMbps),
+		a[v1alpha1.AnnotationServiceBandwidthRequest], "bandwidth",
+	); err != nil {
 		return spec, err
 	}
-	if err := addRequest(corev1.ResourceName(v1alpha1.ResourceMonthlyTrafficGB), a[v1alpha1.AnnotationServiceTrafficRequest], "traffic"); err != nil {
+	if err := addRequest(
+		corev1.ResourceName(v1alpha1.ResourceMonthlyTrafficGB),
+		a[v1alpha1.AnnotationServiceTrafficRequest], "traffic",
+	); err != nil {
 		return spec, err
 	}
 

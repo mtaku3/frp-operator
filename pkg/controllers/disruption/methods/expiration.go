@@ -17,9 +17,9 @@ type Expiration struct {
 
 func NewExpiration() *Expiration { return &Expiration{Now: time.Now} }
 
-func (m *Expiration) Name() string                          { return "Expiration" }
-func (m *Expiration) Reason() v1alpha1.DisruptionReason     { return v1alpha1.DisruptionReasonExpired }
-func (m *Expiration) Forceful() bool                        { return true }
+func (m *Expiration) Name() string                      { return "Expiration" }
+func (m *Expiration) Reason() v1alpha1.DisruptionReason { return v1alpha1.DisruptionReasonExpired }
+func (m *Expiration) Forceful() bool                    { return true }
 
 func (m *Expiration) ShouldDisrupt(_ context.Context, c *disruption.Candidate) bool {
 	if c == nil || c.Claim == nil {
@@ -39,7 +39,11 @@ func (m *Expiration) ShouldDisrupt(_ context.Context, c *disruption.Candidate) b
 	return m.now().Sub(created) >= expireAfter
 }
 
-func (m *Expiration) ComputeCommands(_ context.Context, budgets disruption.BudgetMap, candidates ...*disruption.Candidate) ([]*disruption.Command, error) {
+func (m *Expiration) ComputeCommands(
+	_ context.Context,
+	budgets disruption.BudgetMap,
+	candidates ...*disruption.Candidate,
+) ([]*disruption.Command, error) {
 	// Forceful: the controller injects MaxInt32 for every relevant pool into
 	// `budgets`, so we route through the shared helper as-is. The controller
 	// is the single source of truth for the bypass.

@@ -10,7 +10,9 @@ import (
 	"github.com/mtaku3/frp-operator/pkg/controllers/state"
 )
 
-func candPool() *v1alpha1.ExitPool { return &v1alpha1.ExitPool{ObjectMeta: metav1.ObjectMeta{Name: "p1"}} }
+func candPool() *v1alpha1.ExitPool {
+	return &v1alpha1.ExitPool{ObjectMeta: metav1.ObjectMeta{Name: "p1"}}
+}
 
 func candReadyClaim(name string) *v1alpha1.ExitClaim {
 	return &v1alpha1.ExitClaim{

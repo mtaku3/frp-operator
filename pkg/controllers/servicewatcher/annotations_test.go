@@ -44,9 +44,9 @@ func TestParseAnnotations_Resources(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 	want := corev1.ResourceList{
-		corev1.ResourceCPU:                                   mustQty(t, "250m"),
-		corev1.ResourceMemory:                                mustQty(t, "128Mi"),
-		corev1.ResourceName(v1alpha1.ResourceBandwidthMbps):  mustQty(t, "100"),
+		corev1.ResourceCPU:    mustQty(t, "250m"),
+		corev1.ResourceMemory: mustQty(t, "128Mi"),
+		corev1.ResourceName(v1alpha1.ResourceBandwidthMbps):    mustQty(t, "100"),
 		corev1.ResourceName(v1alpha1.ResourceMonthlyTrafficGB): mustQty(t, "500"),
 	}
 	for k, v := range want {

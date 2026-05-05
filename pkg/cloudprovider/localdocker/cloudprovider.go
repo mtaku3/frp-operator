@@ -85,7 +85,9 @@ func (c *CloudProvider) Create(ctx context.Context, claim *v1alpha1.ExitClaim) (
 	return out, nil
 }
 
-func (c *CloudProvider) resolveClass(ctx context.Context, claim *v1alpha1.ExitClaim) (*ldv1alpha1.LocalDockerProviderClass, error) {
+func (c *CloudProvider) resolveClass(
+	ctx context.Context, claim *v1alpha1.ExitClaim,
+) (*ldv1alpha1.LocalDockerProviderClass, error) {
 	if claim.Spec.ProviderClassRef.Kind != "LocalDockerProviderClass" {
 		return nil, fmt.Errorf("localdocker: refusing kind %q", claim.Spec.ProviderClassRef.Kind)
 	}
@@ -114,7 +116,9 @@ func (c *CloudProvider) List(ctx context.Context) ([]*v1alpha1.ExitClaim, error)
 	return c.docker.listManaged(ctx)
 }
 
-func (c *CloudProvider) GetInstanceTypes(_ context.Context, _ *v1alpha1.ExitPool) ([]*cloudprovider.InstanceType, error) {
+func (c *CloudProvider) GetInstanceTypes(
+	_ context.Context, _ *v1alpha1.ExitPool,
+) ([]*cloudprovider.InstanceType, error) {
 	return InstanceTypes(), nil
 }
 

@@ -16,10 +16,10 @@ import (
 // this method short-circuits unconditionally.
 type StaticDrift struct{}
 
-func NewStaticDrift() *StaticDrift                      { return &StaticDrift{} }
-func (m *StaticDrift) Name() string                     { return "StaticDrift" }
+func NewStaticDrift() *StaticDrift                       { return &StaticDrift{} }
+func (m *StaticDrift) Name() string                      { return "StaticDrift" }
 func (m *StaticDrift) Reason() v1alpha1.DisruptionReason { return v1alpha1.DisruptionReasonDrifted }
-func (m *StaticDrift) Forceful() bool                   { return false }
+func (m *StaticDrift) Forceful() bool                    { return false }
 
 func (m *StaticDrift) ShouldDisrupt(_ context.Context, _ *disruption.Candidate) bool {
 	// Phase 7 will define the annotation that distinguishes static from
@@ -27,6 +27,10 @@ func (m *StaticDrift) ShouldDisrupt(_ context.Context, _ *disruption.Candidate) 
 	return false
 }
 
-func (m *StaticDrift) ComputeCommands(_ context.Context, _ disruption.BudgetMap, _ ...*disruption.Candidate) ([]*disruption.Command, error) {
+func (m *StaticDrift) ComputeCommands(
+	_ context.Context,
+	_ disruption.BudgetMap,
+	_ ...*disruption.Candidate,
+) ([]*disruption.Command, error) {
 	return nil, nil
 }

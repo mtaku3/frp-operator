@@ -41,7 +41,12 @@ func New(c client.Client, cp *cloudprovider.Registry, adminFactory func(string) 
 
 // NewWithTTL is like New but lets callers override the RegistrationTTL
 // on the Liveness phase.
-func NewWithTTL(c client.Client, cp *cloudprovider.Registry, adminFactory func(string) *admin.Client, registrationTTL time.Duration) *Controller {
+func NewWithTTL(
+	c client.Client,
+	cp *cloudprovider.Registry,
+	adminFactory func(string) *admin.Client,
+	registrationTTL time.Duration,
+) *Controller {
 	if adminFactory == nil {
 		adminFactory = admin.New
 	}

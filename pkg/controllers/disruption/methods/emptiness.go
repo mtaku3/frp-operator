@@ -23,9 +23,9 @@ func NewEmptiness() *Emptiness {
 	return &Emptiness{Now: time.Now}
 }
 
-func (m *Emptiness) Name() string                          { return "Emptiness" }
-func (m *Emptiness) Reason() v1alpha1.DisruptionReason     { return v1alpha1.DisruptionReasonEmpty }
-func (m *Emptiness) Forceful() bool                        { return false }
+func (m *Emptiness) Name() string                      { return "Emptiness" }
+func (m *Emptiness) Reason() v1alpha1.DisruptionReason { return v1alpha1.DisruptionReasonEmpty }
+func (m *Emptiness) Forceful() bool                    { return false }
 
 func (m *Emptiness) ShouldDisrupt(_ context.Context, c *disruption.Candidate) bool {
 	if c == nil || c.State == nil || c.Claim == nil || c.Pool == nil {
@@ -45,7 +45,11 @@ func (m *Emptiness) ShouldDisrupt(_ context.Context, c *disruption.Candidate) bo
 	return !c.LastBindingChange.IsZero() && now.Sub(c.LastBindingChange) >= consolidateAfter
 }
 
-func (m *Emptiness) ComputeCommands(_ context.Context, budgets disruption.BudgetMap, candidates ...*disruption.Candidate) ([]*disruption.Command, error) {
+func (m *Emptiness) ComputeCommands(
+	_ context.Context,
+	budgets disruption.BudgetMap,
+	candidates ...*disruption.Candidate,
+) ([]*disruption.Command, error) {
 	perPool := map[string][]*disruption.Candidate{}
 	for _, c := range candidates {
 		if c == nil || c.Pool == nil {

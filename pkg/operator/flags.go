@@ -30,7 +30,8 @@ func LoadConfigFromArgs(args []string) (*Config, error) {
 	fs.StringVar(&cfg.KubeConfig, "kubeconfig", cfg.KubeConfig, "Path to kubeconfig (empty = in-cluster).")
 	fs.BoolVar(&cfg.LeaderElection, "leader-elect", cfg.LeaderElection, "Enable leader election.")
 	fs.StringVar(&cfg.LeaderElectionID, "leader-election-id", cfg.LeaderElectionID, "Leader election lock name.")
-	fs.StringVar(&cfg.LeaderElectionNS, "leader-election-namespace", cfg.LeaderElectionNS, "Leader election lock namespace.")
+	fs.StringVar(&cfg.LeaderElectionNS, "leader-election-namespace", cfg.LeaderElectionNS,
+		"Leader election lock namespace.")
 	fs.BoolVar(&cfg.DisableProfiling, "disable-profiling", cfg.DisableProfiling, "Disable pprof endpoints.")
 
 	fs.DurationVar(&cfg.BatchIdleDuration, "batch-idle-duration", cfg.BatchIdleDuration, "Idle window before batch fires.")
@@ -42,14 +43,20 @@ func LoadConfigFromArgs(args []string) (*Config, error) {
 
 	fs.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "Log level (debug|info|warn|error).")
 	fs.StringVar(&cfg.MetricsAddr, "metrics-bind-address", cfg.MetricsAddr, "Address the metrics server listens on.")
-	fs.StringVar(&cfg.HealthProbeAddr, "health-probe-bind-address", cfg.HealthProbeAddr, "Address the health probe listens on.")
+	fs.StringVar(&cfg.HealthProbeAddr, "health-probe-bind-address", cfg.HealthProbeAddr,
+		"Address the health probe listens on.")
 
-	fs.StringVar(&cfg.PreferencePolicy, "preference-policy", cfg.PreferencePolicy, "Scheduler preference policy: Respect | Ignore.")
-	fs.StringVar(&cfg.MinValuesPolicy, "min-values-policy", cfg.MinValuesPolicy, "Scheduler MinValues policy: Strict | BestEffort.")
+	fs.StringVar(&cfg.PreferencePolicy, "preference-policy", cfg.PreferencePolicy,
+		"Scheduler preference policy: Respect | Ignore.")
+	fs.StringVar(&cfg.MinValuesPolicy, "min-values-policy", cfg.MinValuesPolicy,
+		"Scheduler MinValues policy: Strict | BestEffort.")
 
-	fs.DurationVar(&cfg.RegistrationTTL, "registration-ttl", cfg.RegistrationTTL, "How long to wait for a fresh exit to register.")
-	fs.DurationVar(&cfg.DriftTTL, "drift-ttl", cfg.DriftTTL, "How long a drift must persist before disruption fires.")
-	fs.DurationVar(&cfg.DisruptionPollPeriod, "disruption-poll-period", cfg.DisruptionPollPeriod, "Disruption controller tick.")
+	fs.DurationVar(&cfg.RegistrationTTL, "registration-ttl", cfg.RegistrationTTL,
+		"How long to wait for a fresh exit to register.")
+	fs.DurationVar(&cfg.DriftTTL, "drift-ttl", cfg.DriftTTL,
+		"How long a drift must persist before disruption fires.")
+	fs.DurationVar(&cfg.DisruptionPollPeriod, "disruption-poll-period", cfg.DisruptionPollPeriod,
+		"Disruption controller tick.")
 
 	var gateSpec string
 	fs.StringVar(&gateSpec, "feature-gates", "", "Comma-separated list of Name=bool gate overrides.")

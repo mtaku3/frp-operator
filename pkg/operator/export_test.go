@@ -15,4 +15,3 @@ func SetupIndexersForTest(ctx context.Context, mgr ctrl.Manager) error {
 func SetupHealthChecksForTest(mgr ctrl.Manager) error {
 	return setupHealthChecks(mgr)
 }
-

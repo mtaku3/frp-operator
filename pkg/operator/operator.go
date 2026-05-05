@@ -66,7 +66,12 @@ func Run(ctx context.Context, cfg *Config) error {
 // RunWithRESTConfig is the testable entrypoint. seedRegistry, if non-nil,
 // is used in lieu of the built-in cloudprovider registration so tests can
 // inject the in-memory fake provider.
-func RunWithRESTConfig(ctx context.Context, cfg *Config, restCfg *rest.Config, seedRegistry *cloudprovider.Registry) error {
+func RunWithRESTConfig(
+	ctx context.Context,
+	cfg *Config,
+	restCfg *rest.Config,
+	seedRegistry *cloudprovider.Registry,
+) error {
 	logger := log.FromContext(ctx).WithName("operator")
 
 	scheme, err := NewScheme()
@@ -164,13 +169,16 @@ func registerBuiltinProviders(logger logr.Logger, kube client.Client, registry *
 // fake provider whose ProviderClass is a Go-only stand-in.
 func setupInformers(mgr ctrl.Manager, cluster *state.Cluster, registry *cloudprovider.Registry) error {
 	logger := log.Log.WithName("operator").WithName("informers")
-	if err := (&informer.ExitClaimController{Client: mgr.GetClient(), Cluster: cluster}).SetupWithManager(mgr); err != nil {
+	exitClaimCtl := &informer.ExitClaimController{Client: mgr.GetClient(), Cluster: cluster}
+	if err := exitClaimCtl.SetupWithManager(mgr); err != nil {
 		return err
 	}
-	if err := (&informer.ExitPoolController{Client: mgr.GetClient(), Cluster: cluster}).SetupWithManager(mgr); err != nil {
+	exitPoolCtl := &informer.ExitPoolController{Client: mgr.GetClient(), Cluster: cluster}
+	if err := exitPoolCtl.SetupWithManager(mgr); err != nil {
 		return err
 	}
-	if err := (&informer.TunnelController{Client: mgr.GetClient(), Cluster: cluster}).SetupWithManager(mgr); err != nil {
+	tunnelCtl := &informer.TunnelController{Client: mgr.GetClient(), Cluster: cluster}
+	if err := tunnelCtl.SetupWithManager(mgr); err != nil {
 		return err
 	}
 	scheme := mgr.GetScheme()
@@ -184,11 +192,17 @@ func setupInformers(mgr ctrl.Manager, cluster *state.Cluster, registry *cloudpro
 				// Try by Go type — typed objects have empty TypeMeta until populated.
 				gvks, _, err := scheme.ObjectKinds(obj)
 				if err != nil || len(gvks) == 0 {
-					logger.Info("skipping ProviderClass watcher: type not registered with scheme", "kind", kindOf(obj))
+					logger.Info("skipping ProviderClass watcher: type not registered with scheme",
+					"kind", kindOf(obj))
 					continue
 				}
 			}
-			if err := (&informer.ProviderClassController{Client: mgr.GetClient(), Cluster: cluster, Watch: obj}).SetupWithManager(mgr); err != nil {
+			pcCtl := &informer.ProviderClassController{
+				Client:  mgr.GetClient(),
+				Cluster: cluster,
+				Watch:   obj,
+			}
+			if err := pcCtl.SetupWithManager(mgr); err != nil {
 				return err
 			}
 		}
@@ -197,15 +211,25 @@ func setupInformers(mgr ctrl.Manager, cluster *state.Cluster, registry *cloudpro
 }
 
 // setupProvisioning wires the Provisioner singleton + Pod/Node controllers.
-func setupProvisioning(mgr ctrl.Manager, cluster *state.Cluster, registry *cloudprovider.Registry, cfg *Config) (*provisioning.Provisioner, error) {
-	prov := provisioning.NewWithBatcher(cluster, mgr.GetClient(), registry, cfg.BatchIdleDuration, cfg.BatchMaxDuration)
+func setupProvisioning(
+	mgr ctrl.Manager,
+	cluster *state.Cluster,
+	registry *cloudprovider.Registry,
+	cfg *Config,
+) (*provisioning.Provisioner, error) {
+	prov := provisioning.NewWithBatcher(
+		cluster, mgr.GetClient(), registry,
+		cfg.BatchIdleDuration, cfg.BatchMaxDuration,
+	)
 	if err := prov.SetupWithManager(mgr); err != nil {
 		return nil, err
 	}
-	if err := (&provisioning.PodController{Client: mgr.GetClient(), Batcher: prov.Batcher}).SetupWithManager(mgr); err != nil {
+	podCtl := &provisioning.PodController{Client: mgr.GetClient(), Batcher: prov.Batcher}
+	if err := podCtl.SetupWithManager(mgr); err != nil {
 		return nil, err
 	}
-	if err := (&provisioning.NodeController{Client: mgr.GetClient(), Batcher: prov.Batcher}).SetupWithManager(mgr); err != nil {
+	nodeCtl := &provisioning.NodeController{Client: mgr.GetClient(), Batcher: prov.Batcher}
+	if err := nodeCtl.SetupWithManager(mgr); err != nil {
 		return nil, err
 	}
 	return prov, nil
@@ -213,7 +237,8 @@ func setupProvisioning(mgr ctrl.Manager, cluster *state.Cluster, registry *cloud
 
 // setupLifecycle wires the Phase-5 ExitClaim lifecycle controller.
 func setupLifecycle(mgr ctrl.Manager, registry *cloudprovider.Registry, cfg *Config) error {
-	c := lifecycle.NewWithTTL(mgr.GetClient(), registry, func(baseURL string) *admin.Client { return admin.New(baseURL) }, cfg.RegistrationTTL)
+	adminFactory := func(baseURL string) *admin.Client { return admin.New(baseURL) }
+	c := lifecycle.NewWithTTL(mgr.GetClient(), registry, adminFactory, cfg.RegistrationTTL)
 	return c.SetupWithManager(mgr)
 }
 
@@ -260,7 +285,11 @@ func setupPoolControllers(mgr ctrl.Manager, registry *cloudprovider.Registry) er
 	if err := (&counter.Controller{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
 		return err
 	}
-	if err := (&readiness.Controller{Client: mgr.GetClient(), KindToObject: providerClassFactories(registry, mgr.GetScheme())}).SetupWithManager(mgr); err != nil {
+	readinessCtl := &readiness.Controller{
+		Client:       mgr.GetClient(),
+		KindToObject: providerClassFactories(registry, mgr.GetScheme()),
+	}
+	if err := readinessCtl.SetupWithManager(mgr); err != nil {
 		return err
 	}
 	if err := (&validation.Controller{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {

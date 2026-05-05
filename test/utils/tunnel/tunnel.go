@@ -28,7 +28,13 @@ func Get(ctx context.Context, c client.Client, ns, name string) (*v1alpha1.Tunne
 }
 
 // WaitForPhase polls Tunnel.Status.Phase until it equals want.
-func WaitForPhase(ctx context.Context, c client.Client, ns, name string, want v1alpha1.TunnelPhase, timeout time.Duration) error {
+func WaitForPhase(
+	ctx context.Context,
+	c client.Client,
+	ns, name string,
+	want v1alpha1.TunnelPhase,
+	timeout time.Duration,
+) error {
 	deadline := time.Now().Add(timeout)
 	var lastPhase v1alpha1.TunnelPhase
 	var lastErr error

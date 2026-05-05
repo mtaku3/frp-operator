@@ -22,9 +22,11 @@ func NewMultiNodeConsolidation(s *Simulator) *MultiNodeConsolidation {
 	return &MultiNodeConsolidation{Sim: s}
 }
 
-func (m *MultiNodeConsolidation) Name() string                          { return "MultiNodeConsolidation" }
-func (m *MultiNodeConsolidation) Reason() v1alpha1.DisruptionReason     { return v1alpha1.DisruptionReasonUnderutilized }
-func (m *MultiNodeConsolidation) Forceful() bool                        { return false }
+func (m *MultiNodeConsolidation) Name() string { return "MultiNodeConsolidation" }
+func (m *MultiNodeConsolidation) Reason() v1alpha1.DisruptionReason {
+	return v1alpha1.DisruptionReasonUnderutilized
+}
+func (m *MultiNodeConsolidation) Forceful() bool { return false }
 
 func (m *MultiNodeConsolidation) ShouldDisrupt(_ context.Context, c *disruption.Candidate) bool {
 	if c == nil || c.Pool == nil || c.State == nil {
@@ -39,7 +41,11 @@ func (m *MultiNodeConsolidation) ShouldDisrupt(_ context.Context, c *disruption.
 	return !c.State.IsEmpty()
 }
 
-func (m *MultiNodeConsolidation) ComputeCommands(ctx context.Context, budgets disruption.BudgetMap, candidates ...*disruption.Candidate) ([]*disruption.Command, error) {
+func (m *MultiNodeConsolidation) ComputeCommands(
+	ctx context.Context,
+	budgets disruption.BudgetMap,
+	candidates ...*disruption.Candidate,
+) ([]*disruption.Command, error) {
 	if m.Sim == nil {
 		return nil, nil
 	}

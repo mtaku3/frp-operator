@@ -57,7 +57,13 @@ func Get(ctx context.Context, c client.Client, name string) (*v1alpha1.ExitClaim
 
 // WaitForCondition polls until the named condition reaches the wanted
 // status (e.g. ConditionTypeReady = True) or the timeout elapses.
-func WaitForCondition(ctx context.Context, c client.Client, name, condType string, want metav1.ConditionStatus, timeout time.Duration) error {
+func WaitForCondition(
+	ctx context.Context,
+	c client.Client,
+	name, condType string,
+	want metav1.ConditionStatus,
+	timeout time.Duration,
+) error {
 	deadline := time.Now().Add(timeout)
 	var lastStatus metav1.ConditionStatus
 	for {

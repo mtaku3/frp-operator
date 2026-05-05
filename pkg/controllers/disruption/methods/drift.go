@@ -12,10 +12,10 @@ import (
 // are absent and Drift returns nothing — safe by design.
 type Drift struct{}
 
-func NewDrift() *Drift                                { return &Drift{} }
-func (m *Drift) Name() string                         { return "Drift" }
-func (m *Drift) Reason() v1alpha1.DisruptionReason    { return v1alpha1.DisruptionReasonDrifted }
-func (m *Drift) Forceful() bool                       { return false }
+func NewDrift() *Drift                             { return &Drift{} }
+func (m *Drift) Name() string                      { return "Drift" }
+func (m *Drift) Reason() v1alpha1.DisruptionReason { return v1alpha1.DisruptionReasonDrifted }
+func (m *Drift) Forceful() bool                    { return false }
 
 func (m *Drift) ShouldDisrupt(_ context.Context, c *disruption.Candidate) bool {
 	if c == nil || c.Claim == nil || c.Pool == nil || c.State == nil {
@@ -32,7 +32,11 @@ func (m *Drift) ShouldDisrupt(_ context.Context, c *disruption.Candidate) bool {
 	return claimHash != poolHash
 }
 
-func (m *Drift) ComputeCommands(_ context.Context, budgets disruption.BudgetMap, candidates ...*disruption.Candidate) ([]*disruption.Command, error) {
+func (m *Drift) ComputeCommands(
+	_ context.Context,
+	budgets disruption.BudgetMap,
+	candidates ...*disruption.Candidate,
+) ([]*disruption.Command, error) {
 	return computePerPoolWithReplacements(m.Name(), v1alpha1.DisruptionReasonDrifted, budgets, candidates)
 }
 
@@ -40,7 +44,12 @@ func (m *Drift) ComputeCommands(_ context.Context, budgets disruption.BudgetMap,
 // by the budget for `reason`, and emits one Command per pool that includes a
 // like-for-like replacement claim per candidate. The replacement is stamped
 // with the pool's current template hash so the new claim is "fresh".
-func computePerPoolWithReplacements(method string, reason v1alpha1.DisruptionReason, budgets disruption.BudgetMap, candidates []*disruption.Candidate) ([]*disruption.Command, error) {
+func computePerPoolWithReplacements(
+	method string,
+	reason v1alpha1.DisruptionReason,
+	budgets disruption.BudgetMap,
+	candidates []*disruption.Candidate,
+) ([]*disruption.Command, error) {
 	perPool := map[string][]*disruption.Candidate{}
 	for _, c := range candidates {
 		if c == nil || c.Pool == nil {

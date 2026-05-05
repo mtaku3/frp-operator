@@ -24,7 +24,13 @@ import (
 // the same Status. Callers should pass the freshly read
 // pool.Status.Conditions as existing; the returned condition is the
 // value to hand to PatchCondition.
-func MakeCondition(existing []metav1.Condition, condType string, status metav1.ConditionStatus, observedGeneration int64, reason, message string) metav1.Condition {
+func MakeCondition(
+	existing []metav1.Condition,
+	condType string,
+	status metav1.ConditionStatus,
+	observedGeneration int64,
+	reason, message string,
+) metav1.Condition {
 	for _, c := range existing {
 		if c.Type != condType {
 			continue
@@ -69,7 +75,13 @@ func MakeCondition(existing []metav1.Condition, condType string, status metav1.C
 //     committed once, subsequent writes use the race-safe ops above.
 //     This trade keeps the helper compatible with apiservers (incl.
 //     envtest) that reject `add` to a child of an absent CRD path.
-func PatchCondition(ctx context.Context, c client.Client, obj client.Object, existing []metav1.Condition, newCond metav1.Condition) error {
+func PatchCondition(
+	ctx context.Context,
+	c client.Client,
+	obj client.Object,
+	existing []metav1.Condition,
+	newCond metav1.Condition,
+) error {
 	idx := -1
 	for i, cur := range existing {
 		if cur.Type == newCond.Type {

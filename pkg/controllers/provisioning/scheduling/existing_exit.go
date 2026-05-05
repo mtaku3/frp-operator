@@ -51,7 +51,10 @@ func (e *ExistingExit) CanAdd(tunnel *v1alpha1.Tunnel) ([]int32, error) {
 
 	// Ports fit.
 	mergedUsed := mergePortSets(used, e.NewlyUsedPorts)
-	assigned, ok := ResolveAutoAssign(claim.Spec.Frps.AllowPorts, claim.Spec.Frps.ReservedPorts, mergedUsed, tunnel.Spec.Ports)
+	assigned, ok := ResolveAutoAssign(
+		claim.Spec.Frps.AllowPorts, claim.Spec.Frps.ReservedPorts,
+		mergedUsed, tunnel.Spec.Ports,
+	)
 	if !ok {
 		return nil, fmt.Errorf("ports don't fit on %s", claim.Name)
 	}

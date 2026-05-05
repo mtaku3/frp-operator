@@ -51,7 +51,8 @@ func (l *Liveness) Reconcile(ctx context.Context, claim *v1alpha1.ExitClaim) (re
 	if l.now().Sub(launchedAt) < l.ttl() {
 		return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 	}
-	setCond(claim, v1alpha1.ConditionTypeDisrupted, metav1.ConditionTrue, v1alpha1.ReasonRegistrationTimeout, "exceeded RegistrationTTL")
+	setCond(claim, v1alpha1.ConditionTypeDisrupted, metav1.ConditionTrue,
+		v1alpha1.ReasonRegistrationTimeout, "exceeded RegistrationTTL")
 	_ = l.KubeClient.Status().Update(ctx, claim)
 	if err := l.KubeClient.Delete(ctx, claim); err != nil {
 		return reconcile.Result{}, err

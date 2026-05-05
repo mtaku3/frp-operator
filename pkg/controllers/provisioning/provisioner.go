@@ -40,7 +40,12 @@ func New(c *state.Cluster, kube client.Client, cp *cloudprovider.Registry) *Prov
 // windows. Zero or negative values fall back to the package defaults so
 // operators that forget to set Config.BatchIdleDuration still get a
 // working batcher.
-func NewWithBatcher(c *state.Cluster, kube client.Client, cp *cloudprovider.Registry, idle, max time.Duration) *Provisioner {
+func NewWithBatcher(
+	c *state.Cluster,
+	kube client.Client,
+	cp *cloudprovider.Registry,
+	idle, max time.Duration,
+) *Provisioner {
 	if idle <= 0 {
 		idle = DefaultBatchIdleDuration
 	}

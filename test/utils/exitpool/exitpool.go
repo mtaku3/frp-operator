@@ -9,6 +9,7 @@ package exitpool
 
 import (
 	"context"
+	"encoding/json"
 
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -27,5 +28,10 @@ func Get(ctx context.Context, c client.Client, name string) (*v1alpha1.ExitPool,
 
 // Apply server-side applies pool through the controller-runtime client.
 func Apply(ctx context.Context, c client.Client, pool *v1alpha1.ExitPool) error {
-	return c.Patch(ctx, pool, client.Apply, client.FieldOwner("e2e"), client.ForceOwnership)
+	body, err := json.Marshal(pool)
+	if err != nil {
+		return err
+	}
+	return c.Patch(ctx, pool, client.RawPatch(types.ApplyPatchType, body),
+		client.FieldOwner("e2e"), client.ForceOwnership)
 }

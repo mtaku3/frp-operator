@@ -105,7 +105,7 @@ func TestLiveness_RegisteredSkips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	if res.RequeueAfter != 0 || res.Requeue {
+	if res.RequeueAfter != 0 {
 		t.Errorf("expected no-op; got %+v", res)
 	}
 }

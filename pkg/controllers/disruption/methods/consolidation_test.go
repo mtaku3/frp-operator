@@ -69,7 +69,7 @@ func setupSim(t *testing.T, claims []*v1alpha1.ExitClaim, tunnels []*v1alpha1.Tu
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("scheme: %v", err)
 	}
-	objs := []runtime.Object{}
+	objs := make([]runtime.Object, 0, len(claims)+len(tunnels))
 	for _, c := range claims {
 		objs = append(objs, c)
 	}

@@ -234,8 +234,8 @@ func setTunnelCondition(t *v1alpha1.Tunnel, condType string, status metav1.Condi
 }
 
 func splitKey(key string) (string, string) {
-	if i := strings.IndexByte(key, '/'); i >= 0 {
-		return key[:i], key[i+1:]
+	if ns, name, ok := strings.Cut(key, "/"); ok {
+		return ns, name
 	}
 	return "", key
 }

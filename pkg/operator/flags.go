@@ -37,7 +37,7 @@ func LoadConfigFromArgs(args []string) (*Config, error) {
 	fs.DurationVar(&cfg.BatchIdleDuration, "batch-idle-duration", cfg.BatchIdleDuration, "Idle window before batch fires.")
 	fs.DurationVar(&cfg.BatchMaxDuration, "batch-max-duration", cfg.BatchMaxDuration, "Max time a batch may stay open.")
 
-	var qps float64 = float64(cfg.KubeClientQPS)
+	qps := float64(cfg.KubeClientQPS)
 	fs.Float64Var(&qps, "kube-client-qps", qps, "Sustained kube client QPS.")
 	fs.IntVar(&cfg.KubeClientBurst, "kube-client-burst", cfg.KubeClientBurst, "Burst kube client QPS.")
 

@@ -1,6 +1,8 @@
 package methods
 
 import (
+	"maps"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
@@ -18,13 +20,9 @@ func replacementForCandidate(c *disruption.Candidate) *v1alpha1.ExitClaim {
 	pool := c.Pool
 	tmpl := pool.Spec.Template
 	labels := map[string]string{v1alpha1.LabelExitPool: pool.Name}
-	for k, v := range tmpl.Metadata.Labels {
-		labels[k] = v
-	}
+	maps.Copy(labels, tmpl.Metadata.Labels)
 	annotations := map[string]string{}
-	for k, v := range tmpl.Metadata.Annotations {
-		annotations[k] = v
-	}
+	maps.Copy(annotations, tmpl.Metadata.Annotations)
 	if h := pool.Annotations[v1alpha1.AnnotationPoolHash]; h != "" {
 		annotations[v1alpha1.AnnotationPoolHash] = h
 	}

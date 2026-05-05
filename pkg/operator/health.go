@@ -43,7 +43,7 @@ func crdReadinessCheck(c client.Client) healthz.Checker {
 			return fmt.Errorf("ExitClaim CRD not ready: %w", err)
 		}
 		if err := c.List(ctx, &v1alpha1.TunnelList{}, client.Limit(1)); err != nil {
-			return fmt.Errorf("Tunnel CRD not ready: %w", err)
+			return fmt.Errorf("tunnel CRD not ready: %w", err)
 		}
 		return nil
 	}

@@ -95,8 +95,8 @@ func PatchCondition(
 		// the stored object, so an `add` op cannot reach it. Use a
 		// JSON Merge Patch to materialize the slice. After this round
 		// trip, future writes go through the JSON Patch branch.
-		mergeBody, err := json.Marshal(map[string]interface{}{
-			"status": map[string]interface{}{
+		mergeBody, err := json.Marshal(map[string]any{
+			"status": map[string]any{
 				"conditions": []metav1.Condition{newCond},
 			},
 		})
@@ -106,21 +106,21 @@ func PatchCondition(
 		return c.Status().Patch(ctx, obj, client.RawPatch(types.MergePatchType, mergeBody))
 	}
 
-	var op map[string]interface{}
+	var op map[string]any
 	if idx >= 0 {
-		op = map[string]interface{}{
+		op = map[string]any{
 			"op":    "replace",
 			"path":  fmt.Sprintf("/status/conditions/%d", idx),
 			"value": newCond,
 		}
 	} else {
-		op = map[string]interface{}{
+		op = map[string]any{
 			"op":    "add",
 			"path":  "/status/conditions/-",
 			"value": newCond,
 		}
 	}
-	body, err := json.Marshal([]map[string]interface{}{op})
+	body, err := json.Marshal([]map[string]any{op})
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,7 @@
 package state
 
 import (
+	"maps"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -98,8 +99,6 @@ func (s *StateExit) SnapshotForRead() (*v1alpha1.ExitClaim, map[int32]TunnelKey)
 		return nil, nil
 	}
 	allocCopy := make(map[int32]TunnelKey, len(s.Allocations))
-	for k, v := range s.Allocations {
-		allocCopy[k] = v
-	}
+	maps.Copy(allocCopy, s.Allocations)
 	return s.Claim.DeepCopy(), allocCopy
 }

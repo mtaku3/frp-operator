@@ -11,7 +11,8 @@ import (
 	"github.com/mtaku3/frp-operator/pkg/controllers/state"
 )
 
-func readyClaim(name string) *v1alpha1.ExitClaim {
+func readyClaim() *v1alpha1.ExitClaim {
+	const name = "e1"
 	return &v1alpha1.ExitClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: v1alpha1.ExitClaimSpec{
@@ -31,42 +32,42 @@ func readyClaim(name string) *v1alpha1.ExitClaim {
 	}
 }
 
-func tunnelWithPorts(ns, name string, ports ...int32) *v1alpha1.Tunnel {
+func tunnelWithPorts(name string, ports ...int32) *v1alpha1.Tunnel {
 	tps := make([]v1alpha1.TunnelPort, 0, len(ports))
 	for _, p := range ports {
 		pp := p
 		tps = append(tps, v1alpha1.TunnelPort{PublicPort: &pp, ServicePort: 8080, Protocol: "TCP"})
 	}
 	return &v1alpha1.Tunnel{
-		ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: name},
 		Spec:       v1alpha1.TunnelSpec{Ports: tps},
 	}
 }
 
 func TestExistingExit_CanAdd_RejectsNotReady(t *testing.T) {
-	claim := readyClaim("e1")
+	claim := readyClaim()
 	claim.Status.Conditions = nil
 	se := &state.StateExit{Claim: claim, Allocations: map[int32]state.TunnelKey{}}
 	e := &ExistingExit{State: se}
-	if _, err := e.CanAdd(tunnelWithPorts("default", "t1", 80)); err == nil {
+	if _, err := e.CanAdd(tunnelWithPorts("t1", 80)); err == nil {
 		t.Fatal("not-ready should reject")
 	}
 }
 
 func TestExistingExit_CanAdd_PortConflict(t *testing.T) {
-	claim := readyClaim("e1")
+	claim := readyClaim()
 	se := &state.StateExit{Claim: claim, Allocations: map[int32]state.TunnelKey{80: "default/other"}}
 	e := &ExistingExit{State: se}
-	if _, err := e.CanAdd(tunnelWithPorts("default", "t1", 80)); err == nil {
+	if _, err := e.CanAdd(tunnelWithPorts("t1", 80)); err == nil {
 		t.Fatal("port conflict should reject")
 	}
 }
 
 func TestExistingExit_CanAdd_HappyPath(t *testing.T) {
-	claim := readyClaim("e1")
+	claim := readyClaim()
 	se := &state.StateExit{Claim: claim, Allocations: map[int32]state.TunnelKey{}}
 	e := &ExistingExit{State: se}
-	out, err := e.CanAdd(tunnelWithPorts("default", "t1", 80))
+	out, err := e.CanAdd(tunnelWithPorts("t1", 80))
 	if err != nil {
 		t.Fatalf("expected ok, got %v", err)
 	}
@@ -76,16 +77,16 @@ func TestExistingExit_CanAdd_HappyPath(t *testing.T) {
 }
 
 func TestExistingExit_AddBlocksSecondClaim(t *testing.T) {
-	claim := readyClaim("e1")
+	claim := readyClaim()
 	se := &state.StateExit{Claim: claim, Allocations: map[int32]state.TunnelKey{}}
 	e := &ExistingExit{State: se}
-	t1 := tunnelWithPorts("default", "t1", 80)
+	t1 := tunnelWithPorts("t1", 80)
 	out, err := e.CanAdd(t1)
 	if err != nil {
 		t.Fatalf("first ok: %v", err)
 	}
 	e.Add(t1, out)
-	if _, err := e.CanAdd(tunnelWithPorts("default", "t2", 80)); err == nil {
+	if _, err := e.CanAdd(tunnelWithPorts("t2", 80)); err == nil {
 		t.Fatal("second claim on same port should fail after Add")
 	}
 }
@@ -106,17 +107,17 @@ func TestInflightClaim_CanAddAndPack(t *testing.T) {
 		},
 	}
 	c := NewClaimFromPool(pool, "tunnel-uid-A")
-	t1 := tunnelWithPorts("default", "t1", 80)
+	t1 := tunnelWithPorts("t1", 80)
 	out, err := c.CanAdd(t1)
 	if err != nil {
 		t.Fatalf("first ok: %v", err)
 	}
 	c.Add(t1, out)
-	t2 := tunnelWithPorts("default", "t2", 80)
+	t2 := tunnelWithPorts("t2", 80)
 	if _, err := c.CanAdd(t2); err == nil {
 		t.Fatal("port reuse on inflight should fail")
 	}
-	t3 := tunnelWithPorts("default", "t3", 443)
+	t3 := tunnelWithPorts("t3", 443)
 	if _, err := c.CanAdd(t3); err != nil {
 		t.Fatalf("443 should fit: %v", err)
 	}

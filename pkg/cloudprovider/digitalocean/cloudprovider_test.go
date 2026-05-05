@@ -3,6 +3,7 @@ package digitalocean_test
 import (
 	"context"
 	"net/http"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -25,7 +26,6 @@ type stubDroplets struct {
 	store    map[int]*godo.Droplet
 	idSeq    atomic.Int32
 	listByNm map[string][]godo.Droplet
-	tagged   []godo.Droplet
 }
 
 func newStub() *stubDroplets {
@@ -70,11 +70,8 @@ func (s *stubDroplets) Delete(_ context.Context, id int) (*godo.Response, error)
 func (s *stubDroplets) ListByTag(_ context.Context, tag string, _ *godo.ListOptions) ([]godo.Droplet, *godo.Response, error) {
 	var out []godo.Droplet
 	for _, d := range s.store {
-		for _, t := range d.Tags {
-			if t == tag {
-				out = append(out, *d)
-				break
-			}
+		if slices.Contains(d.Tags, tag) {
+			out = append(out, *d)
 		}
 	}
 	return out, &godo.Response{}, nil

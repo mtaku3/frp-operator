@@ -27,7 +27,7 @@ func newControllerHarness(t *testing.T, claims []*v1alpha1.ExitClaim, pools []*v
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("scheme: %v", err)
 	}
-	objs := []runtime.Object{}
+	objs := make([]runtime.Object, 0, len(claims)+len(pools))
 	for _, c := range claims {
 		objs = append(objs, c)
 	}

@@ -62,7 +62,7 @@ func KindClusterName() string {
 // GetNonEmptyLines splits output on \n and drops empty entries.
 func GetNonEmptyLines(output string) []string {
 	var res []string
-	for _, line := range strings.Split(output, "\n") {
+	for line := range strings.SplitSeq(output, "\n") {
 		if line != "" {
 			res = append(res, line)
 		}

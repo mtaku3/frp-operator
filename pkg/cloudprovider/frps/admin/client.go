@@ -22,7 +22,7 @@ func New(baseURL string) *Client {
 	}
 }
 
-func (c *Client) get(ctx context.Context, path string, out interface{}) error {
+func (c *Client) get(ctx context.Context, path string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", c.BaseURL+path, nil)
 	if err != nil {
 		return err

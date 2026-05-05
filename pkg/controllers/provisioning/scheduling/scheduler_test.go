@@ -13,8 +13,8 @@ import (
 	"github.com/mtaku3/frp-operator/pkg/controllers/state"
 )
 
-func newPool(name string, weight int32, allowPorts []string, limits v1alpha1.Limits) *v1alpha1.ExitPool {
-	w := weight
+func newPool(name string, allowPorts []string, limits v1alpha1.Limits) *v1alpha1.ExitPool {
+	w := int32(10)
 	return &v1alpha1.ExitPool{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: v1alpha1.ExitPoolSpec{
@@ -39,7 +39,7 @@ func solveCtx() context.Context { return context.Background() }
 func TestSolve_NoExitsNoPools_TunnelErrors(t *testing.T) {
 	c := state.NewCluster(nil)
 	s := New(c, cloudprovider.NewRegistry(), nil)
-	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("default", "t1", 80)})
+	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("t1", 80)})
 	if err != nil {
 		t.Fatalf("solve: %v", err)
 	}
@@ -53,9 +53,9 @@ func TestSolve_NoExitsNoPools_TunnelErrors(t *testing.T) {
 
 func TestSolve_OnePool_NoExits_ProducesNewClaim(t *testing.T) {
 	c := state.NewCluster(nil)
-	c.UpdatePool(newPool("p1", 10, []string{"80", "443"}, nil))
+	c.UpdatePool(newPool("p1", []string{"80", "443"}, nil))
 	s := New(c, cloudprovider.NewRegistry(), nil)
-	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("default", "t1", 80)})
+	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("t1", 80)})
 	if len(res.NewClaims) != 1 {
 		t.Fatalf("expected 1 NewClaim, got %d", len(res.NewClaims))
 	}
@@ -69,11 +69,11 @@ func TestSolve_OnePool_NoExits_ProducesNewClaim(t *testing.T) {
 
 func TestSolve_TwoTunnels_BinpackOntoOneInflight(t *testing.T) {
 	c := state.NewCluster(nil)
-	c.UpdatePool(newPool("p1", 10, []string{"80", "443"}, nil))
+	c.UpdatePool(newPool("p1", []string{"80", "443"}, nil))
 	s := New(c, cloudprovider.NewRegistry(), nil)
 	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{
-		tunnelWithPorts("default", "t1", 80),
-		tunnelWithPorts("default", "t2", 443),
+		tunnelWithPorts("t1", 80),
+		tunnelWithPorts("t2", 443),
 	})
 	if len(res.NewClaims) != 1 {
 		t.Fatalf("expected 1 NewClaim (binpacked), got %d", len(res.NewClaims))
@@ -88,15 +88,15 @@ func TestSolve_TwoTunnels_BinpackOntoOneInflight(t *testing.T) {
 
 func TestSolve_OneReadyExit_BindsExisting(t *testing.T) {
 	c := state.NewCluster(nil)
-	c.UpdatePool(newPool("p1", 10, []string{"80"}, nil))
-	claim := readyClaim("e1")
+	c.UpdatePool(newPool("p1", []string{"80"}, nil))
+	claim := readyClaim()
 	claim.Spec.Frps = v1alpha1.FrpsConfig{
 		Version: "v0.68.1", Auth: v1alpha1.FrpsAuthConfig{Method: "token"},
 		AllowPorts: []string{"80", "443", "1024-1030"},
 	}
 	c.UpdateExit(claim)
 	s := New(c, cloudprovider.NewRegistry(), nil)
-	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("default", "t1", 80)})
+	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("t1", 80)})
 	if len(res.NewClaims) != 0 {
 		t.Fatalf("expected 0 NewClaims, got %d", len(res.NewClaims))
 	}
@@ -107,15 +107,15 @@ func TestSolve_OneReadyExit_BindsExisting(t *testing.T) {
 
 func TestSolve_PortCollideOnExisting_ProducesNewClaim(t *testing.T) {
 	c := state.NewCluster(nil)
-	c.UpdatePool(newPool("p1", 10, []string{"80", "443"}, nil))
-	claim := readyClaim("e1")
+	c.UpdatePool(newPool("p1", []string{"80", "443"}, nil))
+	claim := readyClaim()
 	claim.Spec.Frps.AllowPorts = []string{"80"} // only 80 available
 	c.UpdateExit(claim)
 	// pre-populate binding so 80 is taken
 	c.UpdateTunnelBinding(state.TunnelKey("default/other"), "e1", []int32{80})
 
 	s := New(c, cloudprovider.NewRegistry(), nil)
-	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("default", "t1", 80)})
+	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("t1", 80)})
 	if len(res.NewClaims) != 1 {
 		t.Fatalf("expected 1 NewClaim, got %d (errors=%v)", len(res.NewClaims), res.TunnelErrors)
 	}
@@ -128,7 +128,7 @@ func TestSolve_PortCollideOnExisting_ProducesNewClaim(t *testing.T) {
 // the spec-reviewer flagged hole patched alongside the stable-salt fix.
 func TestSolve_RehydratesPendingClaim_AcrossSolves(t *testing.T) {
 	c := state.NewCluster(nil)
-	c.UpdatePool(newPool("default", 10, []string{"80", "443"}, nil))
+	c.UpdatePool(newPool("default", []string{"80", "443"}, nil))
 
 	// Pre-seed: an ExitClaim exists for some earlier tunnel but is not
 	// Ready (just-created). Carry the exit-pool label so the rehydrate
@@ -151,7 +151,7 @@ func TestSolve_RehydratesPendingClaim_AcrossSolves(t *testing.T) {
 	// A fresh tunnel arrives in a new Solve; expected to binpack onto
 	// the pending claim (no NewClaims minted).
 	s := New(c, nil, nil)
-	tun := tunnelWithPorts("default", "tunnel-2", 80)
+	tun := tunnelWithPorts("tunnel-2", 80)
 	tun.UID = "uid-2"
 	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
 	if err != nil {
@@ -176,10 +176,10 @@ func TestSolve_RehydratesPendingClaim_AcrossSolves(t *testing.T) {
 // ExitClaim slips through.
 func TestSolve_StableSalt_SameNameAcrossSolves(t *testing.T) {
 	c := state.NewCluster(nil)
-	c.UpdatePool(newPool("default", 10, []string{"80", "443"}, nil))
+	c.UpdatePool(newPool("default", []string{"80", "443"}, nil))
 
 	s := New(c, nil, nil)
-	tun := tunnelWithPorts("default", "t-stable", 80)
+	tun := tunnelWithPorts("t-stable", 80)
 	tun.UID = "uid-stable"
 
 	res1, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
@@ -201,7 +201,7 @@ func TestSolve_StableSalt_SameNameAcrossSolves(t *testing.T) {
 
 func TestSolve_PoolLimitsExceeded_TunnelErrors(t *testing.T) {
 	c := state.NewCluster(nil)
-	pool := newPool("p1", 10, []string{"80"}, v1alpha1.Limits{
+	pool := newPool("p1", []string{"80"}, v1alpha1.Limits{
 		corev1.ResourceName(v1alpha1.ResourceExits): resource.MustParse("1"),
 	})
 	// Bump pool counter to 1 (>= limit) by setting Status.Resources;
@@ -213,7 +213,7 @@ func TestSolve_PoolLimitsExceeded_TunnelErrors(t *testing.T) {
 	c.UpdatePool(pool)
 
 	s := New(c, cloudprovider.NewRegistry(), nil)
-	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("default", "t1", 80)})
+	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("t1", 80)})
 	if len(res.NewClaims) != 0 {
 		t.Fatalf("limit exceeded should suppress NewClaim; got %d", len(res.NewClaims))
 	}

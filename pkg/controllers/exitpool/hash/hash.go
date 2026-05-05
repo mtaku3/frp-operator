@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"slices"
 	"sort"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
@@ -46,7 +47,5 @@ func canonicalize(t *v1alpha1.ExitClaimTemplateSpec) {
 	}
 	// AllowPorts and ReservedPorts are spec-level, treat order-insensitive.
 	sort.Strings(t.Frps.AllowPorts)
-	sort.Slice(t.Frps.ReservedPorts, func(i, j int) bool {
-		return t.Frps.ReservedPorts[i] < t.Frps.ReservedPorts[j]
-	})
+	slices.Sort(t.Frps.ReservedPorts)
 }

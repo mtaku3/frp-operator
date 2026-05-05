@@ -32,14 +32,14 @@ func defaultPool(name string, allow []string) *v1alpha1.ExitPool {
 	}
 }
 
-func newTunnel(ns, name string, ports ...int32) *v1alpha1.Tunnel {
+func newTunnel(name string, ports ...int32) *v1alpha1.Tunnel {
 	tps := make([]v1alpha1.TunnelPort, 0, len(ports))
 	for _, p := range ports {
 		pp := p
 		tps = append(tps, v1alpha1.TunnelPort{PublicPort: &pp, ServicePort: 8080, Protocol: "TCP"})
 	}
 	return &v1alpha1.Tunnel{
-		ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: name},
 		Spec:       v1alpha1.TunnelSpec{Ports: tps},
 	}
 }
@@ -48,7 +48,7 @@ var _ = Describe("Provisioner integration", func() {
 	It("creates an ExitClaim and patches Tunnel.Status when a pool exists", func() {
 		ctx := context.Background()
 		Expect(k8sClient.Create(ctx, defaultPool("pool-a", []string{"80", "443"}))).To(Succeed())
-		t := newTunnel("default", "tn-a", 80)
+		t := newTunnel("tn-a", 80)
 		Expect(k8sClient.Create(ctx, t)).To(Succeed())
 
 		Eventually(func() string {
@@ -68,8 +68,8 @@ var _ = Describe("Provisioner integration", func() {
 	It("binpacks two rapid Tunnels onto one ExitClaim", func() {
 		ctx := context.Background()
 		Expect(k8sClient.Create(ctx, defaultPool("pool-b", []string{"80", "443"}))).To(Succeed())
-		t1 := newTunnel("default", "tn-b1", 80)
-		t2 := newTunnel("default", "tn-b2", 443)
+		t1 := newTunnel("tn-b1", 80)
+		t2 := newTunnel("tn-b2", 443)
 		Expect(k8sClient.Create(ctx, t1)).To(Succeed())
 		Expect(k8sClient.Create(ctx, t2)).To(Succeed())
 
@@ -91,7 +91,7 @@ var _ = Describe("Provisioner integration", func() {
 
 	It("marks tunnel Unschedulable when no matching pool exists", func() {
 		ctx := context.Background()
-		t := newTunnel("default", "tn-c", 80)
+		t := newTunnel("tn-c", 80)
 		Expect(k8sClient.Create(ctx, t)).To(Succeed())
 
 		Eventually(func() (string, error) {

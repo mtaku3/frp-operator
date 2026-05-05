@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -220,10 +221,8 @@ func (d *dockerOps) findByName(ctx context.Context, name string) (string, bool, 
 		return "", false, fmt.Errorf("list containers: %w", err)
 	}
 	for _, it := range items {
-		for _, n := range it.Names {
-			if n == "/"+name {
-				return it.ID, true, nil
-			}
+		if slices.Contains(it.Names, "/"+name) {
+			return it.ID, true, nil
 		}
 	}
 	return "", false, nil

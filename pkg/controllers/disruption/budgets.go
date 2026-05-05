@@ -2,6 +2,7 @@ package disruption
 
 import (
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -44,35 +45,21 @@ func GetAllowedDisruptionsByReason(
 		}
 		matched = true
 		cap := resolveBudgetCount(b.Nodes, nodesInPool)
-		if cap < minBudget {
-			minBudget = cap
-		}
+		minBudget = min(minBudget, cap)
 	}
 	if !matched {
 		// Default: 10% of pool size, rounded down, floored at 1.
 		minBudget = nodesInPool * DefaultBudgetPercent / 100
-		if minBudget < 1 {
-			minBudget = 1
-		}
+		minBudget = max(minBudget, 1)
 	}
 	disrupting := countDisruptingInPool(c, pool.Name)
-	allowed := minBudget - disrupting
-	if allowed < 0 {
-		allowed = 0
-	}
+	allowed := max(minBudget-disrupting, 0)
 	return allowed
 }
 
 func budgetActive(b v1alpha1.DisruptionBudget, reason v1alpha1.DisruptionReason, now time.Time) bool {
 	if len(b.Reasons) > 0 {
-		match := false
-		for _, r := range b.Reasons {
-			if r == reason {
-				match = true
-				break
-			}
-		}
-		if !match {
+		if !slices.Contains(b.Reasons, reason) {
 			return false
 		}
 	}
@@ -109,8 +96,8 @@ func cronActive(schedule string, duration time.Duration, now time.Time) bool {
 
 func resolveBudgetCount(nodes string, total int) int {
 	nodes = strings.TrimSpace(nodes)
-	if strings.HasSuffix(nodes, "%") {
-		pct, err := strconv.Atoi(strings.TrimSuffix(nodes, "%"))
+	if rest, ok := strings.CutSuffix(nodes, "%"); ok {
+		pct, err := strconv.Atoi(rest)
 		if err != nil || pct < 0 {
 			return 0
 		}

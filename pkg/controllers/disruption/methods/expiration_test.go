@@ -14,11 +14,11 @@ import (
 	"github.com/mtaku3/frp-operator/pkg/controllers/state"
 )
 
-func expirationCand(name string, age time.Duration, expireAfter time.Duration) *disruption.Candidate {
+func expirationCand(age time.Duration, expireAfter time.Duration) *disruption.Candidate {
 	pool := &v1alpha1.ExitPool{ObjectMeta: metav1.ObjectMeta{Name: "p"}}
 	claim := &v1alpha1.ExitClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:              name,
+			Name:              "e",
 			Labels:            map[string]string{v1alpha1.LabelExitPool: "p"},
 			CreationTimestamp: metav1.NewTime(time.Now().Add(-age)),
 		},
@@ -30,7 +30,7 @@ func expirationCand(name string, age time.Duration, expireAfter time.Duration) *
 
 func TestExpiration_Fires(t *testing.T) {
 	m := methods.NewExpiration()
-	cand := expirationCand("e", 2*time.Hour, time.Hour)
+	cand := expirationCand(2*time.Hour, time.Hour)
 	if !m.ShouldDisrupt(context.Background(), cand) {
 		t.Fatal("age > expireAfter must fire")
 	}
@@ -38,7 +38,7 @@ func TestExpiration_Fires(t *testing.T) {
 
 func TestExpiration_NotElapsed(t *testing.T) {
 	m := methods.NewExpiration()
-	cand := expirationCand("e", time.Minute, time.Hour)
+	cand := expirationCand(time.Minute, time.Hour)
 	if m.ShouldDisrupt(context.Background(), cand) {
 		t.Fatal("not elapsed must not fire")
 	}
@@ -46,7 +46,7 @@ func TestExpiration_NotElapsed(t *testing.T) {
 
 func TestExpiration_NoExpireAfter(t *testing.T) {
 	m := methods.NewExpiration()
-	cand := expirationCand("e", 24*time.Hour, 0)
+	cand := expirationCand(24*time.Hour, 0)
 	if m.ShouldDisrupt(context.Background(), cand) {
 		t.Fatal("ExpireAfter=0 means never expire")
 	}
@@ -60,7 +60,7 @@ func TestExpiration_Forceful(t *testing.T) {
 }
 
 func TestExpiration_ComputeCommands_BypassBudget(t *testing.T) {
-	cand := expirationCand("e", 2*time.Hour, time.Hour)
+	cand := expirationCand(2*time.Hour, time.Hour)
 	// The controller is the single source of truth for the Forceful bypass:
 	// it injects MaxInt32 for every relevant pool. Mirror that here.
 	budgets := disruption.BudgetMap{}

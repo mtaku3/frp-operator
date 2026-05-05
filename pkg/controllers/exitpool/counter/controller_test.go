@@ -78,7 +78,7 @@ var _ = Describe("counter controller", func() {
 		ctx := context.Background()
 		Expect(k8sClient.Create(ctx, makePool())).To(Succeed())
 
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			n := fmt.Sprintf("c-%d", i)
 			Expect(k8sClient.Create(ctx, makeClaim(n))).To(Succeed())
 			setAllocatable(n, corev1.ResourceList{
@@ -104,7 +104,7 @@ var _ = Describe("counter controller", func() {
 		ctx := context.Background()
 		Expect(k8sClient.Create(ctx, makePool())).To(Succeed())
 
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			n := fmt.Sprintf("d-%d", i)
 			Expect(k8sClient.Create(ctx, makeClaim(n))).To(Succeed())
 			setAllocatable(n, corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")})

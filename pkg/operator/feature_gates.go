@@ -43,7 +43,7 @@ func ParseFeatureGates(spec string) (map[string]bool, error) {
 	for _, k := range knownFeatureGates {
 		known[k] = struct{}{}
 	}
-	for _, kv := range strings.Split(spec, ",") {
+	for kv := range strings.SplitSeq(spec, ",") {
 		kv = strings.TrimSpace(kv)
 		if kv == "" {
 			continue

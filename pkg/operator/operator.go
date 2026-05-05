@@ -193,7 +193,7 @@ func setupInformers(mgr ctrl.Manager, cluster *state.Cluster, registry *cloudpro
 				gvks, _, err := scheme.ObjectKinds(obj)
 				if err != nil || len(gvks) == 0 {
 					logger.Info("skipping ProviderClass watcher: type not registered with scheme",
-					"kind", kindOf(obj))
+						"kind", kindOf(obj))
 					continue
 				}
 			}

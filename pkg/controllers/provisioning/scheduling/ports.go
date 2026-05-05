@@ -63,9 +63,9 @@ func computeFree(allowPorts []string, reserved []int32, used map[int32]struct{})
 		if spec == "" {
 			continue
 		}
-		if i := strings.IndexByte(spec, '-'); i >= 0 {
-			lo, errLo := strconv.Atoi(strings.TrimSpace(spec[:i]))
-			hi, errHi := strconv.Atoi(strings.TrimSpace(spec[i+1:]))
+		if loStr, hiStr, ok := strings.Cut(spec, "-"); ok {
+			lo, errLo := strconv.Atoi(strings.TrimSpace(loStr))
+			hi, errHi := strconv.Atoi(strings.TrimSpace(hiStr))
 			if errLo != nil || errHi != nil || lo > hi {
 				continue
 			}

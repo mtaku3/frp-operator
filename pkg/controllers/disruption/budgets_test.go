@@ -45,7 +45,7 @@ func mkClaim(name string, ready bool) *v1alpha1.ExitClaim {
 // `disrupting` of them MarkedForDeletion.
 func seedCluster(n, disrupting int) *state.Cluster {
 	c := state.NewCluster(nil)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		claim := mkClaim("e"+strItoa(i), true)
 		c.UpdateExit(claim)
 	}

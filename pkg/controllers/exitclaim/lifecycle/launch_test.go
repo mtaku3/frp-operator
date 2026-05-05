@@ -57,7 +57,7 @@ func TestLauncher_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	if !res.Requeue {
+	if res.IsZero() {
 		t.Errorf("want Requeue, got %+v", res)
 	}
 	if claim.Status.ProviderID == "" {
@@ -121,7 +121,7 @@ func TestLauncher_AlreadyLaunched(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	if res.Requeue || res.RequeueAfter != 0 {
+	if !res.IsZero() {
 		t.Errorf("expected no-op result, got %+v", res)
 	}
 	exits, _ := cp.List(context.Background())

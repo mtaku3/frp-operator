@@ -53,7 +53,7 @@ func RenderCloudInit(frpsCfg v1alpha1.FrpsConfig, authToken, binaryURLTemplate s
 	b.WriteString("    permissions: '0600'\n")
 	b.WriteString("    owner: root:root\n")
 	b.WriteString("    content: |\n")
-	for _, line := range strings.Split(body, "\n") {
+	for line := range strings.SplitSeq(body, "\n") {
 		fmt.Fprintf(&b, "      %s\n", line)
 	}
 	b.WriteString("  - path: /etc/systemd/system/frps.service\n")

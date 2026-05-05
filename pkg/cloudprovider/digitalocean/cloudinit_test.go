@@ -24,7 +24,7 @@ func TestRenderCloudInit_DefaultTemplate(t *testing.T) {
 	require.Contains(t, out, "ExecStart=/usr/local/bin/frps -c /etc/frp/frps.toml")
 	require.Contains(t, out, "/etc/systemd/system/frps.service")
 	require.Contains(t, out, "bindPort = 7000")
-	require.Contains(t, out, `auth.token = "tok"`)
+	require.Contains(t, out, `token = "tok"`)
 }
 
 func TestRenderCloudInit_OverridesNonURLTemplate(t *testing.T) {

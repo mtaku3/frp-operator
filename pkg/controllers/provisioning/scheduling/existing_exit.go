@@ -75,9 +75,7 @@ func (e *ExistingExit) snapshotClaimAndUsed() (*v1alpha1.ExitClaim, map[int32]st
 		return nil, nil
 	}
 	used := e.State.UsedPorts()
-	// Re-fetch the claim under the read lock.
 	se := e.State
-	se.MarkedForDeletion = se.MarkedForDeletion // no-op; kept for clarity
 	if se.Claim == nil {
 		return nil, used
 	}

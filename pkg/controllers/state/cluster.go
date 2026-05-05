@@ -273,3 +273,24 @@ func (c *Cluster) ClusterState() time.Time {
 	defer c.mu.RUnlock()
 	return c.clusterState
 }
+
+// MarkExitForDeletion sets MarkedForDeletion=true on the StateExit indexed by
+// the given ExitClaim name. No-op if the exit is unknown. Used by the
+// disruption controller to gate the provisioner away from a candidate before
+// the actual API delete fires.
+func (c *Cluster) MarkExitForDeletion(name string) {
+	c.mu.RLock()
+	id, ok := c.nameToProviderID[name]
+	if !ok {
+		c.mu.RUnlock()
+		return
+	}
+	se, ok := c.exits[id]
+	c.mu.RUnlock()
+	if !ok || se == nil {
+		return
+	}
+	se.mu.Lock()
+	se.MarkedForDeletion = true
+	se.mu.Unlock()
+}

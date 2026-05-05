@@ -36,4 +36,10 @@ var _ = Describe("Cluster.Synced", func() {
 		c := state.NewCluster(k8sClient)
 		Expect(c.Synced(ctx)).To(BeFalse())
 	})
+
+	It("returns false when cache has tombstoned object that API doesn't", func() {
+		c := state.NewCluster(k8sClient)
+		c.UpdateExit(newClaim("ghost", "fake://ghost-id")) // cache only, never in API
+		Expect(c.Synced(context.Background())).To(BeFalse())
+	})
 })

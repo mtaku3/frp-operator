@@ -58,4 +58,15 @@ var _ = Describe("Cluster.UpdateTunnelBinding", func() {
 		se := c.ExitForName("e1")
 		Expect(se.IsEmpty()).To(BeTrue())
 	})
+
+	It("clears stale allocations when a tunnel moves between exits", func() {
+		c := state.NewCluster(k8sClient)
+		c.UpdateExit(newClaim("eA", "fake://a"))
+		c.UpdateExit(newClaim("eB", "fake://b"))
+		c.UpdateTunnelBinding("default/svc", "eA", []int32{80})
+		c.UpdateTunnelBinding("default/svc", "eB", []int32{80})
+
+		Expect(c.ExitForName("eA").IsEmpty()).To(BeTrue())
+		Expect(c.ExitForName("eB").UsedPorts()).To(HaveKey(int32(80)))
+	})
 })

@@ -1,6 +1,7 @@
 package state_test
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -45,6 +46,25 @@ var _ = BeforeSuite(func() {
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
+})
+
+var _ = AfterEach(func() {
+	ctx := context.Background()
+	var claims v1alpha1.ExitClaimList
+	_ = k8sClient.List(ctx, &claims)
+	for i := range claims.Items {
+		_ = k8sClient.Delete(ctx, &claims.Items[i])
+	}
+	var pools v1alpha1.ExitPoolList
+	_ = k8sClient.List(ctx, &pools)
+	for i := range pools.Items {
+		_ = k8sClient.Delete(ctx, &pools.Items[i])
+	}
+	var tunnels v1alpha1.TunnelList
+	_ = k8sClient.List(ctx, &tunnels)
+	for i := range tunnels.Items {
+		_ = k8sClient.Delete(ctx, &tunnels.Items[i])
+	}
 })
 
 var _ = AfterSuite(func() {

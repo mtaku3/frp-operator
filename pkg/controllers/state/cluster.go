@@ -60,13 +60,23 @@ func (c *Cluster) SetTriggers(provisioner, disruption func()) {
 	c.disruptionTrigger = disruption
 }
 
-func (c *Cluster) bumpAndFire() {
+// bumpAndCollectTriggers updates clusterState and returns the trigger
+// functions captured under the lock. Callers MUST invoke the returned
+// triggers AFTER releasing c.mu to avoid re-entrant deadlocks (a
+// future trigger may read back into Cluster).
+func (c *Cluster) bumpAndCollectTriggers() (provisioner, disruption func()) {
 	c.clusterState = time.Now()
-	if c.provisionerTrigger != nil {
-		c.provisionerTrigger()
+	return c.provisionerTrigger, c.disruptionTrigger
+}
+
+// fireTriggers invokes the captured trigger fns. Safe to call with nil
+// values.
+func fireTriggers(provisioner, disruption func()) {
+	if provisioner != nil {
+		provisioner()
 	}
-	if c.disruptionTrigger != nil {
-		c.disruptionTrigger()
+	if disruption != nil {
+		disruption()
 	}
 }
 
@@ -74,12 +84,19 @@ func (c *Cluster) bumpAndFire() {
 
 func (c *Cluster) UpdateExit(claim *v1alpha1.ExitClaim) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	id := claim.Status.ProviderID
 	if id == "" {
 		// Claim hasn't been launched yet; index by name only.
 		c.nameToProviderID[claim.Name] = ""
+		p, d := c.bumpAndCollectTriggers()
+		c.mu.Unlock()
+		fireTriggers(p, d)
 		return
+	}
+	// If the same name previously pointed at a different ProviderID,
+	// drop the orphaned entry from c.exits before writing the new one.
+	if oldID, ok := c.nameToProviderID[claim.Name]; ok && oldID != "" && oldID != id {
+		delete(c.exits, oldID)
 	}
 	se, ok := c.exits[id]
 	if !ok {
@@ -94,19 +111,23 @@ func (c *Cluster) UpdateExit(claim *v1alpha1.ExitClaim) {
 	// data is also written by Tunnel events; this catches the
 	// out-of-order arrival case.
 	c.recomputeAllocationsLocked(claim.Name)
-	c.bumpAndFire()
+	p, d := c.bumpAndCollectTriggers()
+	c.mu.Unlock()
+	fireTriggers(p, d)
 }
 
 func (c *Cluster) DeleteExit(name string) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	id, ok := c.nameToProviderID[name]
 	if !ok {
+		c.mu.Unlock()
 		return
 	}
 	delete(c.exits, id)
 	delete(c.nameToProviderID, name)
-	c.bumpAndFire()
+	p, d := c.bumpAndCollectTriggers()
+	c.mu.Unlock()
+	fireTriggers(p, d)
 }
 
 func (c *Cluster) ExitForProviderID(id string) *StateExit {
@@ -141,7 +162,6 @@ func (c *Cluster) Exits() []*StateExit {
 
 func (c *Cluster) UpdatePool(pool *v1alpha1.ExitPool) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	sp, ok := c.pools[pool.Name]
 	if !ok {
 		sp = &StatePool{}
@@ -150,14 +170,17 @@ func (c *Cluster) UpdatePool(pool *v1alpha1.ExitPool) {
 	sp.mu.Lock()
 	sp.Pool = pool.DeepCopy()
 	sp.mu.Unlock()
-	c.bumpAndFire()
+	p, d := c.bumpAndCollectTriggers()
+	c.mu.Unlock()
+	fireTriggers(p, d)
 }
 
 func (c *Cluster) DeletePool(name string) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	delete(c.pools, name)
-	c.bumpAndFire()
+	p, d := c.bumpAndCollectTriggers()
+	c.mu.Unlock()
+	fireTriggers(p, d)
 }
 
 func (c *Cluster) Pool(name string) *StatePool {
@@ -180,15 +203,16 @@ func (c *Cluster) Pools() []*StatePool {
 
 func (c *Cluster) UpdateTunnelBinding(key TunnelKey, exitName string, ports []int32) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	old := c.bindings[key]
 	if exitName == "" {
 		// Unbind: clear binding and remove ports from any allocation.
-		old := c.bindings[key]
 		delete(c.bindings, key)
 		if old != nil {
 			c.recomputeAllocationsLocked(old.ExitClaimName)
 		}
-		c.bumpAndFire()
+		p, d := c.bumpAndCollectTriggers()
+		c.mu.Unlock()
+		fireTriggers(p, d)
 		return
 	}
 	c.bindings[key] = &TunnelBinding{
@@ -196,8 +220,15 @@ func (c *Cluster) UpdateTunnelBinding(key TunnelKey, exitName string, ports []in
 		ExitClaimName: exitName,
 		AssignedPorts: append([]int32(nil), ports...),
 	}
+	// If the tunnel moved between exits, the OLD exit still has a
+	// stale port mapping pointing at this tunnel — recompute it too.
+	if old != nil && old.ExitClaimName != "" && old.ExitClaimName != exitName {
+		c.recomputeAllocationsLocked(old.ExitClaimName)
+	}
 	c.recomputeAllocationsLocked(exitName)
-	c.bumpAndFire()
+	p, d := c.bumpAndCollectTriggers()
+	c.mu.Unlock()
+	fireTriggers(p, d)
 }
 
 func (c *Cluster) DeleteTunnelBinding(key TunnelKey) {

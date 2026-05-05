@@ -76,11 +76,19 @@ var _ = Describe("Scheduling", Ordered, func() {
 		)
 
 		BeforeAll(func() {
-			Expect(k8sClient.Get(suiteCtx, types.NamespacedName{Name: "default"}, &pool)).To(Succeed())
-			origAllowPorts = pool.Spec.Template.Spec.Frps.AllowPorts
-			updated := pool.DeepCopy()
-			updated.Spec.Template.Spec.Frps.AllowPorts = []string{"80", "81", "1024-65535"}
-			Expect(k8sClient.Update(suiteCtx, updated)).To(Succeed())
+			// Retry on conflict — exitpool ancillary controllers write
+			// Pool.Status concurrently, so a naked Get+Update races.
+			Eventually(func() error {
+				if err := k8sClient.Get(suiteCtx, types.NamespacedName{Name: "default"}, &pool); err != nil {
+					return err
+				}
+				if origAllowPorts == nil {
+					origAllowPorts = pool.Spec.Template.Spec.Frps.AllowPorts
+				}
+				updated := pool.DeepCopy()
+				updated.Spec.Template.Spec.Frps.AllowPorts = []string{"80", "81", "1024-65535"}
+				return k8sClient.Update(suiteCtx, updated)
+			}, 30*time.Second, 1*time.Second).Should(Succeed())
 
 			svc := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{Name: refusalSvc, Namespace: ns},

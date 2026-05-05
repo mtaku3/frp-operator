@@ -77,6 +77,14 @@ func (p *Provisioner) Reconcile(ctx context.Context) (reconcile.Result, error) {
 	// Drain to clear the pending set; the actual work uses a fresh List.
 	_ = p.Batcher.Drain()
 
+	// Promote Phase=Provisioning tunnels whose bound ExitClaim has reached
+	// Ready. Without this nothing flips Tunnel.Phase from Provisioning to
+	// Ready; lifecycle owns ExitClaim, scheduler binds once. This is the
+	// node-Ready-→-pod-Running watcher we don't have natively.
+	if err := p.promoteReadyTunnels(ctx); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	pending, err := p.listPendingTunnels(ctx)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -128,6 +136,59 @@ func (p *Provisioner) SetupWithManager(mgr ctrl.Manager) error {
 			}
 		}
 	}))
+}
+
+// promoteReadyTunnels walks all Tunnels with Phase=Provisioning and
+// promotes them to Phase=Ready when their AssignedExit's ExitClaim
+// carries Conditions[Ready]=True. The promotion sets the Tunnel's
+// Ready condition to True/Reconciled and AssignedIP from the claim's
+// Status.PublicIP so reverse-sync can publish the LoadBalancer ingress.
+func (p *Provisioner) promoteReadyTunnels(ctx context.Context) error {
+	var tunnels v1alpha1.TunnelList
+	if err := p.KubeClient.List(ctx, &tunnels); err != nil {
+		return err
+	}
+	for i := range tunnels.Items {
+		t := &tunnels.Items[i]
+		if t.DeletionTimestamp != nil {
+			continue
+		}
+		if t.Status.Phase != v1alpha1.TunnelPhaseProvisioning {
+			continue
+		}
+		if t.Status.AssignedExit == "" {
+			continue
+		}
+		var claim v1alpha1.ExitClaim
+		if err := p.KubeClient.Get(ctx, types.NamespacedName{Name: t.Status.AssignedExit}, &claim); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return err
+		}
+		if !exitClaimReady(&claim) {
+			continue
+		}
+		patch := client.MergeFrom(t.DeepCopy())
+		t.Status.Phase = v1alpha1.TunnelPhaseReady
+		if claim.Status.PublicIP != "" && t.Status.AssignedIP == "" {
+			t.Status.AssignedIP = claim.Status.PublicIP
+		}
+		setTunnelCondition(t, "Ready", metav1.ConditionTrue, "Reconciled", "exit Ready")
+		if err := p.KubeClient.Status().Patch(ctx, t, patch); err != nil {
+			return fmt.Errorf("promote tunnel %s/%s to Ready: %w", t.Namespace, t.Name, err)
+		}
+	}
+	return nil
+}
+
+func exitClaimReady(claim *v1alpha1.ExitClaim) bool {
+	for _, c := range claim.Status.Conditions {
+		if c.Type == v1alpha1.ConditionTypeReady && c.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Provisioner) listPendingTunnels(ctx context.Context) ([]*v1alpha1.Tunnel, error) {

@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -54,19 +55,23 @@ func NewScheme() (*runtime.Scheme, error) {
 // Run constructs the manager and starts every operator controller. Blocks
 // until ctx is cancelled or a controller returns a fatal error.
 func Run(ctx context.Context, cfg *Config) error {
+	restCfg, err := ctrl.GetConfig()
+	if err != nil {
+		return fmt.Errorf("kubeconfig: %w", err)
+	}
+	return RunWithRESTConfig(ctx, cfg, restCfg, nil)
+}
+
+// RunWithRESTConfig is the testable entrypoint. seedRegistry, if non-nil,
+// is used in lieu of the built-in cloudprovider registration so tests can
+// inject the in-memory fake provider.
+func RunWithRESTConfig(ctx context.Context, cfg *Config, restCfg *rest.Config, seedRegistry *cloudprovider.Registry) error {
 	logger := log.FromContext(ctx).WithName("operator")
 
 	scheme, err := NewScheme()
 	if err != nil {
 		return fmt.Errorf("scheme: %w", err)
 	}
-
-	restCfg, err := ctrl.GetConfig()
-	if err != nil {
-		return fmt.Errorf("kubeconfig: %w", err)
-	}
-	restCfg.QPS = cfg.KubeClientQPS
-	restCfg.Burst = cfg.KubeClientBurst
 
 	mgr, err := ctrl.NewManager(restCfg, ctrl.Options{
 		Scheme:                        scheme,
@@ -90,8 +95,11 @@ func Run(ctx context.Context, cfg *Config) error {
 	}
 
 	cluster := state.NewCluster(mgr.GetClient())
-	registry := cloudprovider.NewRegistry()
-	registerBuiltinProviders(logger, mgr.GetClient(), registry)
+	registry := seedRegistry
+	if registry == nil {
+		registry = cloudprovider.NewRegistry()
+		registerBuiltinProviders(logger, mgr.GetClient(), registry)
+	}
 
 	if err := setupInformers(mgr, cluster, registry); err != nil {
 		return fmt.Errorf("informers: %w", err)
@@ -141,8 +149,11 @@ func registerBuiltinProviders(logger logr.Logger, kube client.Client, registry *
 }
 
 // setupInformers wires the Phase-3 informer controllers + per-provider
-// ProviderClass watchers.
+// ProviderClass watchers. ProviderClass watchers are skipped when the
+// scheme has no registration for the type — used by tests that wire the
+// fake provider whose ProviderClass is a Go-only stand-in.
 func setupInformers(mgr ctrl.Manager, cluster *state.Cluster, registry *cloudprovider.Registry) error {
+	logger := log.Log.WithName("operator").WithName("informers")
 	if err := (&informer.ExitClaimController{Client: mgr.GetClient(), Cluster: cluster}).SetupWithManager(mgr); err != nil {
 		return err
 	}
@@ -152,12 +163,21 @@ func setupInformers(mgr ctrl.Manager, cluster *state.Cluster, registry *cloudpro
 	if err := (&informer.TunnelController{Client: mgr.GetClient(), Cluster: cluster}).SetupWithManager(mgr); err != nil {
 		return err
 	}
+	scheme := mgr.GetScheme()
 	for _, kind := range registry.Kinds() {
 		cp, err := registry.For(kind)
 		if err != nil {
 			continue
 		}
 		for _, obj := range cp.GetSupportedProviderClasses() {
+			if !scheme.Recognizes(obj.GetObjectKind().GroupVersionKind()) {
+				// Try by Go type — typed objects have empty TypeMeta until populated.
+				gvks, _, err := scheme.ObjectKinds(obj)
+				if err != nil || len(gvks) == 0 {
+					logger.Info("skipping ProviderClass watcher: type not registered with scheme", "kind", kindOf(obj))
+					continue
+				}
+			}
 			if err := (&informer.ProviderClassController{Client: mgr.GetClient(), Cluster: cluster, Watch: obj}).SetupWithManager(mgr); err != nil {
 				return err
 			}

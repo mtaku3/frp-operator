@@ -57,6 +57,7 @@ type DigitalOceanProviderClassSpec struct {
 	// retained for CRD compatibility; cloud-init substitutes the URL
 	// template when this looks non-URL. The default fix is deferred to
 	// Phase 9 (requires CRD regeneration).
+	// TODO(phase9): regenerate CRD with proper binary-URL default in DefaultImage
 	// +kubebuilder:default="fatedier/frps:%s"
 	DefaultImage string `json:"defaultImage,omitempty"`
 }

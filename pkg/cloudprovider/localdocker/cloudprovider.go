@@ -14,6 +14,8 @@ import (
 	ldv1alpha1 "github.com/mtaku3/frp-operator/pkg/cloudprovider/localdocker/v1alpha1"
 )
 
+var _ cloudprovider.CloudProvider = (*CloudProvider)(nil)
+
 // CloudProvider is the localdocker impl. Talks to Docker via the SDK and
 // reads LocalDockerProviderClass for config.
 type CloudProvider struct {
@@ -127,10 +129,9 @@ func (c *CloudProvider) IsDrifted(ctx context.Context, claim *v1alpha1.ExitClaim
 		}
 		return "", err
 	}
-	// Best-effort version check: imageID isn't a clean signal for version,
-	// but if Status.FrpsVersion was set on a prior reconcile and now
-	// disagrees with the spec, that's drift.
-	_ = got
+	if got.Status.FrpsVersion != "" && got.Status.FrpsVersion != claim.Spec.Frps.Version {
+		return cloudprovider.DriftReason("FrpsVersionMismatch"), nil
+	}
 	return "", nil
 }
 

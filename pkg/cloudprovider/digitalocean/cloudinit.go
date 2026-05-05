@@ -45,7 +45,6 @@ func RenderCloudInit(frpsCfg v1alpha1.FrpsConfig, authToken, binaryURLTemplate s
 		return "", err
 	}
 	url := binaryURL(binaryURLTemplate, frpsCfg.Version)
-	verNoV := strings.TrimPrefix(frpsCfg.Version, "v")
 
 	var b strings.Builder
 	b.WriteString("#cloud-config\n")
@@ -75,7 +74,6 @@ func RenderCloudInit(frpsCfg v1alpha1.FrpsConfig, authToken, binaryURLTemplate s
 	fmt.Fprintf(&b, "  - curl -fsSL %q -o /tmp/frp.tar.gz\n", url)
 	fmt.Fprintf(&b, "  - tar -xzf /tmp/frp.tar.gz -C /opt/frp --strip-components=1\n")
 	fmt.Fprintf(&b, "  - install -m 0755 /opt/frp/frps /usr/local/bin/frps\n")
-	_ = verNoV
 	b.WriteString("  - systemctl daemon-reload\n")
 	b.WriteString("  - systemctl enable --now frps.service\n")
 	return b.String(), nil

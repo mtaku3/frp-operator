@@ -16,6 +16,8 @@ import (
 	dov1alpha1 "github.com/mtaku3/frp-operator/pkg/cloudprovider/digitalocean/v1alpha1"
 )
 
+var _ cloudprovider.CloudProvider = (*CloudProvider)(nil)
+
 // CloudProvider is the DO impl. Constructs a godo.Client per-Create
 // using the API token resolved from the ProviderClass.
 type CloudProvider struct {
@@ -206,6 +208,7 @@ func (c *CloudProvider) Delete(ctx context.Context, claim *v1alpha1.ExitClaim) e
 // to have already plumbed APITokenResolver to a per-class default. For
 // drift detection, callers SHOULD use IsDrifted (which receives the
 // claim with a ref) rather than Get directly.
+// TODO(phase5): resolve auth token via state.Cluster + ProviderClass lookup
 func (c *CloudProvider) Get(ctx context.Context, providerID string) (*v1alpha1.ExitClaim, error) {
 	api, err := c.dropletAPIFactory(ctx, "")
 	if err != nil {
@@ -222,6 +225,7 @@ func (c *CloudProvider) Get(ctx context.Context, providerID string) (*v1alpha1.E
 	return out, nil
 }
 
+// TODO(phase5): resolve auth token via state.Cluster + ProviderClass lookup
 func (c *CloudProvider) List(ctx context.Context) ([]*v1alpha1.ExitClaim, error) {
 	api, err := c.dropletAPIFactory(ctx, "")
 	if err != nil {

@@ -14,6 +14,8 @@ import (
 	"github.com/mtaku3/frp-operator/pkg/cloudprovider"
 )
 
+var _ cloudprovider.CloudProvider = (*CloudProvider)(nil)
+
 // CloudProvider is the in-memory fake impl. Goroutine-safe.
 type CloudProvider struct {
 	mu        sync.RWMutex

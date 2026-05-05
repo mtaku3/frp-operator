@@ -175,6 +175,11 @@ func (d *dockerOps) ensureContainer(
 	containerCfg := &container.Config{
 		Image:        imgRef,
 		ExposedPorts: portSet,
+		// fatedier/frps Dockerfile sets ENTRYPOINT but no CMD on some
+		// versions, so without an explicit -c the daemon ignores our
+		// bind-mounted /etc/frp/frps.toml and falls back to internal
+		// defaults (webServer.addr=127.0.0.1) → admin probe unreachable.
+		Cmd: []string{"-c", "/etc/frp/frps.toml"},
 		Labels: map[string]string{
 			providerLabel: providerName,
 			exitNameLabel: claim.Name,

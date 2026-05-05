@@ -53,6 +53,11 @@ func RenderConfig(cfg v1alpha1.FrpsConfig, authToken string) (string, error) {
 		b.WriteString("\n[transport.tls]\n")
 		b.WriteString("force = true\n")
 	}
+	// Route frp's own logs to stdout so `docker logs <container>` shows
+	// startup diagnostics. Default is a file inside the container.
+	b.WriteString("\n[log]\n")
+	b.WriteString("to = \"console\"\n")
+	b.WriteString("level = \"info\"\n")
 	return b.String(), nil
 }
 

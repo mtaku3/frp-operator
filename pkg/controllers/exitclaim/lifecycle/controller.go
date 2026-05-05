@@ -24,6 +24,9 @@ type Controller struct {
 	Client        client.Client
 	CloudProvider *cloudprovider.Registry
 	AdminFactory  func(baseURL string) *admin.Client
+	// RegistrationTTL is wired into the Liveness phase. Zero falls back
+	// to DefaultRegistrationTTL.
+	RegistrationTTL time.Duration
 
 	launch         *Launcher
 	registration   *Registrar
@@ -33,17 +36,24 @@ type Controller struct {
 
 // New constructs a Controller wired with all four phase reconcilers.
 func New(c client.Client, cp *cloudprovider.Registry, adminFactory func(string) *admin.Client) *Controller {
+	return NewWithTTL(c, cp, adminFactory, 0)
+}
+
+// NewWithTTL is like New but lets callers override the RegistrationTTL
+// on the Liveness phase.
+func NewWithTTL(c client.Client, cp *cloudprovider.Registry, adminFactory func(string) *admin.Client, registrationTTL time.Duration) *Controller {
 	if adminFactory == nil {
 		adminFactory = admin.New
 	}
 	return &Controller{
-		Client:         c,
-		CloudProvider:  cp,
-		AdminFactory:   adminFactory,
-		launch:         &Launcher{KubeClient: c, CloudProvider: cp},
-		registration:   &Registrar{KubeClient: c, AdminFactory: adminFactory},
-		initialization: &Initializer{KubeClient: c},
-		liveness:       &Liveness{KubeClient: c},
+		Client:          c,
+		CloudProvider:   cp,
+		AdminFactory:    adminFactory,
+		RegistrationTTL: registrationTTL,
+		launch:          &Launcher{KubeClient: c, CloudProvider: cp},
+		registration:    &Registrar{KubeClient: c, AdminFactory: adminFactory},
+		initialization:  &Initializer{KubeClient: c},
+		liveness:        &Liveness{KubeClient: c, RegistrationTTL: registrationTTL},
 	}
 }
 

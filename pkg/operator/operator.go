@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
@@ -73,6 +74,15 @@ func RunWithRESTConfig(ctx context.Context, cfg *Config, restCfg *rest.Config, s
 		return fmt.Errorf("scheme: %w", err)
 	}
 
+	// Wire kube client throttling before NewManager so the manager's
+	// shared client picks them up.
+	if cfg.KubeClientQPS > 0 {
+		restCfg.QPS = cfg.KubeClientQPS
+	}
+	if cfg.KubeClientBurst > 0 {
+		restCfg.Burst = cfg.KubeClientBurst
+	}
+
 	mgr, err := ctrl.NewManager(restCfg, ctrl.Options{
 		Scheme:                        scheme,
 		LeaderElection:                cfg.LeaderElection,
@@ -105,16 +115,16 @@ func RunWithRESTConfig(ctx context.Context, cfg *Config, restCfg *rest.Config, s
 		return fmt.Errorf("informers: %w", err)
 	}
 
-	prov, err := setupProvisioning(mgr, cluster, registry)
+	prov, err := setupProvisioning(mgr, cluster, registry, cfg)
 	if err != nil {
 		return fmt.Errorf("provisioning: %w", err)
 	}
 	cluster.SetTriggers(func() { prov.Batcher.Trigger(types.UID("__cluster__")) }, nil)
 
-	if err := setupLifecycle(mgr, registry); err != nil {
+	if err := setupLifecycle(mgr, registry, cfg); err != nil {
 		return fmt.Errorf("lifecycle: %w", err)
 	}
-	if err := setupDisruption(mgr, cluster, prov); err != nil {
+	if err := setupDisruption(mgr, cluster, prov, cfg); err != nil {
 		return fmt.Errorf("disruption: %w", err)
 	}
 	if err := setupPoolControllers(mgr, registry); err != nil {
@@ -187,8 +197,8 @@ func setupInformers(mgr ctrl.Manager, cluster *state.Cluster, registry *cloudpro
 }
 
 // setupProvisioning wires the Provisioner singleton + Pod/Node controllers.
-func setupProvisioning(mgr ctrl.Manager, cluster *state.Cluster, registry *cloudprovider.Registry) (*provisioning.Provisioner, error) {
-	prov := provisioning.New(cluster, mgr.GetClient(), registry)
+func setupProvisioning(mgr ctrl.Manager, cluster *state.Cluster, registry *cloudprovider.Registry, cfg *Config) (*provisioning.Provisioner, error) {
+	prov := provisioning.NewWithBatcher(cluster, mgr.GetClient(), registry, cfg.BatchIdleDuration, cfg.BatchMaxDuration)
 	if err := prov.SetupWithManager(mgr); err != nil {
 		return nil, err
 	}
@@ -202,8 +212,8 @@ func setupProvisioning(mgr ctrl.Manager, cluster *state.Cluster, registry *cloud
 }
 
 // setupLifecycle wires the Phase-5 ExitClaim lifecycle controller.
-func setupLifecycle(mgr ctrl.Manager, registry *cloudprovider.Registry) error {
-	c := lifecycle.New(mgr.GetClient(), registry, func(baseURL string) *admin.Client { return admin.New(baseURL) })
+func setupLifecycle(mgr ctrl.Manager, registry *cloudprovider.Registry, cfg *Config) error {
+	c := lifecycle.NewWithTTL(mgr.GetClient(), registry, func(baseURL string) *admin.Client { return admin.New(baseURL) }, cfg.RegistrationTTL)
 	return c.SetupWithManager(mgr)
 }
 
@@ -218,7 +228,7 @@ type provisionerAdapter struct {
 
 func (a *provisionerAdapter) CreateReplacements(ctx context.Context, claims []*v1alpha1.ExitClaim) error {
 	for _, c := range claims {
-		if err := a.client.Create(ctx, c); err != nil {
+		if err := a.client.Create(ctx, c); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
 		}
 	}
@@ -227,7 +237,7 @@ func (a *provisionerAdapter) CreateReplacements(ctx context.Context, claims []*v
 }
 
 // setupDisruption wires the Phase-6 disruption controller + queue.
-func setupDisruption(mgr ctrl.Manager, cluster *state.Cluster, prov *provisioning.Provisioner) error {
+func setupDisruption(mgr ctrl.Manager, cluster *state.Cluster, prov *provisioning.Provisioner, cfg *Config) error {
 	queue := &disruption.Queue{
 		Client:                  mgr.GetClient(),
 		Cluster:                 cluster,
@@ -236,6 +246,9 @@ func setupDisruption(mgr ctrl.Manager, cluster *state.Cluster, prov *provisionin
 		ReplacementPollInterval: disruption.DefaultReplacementPollInterval,
 	}
 	dc := disruption.New(cluster, mgr.GetClient(), queue, methods.DefaultMethods(cluster, mgr.GetClient()))
+	if cfg.DisruptionPollPeriod > 0 {
+		dc.PollInterval = cfg.DisruptionPollPeriod
+	}
 	return dc.SetupWithManager(mgr)
 }
 
@@ -247,7 +260,7 @@ func setupPoolControllers(mgr ctrl.Manager, registry *cloudprovider.Registry) er
 	if err := (&counter.Controller{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
 		return err
 	}
-	if err := (&readiness.Controller{Client: mgr.GetClient(), KindToObject: providerClassFactories(registry)}).SetupWithManager(mgr); err != nil {
+	if err := (&readiness.Controller{Client: mgr.GetClient(), KindToObject: providerClassFactories(registry, mgr.GetScheme())}).SetupWithManager(mgr); err != nil {
 		return err
 	}
 	if err := (&validation.Controller{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
@@ -266,7 +279,10 @@ func setupServiceWatcher(mgr ctrl.Manager) error {
 
 // providerClassFactories builds the KindToObject map consumed by
 // readiness.Controller. Keys are GVK kind names ("LocalDockerProviderClass").
-func providerClassFactories(registry *cloudprovider.Registry) map[string]func() client.Object {
+// Resolution prefers scheme.ObjectKinds — the authoritative source — and
+// falls back to reflection only when the scheme has no registration (tests
+// that wire a fake provider whose ProviderClass is a Go-only stand-in).
+func providerClassFactories(registry *cloudprovider.Registry, scheme *runtime.Scheme) map[string]func() client.Object {
 	out := map[string]func() client.Object{}
 	for _, kind := range registry.Kinds() {
 		cp, err := registry.For(kind)
@@ -274,7 +290,15 @@ func providerClassFactories(registry *cloudprovider.Registry) map[string]func() 
 			continue
 		}
 		for _, obj := range cp.GetSupportedProviderClasses() {
-			name := kindOf(obj)
+			name := ""
+			if scheme != nil {
+				if gvks, _, err := scheme.ObjectKinds(obj); err == nil && len(gvks) > 0 {
+					name = gvks[0].Kind
+				}
+			}
+			if name == "" {
+				name = kindOf(obj)
+			}
 			if name == "" {
 				continue
 			}

@@ -13,9 +13,10 @@ import (
 	"github.com/mtaku3/frp-operator/pkg/cloudprovider"
 )
 
-// RegistrationTTL is the upper bound on time spent waiting for a launched
-// exit to register with the admin API before liveness disrupts it.
-const RegistrationTTL = 15 * time.Minute
+// DefaultRegistrationTTL is the upper bound on time spent waiting for a
+// launched exit to register with the admin API before liveness disrupts
+// it. Operators can override per-Controller via Controller.RegistrationTTL.
+const DefaultRegistrationTTL = 15 * time.Minute
 
 // Launcher implements Phase 1: it asks the configured CloudProvider to
 // realize the claim and copies the hydrated status onto the live object.

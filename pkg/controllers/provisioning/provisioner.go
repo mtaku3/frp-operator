@@ -33,7 +33,21 @@ type Provisioner struct {
 
 // New constructs a Provisioner with default batch windows.
 func New(c *state.Cluster, kube client.Client, cp *cloudprovider.Registry) *Provisioner {
-	b := NewBatcher[types.UID](DefaultBatchIdleDuration, DefaultBatchMaxDuration)
+	return NewWithBatcher(c, kube, cp, DefaultBatchIdleDuration, DefaultBatchMaxDuration)
+}
+
+// NewWithBatcher constructs a Provisioner with caller-supplied batch
+// windows. Zero or negative values fall back to the package defaults so
+// operators that forget to set Config.BatchIdleDuration still get a
+// working batcher.
+func NewWithBatcher(c *state.Cluster, kube client.Client, cp *cloudprovider.Registry, idle, max time.Duration) *Provisioner {
+	if idle <= 0 {
+		idle = DefaultBatchIdleDuration
+	}
+	if max <= 0 {
+		max = DefaultBatchMaxDuration
+	}
+	b := NewBatcher[types.UID](idle, max)
 	return &Provisioner{
 		Cluster:       c,
 		KubeClient:    kube,

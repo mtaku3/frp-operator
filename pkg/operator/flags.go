@@ -20,7 +20,9 @@ func LoadConfigFromArgs(args []string) (*Config, error) {
 	cfg := Defaults()
 
 	// Apply env overrides first.
-	applyEnv(cfg)
+	if err := applyEnv(cfg); err != nil {
+		return nil, err
+	}
 
 	fs := flag.NewFlagSet("frp-operator", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -69,7 +71,7 @@ func LoadConfigFromArgs(args []string) (*Config, error) {
 	return cfg, nil
 }
 
-func applyEnv(cfg *Config) {
+func applyEnv(cfg *Config) error {
 	if v := os.Getenv("KUBECONFIG"); v != "" {
 		cfg.KubeConfig = v
 	}
@@ -124,12 +126,11 @@ func applyEnv(cfg *Config) {
 	if v := os.Getenv("FEATURE_GATES"); v != "" {
 		gates, err := ParseFeatureGates(v)
 		if err != nil {
-			// keep going with defaults; flag parse will fail if same input is broken.
-			fmt.Fprintf(os.Stderr, "ignoring FEATURE_GATES env var: %v\n", err)
-			return
+			return fmt.Errorf("FEATURE_GATES env var: %w", err)
 		}
 		cfg.FeatureGates = gates
 	}
+	return nil
 }
 
 func boolEnv(key string) (bool, bool) {

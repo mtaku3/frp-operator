@@ -9,6 +9,8 @@ type Config struct {
 	LeaderElection   bool
 	LeaderElectionID string
 	LeaderElectionNS string
+	// DisableProfiling is parsed but not yet wired — Phase 9 has no
+	// pprof endpoint to gate. Reserved for a later phase.
 	DisableProfiling bool
 
 	BatchIdleDuration time.Duration
@@ -16,12 +18,17 @@ type Config struct {
 	KubeClientQPS     float32
 	KubeClientBurst   int
 
+	// LogLevel is parsed but not yet wired — Phase 9 inherits the logger
+	// configured by the manager binary. Reserved for a later phase.
 	LogLevel        string
 	MetricsAddr     string
 	HealthProbeAddr string
 
 	PreferencePolicy string // Respect | Ignore
-	MinValuesPolicy  string // Strict | BestEffort
+	// MinValuesPolicy is parsed but not yet wired — the scheduler does
+	// not enforce minValues constraints in Phase 9. Reserved for a
+	// later phase.
+	MinValuesPolicy string // Strict | BestEffort
 
 	RegistrationTTL      time.Duration
 	DriftTTL             time.Duration

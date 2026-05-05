@@ -15,9 +15,10 @@ import (
 	"github.com/mtaku3/frp-operator/pkg/controllers/state"
 )
 
-// PollInterval is the cadence of the disruption loop. Mirrors Karpenter's
-// 10s default.
-const PollInterval = 10 * time.Second
+// DefaultPollInterval is the cadence of the disruption loop. Mirrors
+// Karpenter's 10s default. Operators can override per-Controller via
+// the PollInterval field.
+const DefaultPollInterval = 10 * time.Second
 
 // Controller is the disruption singleton. It polls every PollInterval,
 // builds candidates, asks each Method (in priority order) for commands, and
@@ -25,23 +26,33 @@ const PollInterval = 10 * time.Second
 // is to stop after the first method that produced commands and re-evaluate
 // next loop — this keeps the control loop simple and fair across methods.
 type Controller struct {
-	Cluster    *state.Cluster
-	KubeClient client.Client
-	Queue      *Queue
-	Methods    []Method
-	Now        func() time.Time
+	Cluster      *state.Cluster
+	KubeClient   client.Client
+	Queue        *Queue
+	Methods      []Method
+	Now          func() time.Time
+	PollInterval time.Duration
 }
 
 // New constructs a Controller wired with the given Methods. The list is the
-// priority order — first match wins.
+// priority order — first match wins. PollInterval defaults to
+// DefaultPollInterval and may be overridden after construction.
 func New(c *state.Cluster, kube client.Client, q *Queue, methods []Method) *Controller {
 	return &Controller{
-		Cluster:    c,
-		KubeClient: kube,
-		Queue:      q,
-		Methods:    methods,
-		Now:        time.Now,
+		Cluster:      c,
+		KubeClient:   kube,
+		Queue:        q,
+		Methods:      methods,
+		Now:          time.Now,
+		PollInterval: DefaultPollInterval,
 	}
+}
+
+func (r *Controller) pollInterval() time.Duration {
+	if r.PollInterval > 0 {
+		return r.PollInterval
+	}
+	return DefaultPollInterval
 }
 
 // Reconcile is one disruption pass. Safe to call from a ticker-driven
@@ -55,7 +66,7 @@ func (r *Controller) Reconcile(ctx context.Context) (reconcile.Result, error) {
 	poolByName := r.poolLookup()
 	candidates := GetCandidates(r.Cluster, poolByName)
 	if len(candidates) == 0 {
-		return reconcile.Result{RequeueAfter: PollInterval}, nil
+		return reconcile.Result{RequeueAfter: r.pollInterval()}, nil
 	}
 
 	for _, m := range r.Methods {
@@ -93,10 +104,10 @@ func (r *Controller) Reconcile(ctx context.Context) (reconcile.Result, error) {
 		}
 		if anyExecuted {
 			// Karpenter pattern: stop after the first method that fired.
-			return reconcile.Result{RequeueAfter: PollInterval}, nil
+			return reconcile.Result{RequeueAfter: r.pollInterval()}, nil
 		}
 	}
-	return reconcile.Result{RequeueAfter: PollInterval}, nil
+	return reconcile.Result{RequeueAfter: r.pollInterval()}, nil
 }
 
 // computeBudgets builds the BudgetMap for the given method. Forceful methods
@@ -142,7 +153,7 @@ func (r *Controller) poolLookup() PoolLookup {
 // SetupWithManager registers a Runnable that drives Reconcile on PollInterval.
 func (r *Controller) SetupWithManager(mgr ctrl.Manager) error {
 	return mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
-		ticker := time.NewTicker(PollInterval)
+		ticker := time.NewTicker(r.pollInterval())
 		defer ticker.Stop()
 		for {
 			select {

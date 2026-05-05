@@ -18,6 +18,16 @@ type Liveness struct {
 	KubeClient client.Client
 	// Now is overridable in tests.
 	Now func() time.Time
+	// RegistrationTTL bounds the wait between Launched and Registered.
+	// Zero falls back to DefaultRegistrationTTL.
+	RegistrationTTL time.Duration
+}
+
+func (l *Liveness) ttl() time.Duration {
+	if l.RegistrationTTL > 0 {
+		return l.RegistrationTTL
+	}
+	return DefaultRegistrationTTL
 }
 
 func (l *Liveness) now() time.Time {
@@ -38,7 +48,7 @@ func (l *Liveness) Reconcile(ctx context.Context, claim *v1alpha1.ExitClaim) (re
 	if launchedAt.IsZero() {
 		return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 	}
-	if l.now().Sub(launchedAt) < RegistrationTTL {
+	if l.now().Sub(launchedAt) < l.ttl() {
 		return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 	setCond(claim, v1alpha1.ConditionTypeDisrupted, metav1.ConditionTrue, v1alpha1.ReasonRegistrationTimeout, "exceeded RegistrationTTL")

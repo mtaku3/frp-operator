@@ -29,7 +29,7 @@ func TestBatcher_KeepsExtendingOnNewTriggers(t *testing.T) {
 	go func() { done <- b.Wait(context.Background()) }()
 	// Re-trigger every 30ms 5 times — Wait shouldn't return until we stop.
 	b.Trigger("a")
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		time.Sleep(30 * time.Millisecond)
 		select {
 		case <-done:

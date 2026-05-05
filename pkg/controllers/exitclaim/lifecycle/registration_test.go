@@ -113,7 +113,7 @@ func TestRegistrar_NotLaunched(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	if res.Requeue || res.RequeueAfter != 0 {
+	if !res.IsZero() {
 		t.Errorf("expected no-op, got %+v", res)
 	}
 }

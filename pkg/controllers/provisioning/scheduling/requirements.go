@@ -2,6 +2,7 @@ package scheduling
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
@@ -130,10 +131,8 @@ func ltCompatible(p, t v1alpha1.NodeSelectorRequirementWithMinValues) bool {
 
 func intersects(a, b []string) bool {
 	for _, x := range a {
-		for _, y := range b {
-			if x == y {
-				return true
-			}
+		if slices.Contains(b, x) {
+			return true
 		}
 	}
 	return false
@@ -143,14 +142,7 @@ func intersects(a, b []string) bool {
 // `forbidden`. Used for In × NotIn compatibility.
 func hasValueNotIn(vals, forbidden []string) bool {
 	for _, v := range vals {
-		found := false
-		for _, f := range forbidden {
-			if v == f {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !slices.Contains(forbidden, v) {
 			return true
 		}
 	}

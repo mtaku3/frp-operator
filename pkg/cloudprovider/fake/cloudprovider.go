@@ -139,6 +139,6 @@ func (c *CloudProvider) Reset() {
 }
 
 // ErrorOnCreate is a fmt-style helper to inject a typed CreateFailure during a test.
-func (c *CloudProvider) ErrorOnCreate(format string, args ...interface{}) {
+func (c *CloudProvider) ErrorOnCreate(format string, args ...any) {
 	c.CreateFailure = fmt.Errorf(format, args...)
 }

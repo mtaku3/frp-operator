@@ -1,0 +1,61 @@
+package state_test
+
+import (
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
+	"github.com/mtaku3/frp-operator/pkg/controllers/state"
+)
+
+func newClaim(name, providerID string) *v1alpha1.ExitClaim {
+	return &v1alpha1.ExitClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Status: v1alpha1.ExitClaimStatus{
+			ProviderID: providerID,
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceName("frp.operator.io/bandwidthMbps"): resource.MustParse("1000"),
+			},
+		},
+	}
+}
+
+var _ = Describe("Cluster.UpdateExit / DeleteExit", func() {
+	It("indexes by ProviderID and Name", func() {
+		c := state.NewCluster(k8sClient)
+		c.UpdateExit(newClaim("e1", "fake://abc"))
+		Expect(c.ExitForProviderID("fake://abc")).NotTo(BeNil())
+		Expect(c.ExitForName("e1")).NotTo(BeNil())
+
+		c.DeleteExit("e1")
+		Expect(c.ExitForProviderID("fake://abc")).To(BeNil())
+		Expect(c.ExitForName("e1")).To(BeNil())
+	})
+})
+
+var _ = Describe("Cluster.UpdateTunnelBinding", func() {
+	It("derives StateExit.Allocations from bindings", func() {
+		c := state.NewCluster(k8sClient)
+		c.UpdateExit(newClaim("e1", "fake://abc"))
+		c.UpdateTunnelBinding("default/svc-a", "e1", []int32{80})
+
+		se := c.ExitForName("e1")
+		Expect(se).NotTo(BeNil())
+		Expect(se.UsedPorts()).To(HaveKey(int32(80)))
+		Expect(se.PortHolder(80)).To(BeEquivalentTo("default/svc-a"))
+	})
+
+	It("clears allocations on unbind", func() {
+		c := state.NewCluster(k8sClient)
+		c.UpdateExit(newClaim("e1", "fake://abc"))
+		c.UpdateTunnelBinding("default/svc-a", "e1", []int32{80})
+		c.DeleteTunnelBinding("default/svc-a")
+
+		se := c.ExitForName("e1")
+		Expect(se.IsEmpty()).To(BeTrue())
+	})
+})

@@ -95,7 +95,18 @@ func (r *Controller) upsertSibling(ctx context.Context, svc *corev1.Service) (re
 		return reconcile.Result{}, nil
 	}
 	existing.Spec = spec
-	existing.Annotations = desiredAnnotations
+	// Merge our managed annotation into the existing map rather than
+	// replacing the whole map — other controllers (e.g. Phase 7
+	// exitpool/hash) may set their own annotations on the Tunnel and
+	// must survive a Service-driven update.
+	if existing.Annotations == nil {
+		existing.Annotations = map[string]string{}
+	}
+	if v, ok := desiredAnnotations[v1alpha1.AnnotationDoNotDisrupt]; ok {
+		existing.Annotations[v1alpha1.AnnotationDoNotDisrupt] = v
+	} else {
+		delete(existing.Annotations, v1alpha1.AnnotationDoNotDisrupt)
+	}
 	// Preserve the management label even if missing.
 	if existing.Labels == nil {
 		existing.Labels = map[string]string{}

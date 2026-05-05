@@ -1,0 +1,37 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tunnel-basic-backend
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tunnel-basic-backend
+  template:
+    metadata:
+      labels:
+        app: tunnel-basic-backend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.27-alpine
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tunnel-basic
+  namespace: default
+spec:
+  type: LoadBalancer
+  loadBalancerClass: frp.operator.io/frp
+  selector:
+    app: tunnel-basic-backend
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP

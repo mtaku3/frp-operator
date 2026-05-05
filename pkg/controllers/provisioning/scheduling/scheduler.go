@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
@@ -24,7 +24,6 @@ type Scheduler struct {
 	existingExits  []*ExistingExit
 	inflightClaims []*InflightClaim
 	pools          []*v1alpha1.ExitPool
-	salt           string
 }
 
 // New constructs a Scheduler. Cluster + Registry are required; KubeClient
@@ -40,7 +39,6 @@ func New(c *state.Cluster, cp *cloudprovider.Registry, kube client.Client) *Sche
 
 // Solve produces a Results from a list of tunnels.
 func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Results, error) {
-	s.salt = fmt.Sprintf("%d", time.Now().UnixNano())
 	s.existingExits = nil
 	s.inflightClaims = nil
 	s.pools = nil
@@ -57,6 +55,40 @@ func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Resu
 	}
 	sortPoolsByWeight(s.pools)
 
+	// Rehydrate inflight from persisted but non-Ready claims so subsequent
+	// Solves still see in-progress claims for binpacking. Mirrors how
+	// Karpenter retains scheduled-but-not-Ready NodeClaims across batches.
+	// Without this, a Solve that runs before the previous Solve's claim
+	// reaches Ready would mint a fresh duplicate claim instead of packing
+	// onto the pending one.
+	for _, se := range s.Cluster.Exits() {
+		claim, _ := se.SnapshotForRead()
+		if claim == nil {
+			continue
+		}
+		if isReady(claim) {
+			continue // existing-exit stage handles Ready ones.
+		}
+		poolName := claim.Labels[v1alpha1.LabelExitPool]
+		var pool *v1alpha1.ExitPool
+		for _, p := range s.pools {
+			if p.Name == poolName {
+				pool = p
+				break
+			}
+		}
+		if pool == nil {
+			continue
+		}
+		s.inflightClaims = append(s.inflightClaims, &InflightClaim{
+			Spec:      claim.Spec,
+			Name:      claim.Name,
+			Pool:      pool,
+			UsedPorts: se.UsedPorts(),
+			Persisted: true,
+		})
+	}
+
 	results := Results{TunnelErrors: map[string]error{}}
 	for _, t := range tunnels {
 		if err := s.add(ctx, t, &results); err != nil {
@@ -69,8 +101,23 @@ func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Resu
 			}
 		}
 	}
-	results.NewClaims = s.inflightClaims
+	for _, c := range s.inflightClaims {
+		if c.Persisted {
+			continue
+		}
+		results.NewClaims = append(results.NewClaims, c)
+	}
 	return results, nil
+}
+
+// isReady reports whether the claim has a Ready=True condition.
+func isReady(claim *v1alpha1.ExitClaim) bool {
+	for _, c := range claim.Status.Conditions {
+		if c.Type == v1alpha1.ConditionTypeReady && c.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Scheduler) add(_ context.Context, t *v1alpha1.Tunnel, r *Results) error {
@@ -129,7 +176,7 @@ func (s *Scheduler) addToNewClaim(t *v1alpha1.Tunnel, r *Results) error {
 			lastErr = fmt.Errorf("pool %q limit %s exceeded", pool.Name, dim)
 			continue
 		}
-		c := NewClaimFromPool(pool, s.salt+"|"+tunnelKey(t))
+		c := NewClaimFromPool(pool, string(t.UID))
 		assigned, err := c.CanAdd(t)
 		if err != nil {
 			lastErr = err

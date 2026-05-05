@@ -81,10 +81,10 @@ func (s *StateExit) IsEmpty() bool {
 	return len(s.Allocations) == 0
 }
 
-// snapshotForRead returns a goroutine-safe deep copy of the underlying
+// SnapshotForRead returns a goroutine-safe deep copy of the underlying
 // claim and a clone of the allocations map. Helpers for callers who
 // need to read both atomically.
-func (s *StateExit) snapshotForRead() (*v1alpha1.ExitClaim, map[int32]TunnelKey) {
+func (s *StateExit) SnapshotForRead() (*v1alpha1.ExitClaim, map[int32]TunnelKey) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.Claim == nil {

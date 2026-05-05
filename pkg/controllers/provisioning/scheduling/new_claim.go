@@ -8,11 +8,15 @@ import (
 )
 
 // NewClaimFromPool builds an *InflightClaim from a pool template.
-// Name = <pool-name>-<8-char-hex(sha256(pool|salt))>. Within one Solve
-// (same salt) the same input produces the same name; across Solves the
-// salt should differ so retries don't collide on apiserver Create.
-func NewClaimFromPool(pool *v1alpha1.ExitPool, salt string) *InflightClaim {
-	sum := sha256.Sum256([]byte(pool.Name + "|" + salt))
+// Name = <pool-name>-<8-char-hex(sha256(pool|tunnelUID))>. Because
+// tunnelUID is set by the apiserver at Tunnel creation and is stable
+// for the tunnel's lifetime, the same tunnel always produces the same
+// claim name across Solves. That makes the AlreadyExists swallow in
+// persistResults actually idempotent across Solves: a retried Create
+// hits the same name and is rejected at the apiserver, instead of
+// minting a duplicate ExitClaim.
+func NewClaimFromPool(pool *v1alpha1.ExitPool, tunnelUID string) *InflightClaim {
+	sum := sha256.Sum256([]byte(pool.Name + "|" + tunnelUID))
 	name := pool.Name + "-" + hex.EncodeToString(sum[:])[:8]
 	tmpl := pool.Spec.Template.Spec
 	spec := v1alpha1.ExitClaimSpec{

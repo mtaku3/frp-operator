@@ -16,6 +16,12 @@ type InflightClaim struct {
 	Pool      *v1alpha1.ExitPool
 	Tunnels   []*v1alpha1.Tunnel
 	UsedPorts map[int32]struct{}
+
+	// Persisted is true when this InflightClaim was rehydrated from an
+	// already-persisted (but not-Ready) ExitClaim in apiserver. Solve
+	// uses it to avoid re-emitting the claim into Results.NewClaims —
+	// the provisioner has nothing new to Create.
+	Persisted bool
 }
 
 // CanAdd checks the same three predicates as ExistingExit but against

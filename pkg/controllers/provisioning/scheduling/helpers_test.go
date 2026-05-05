@@ -105,7 +105,7 @@ func TestInflightClaim_CanAddAndPack(t *testing.T) {
 			},
 		},
 	}
-	c := NewClaimFromPool(pool, "salt-A")
+	c := NewClaimFromPool(pool, "tunnel-uid-A")
 	t1 := tunnelWithPorts("default", "t1", 80)
 	out, err := c.CanAdd(t1)
 	if err != nil {
@@ -124,14 +124,14 @@ func TestInflightClaim_CanAddAndPack(t *testing.T) {
 
 func TestNewClaimFromPool_DeterministicName(t *testing.T) {
 	pool := &v1alpha1.ExitPool{ObjectMeta: metav1.ObjectMeta{Name: "p1"}}
-	a := NewClaimFromPool(pool, "salt-A")
-	b := NewClaimFromPool(pool, "salt-A")
-	c := NewClaimFromPool(pool, "salt-B")
+	a := NewClaimFromPool(pool, "uid-A")
+	b := NewClaimFromPool(pool, "uid-A")
+	c := NewClaimFromPool(pool, "uid-B")
 	if a.Name != b.Name {
-		t.Fatalf("same salt should produce same name; got %s vs %s", a.Name, b.Name)
+		t.Fatalf("same tunnel UID should produce same name; got %s vs %s", a.Name, b.Name)
 	}
 	if a.Name == c.Name {
-		t.Fatal("different salt should produce different name")
+		t.Fatal("different tunnel UID should produce different name")
 	}
 }
 

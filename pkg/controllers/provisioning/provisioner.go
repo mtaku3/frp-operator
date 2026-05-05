@@ -93,6 +93,12 @@ func (p *Provisioner) SetupWithManager(mgr ctrl.Manager) error {
 			res, err := p.Reconcile(ctx)
 			if err != nil {
 				log.FromContext(ctx).Error(err, "provisioner reconcile")
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(time.Second):
+				}
+				continue
 			}
 			if res.RequeueAfter > 0 {
 				select {

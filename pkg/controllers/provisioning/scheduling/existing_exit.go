@@ -27,7 +27,7 @@ func (e *ExistingExit) CanAdd(tunnel *v1alpha1.Tunnel) ([]int32, error) {
 		return nil, fmt.Errorf("exit has no claim")
 	}
 	// Liveness gates.
-	if e.State.MarkedForDeletion {
+	if e.State.IsMarkedForDeletion() {
 		return nil, fmt.Errorf("exit %s marked for deletion", claim.Name)
 	}
 	if claim.GetDeletionTimestamp() != nil {
@@ -74,12 +74,15 @@ func (e *ExistingExit) snapshotClaimAndUsed() (*v1alpha1.ExitClaim, map[int32]st
 	if e.State == nil {
 		return nil, nil
 	}
-	used := e.State.UsedPorts()
-	se := e.State
-	if se.Claim == nil {
+	claim, allocs := e.State.SnapshotForRead()
+	used := make(map[int32]struct{}, len(allocs))
+	for p := range allocs {
+		used[p] = struct{}{}
+	}
+	if claim == nil {
 		return nil, used
 	}
-	return se.Claim.DeepCopy(), used
+	return claim, used
 }
 
 func mergePortSets(a, b map[int32]struct{}) map[int32]struct{} {

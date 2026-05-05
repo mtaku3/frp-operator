@@ -81,6 +81,13 @@ func (s *StateExit) IsEmpty() bool {
 	return len(s.Allocations) == 0
 }
 
+// IsMarkedForDeletion returns the MarkedForDeletion flag under the lock.
+func (s *StateExit) IsMarkedForDeletion() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.MarkedForDeletion
+}
+
 // SnapshotForRead returns a goroutine-safe deep copy of the underlying
 // claim and a clone of the allocations map. Helpers for callers who
 // need to read both atomically.

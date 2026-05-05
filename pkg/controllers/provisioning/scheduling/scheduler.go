@@ -62,7 +62,7 @@ func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Resu
 	// reaches Ready would mint a fresh duplicate claim instead of packing
 	// onto the pending one.
 	for _, se := range s.Cluster.Exits() {
-		claim, _ := se.SnapshotForRead()
+		claim, allocs := se.SnapshotForRead()
 		if claim == nil {
 			continue
 		}
@@ -80,11 +80,15 @@ func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Resu
 		if pool == nil {
 			continue
 		}
+		used := make(map[int32]struct{}, len(allocs))
+		for p := range allocs {
+			used[p] = struct{}{}
+		}
 		s.inflightClaims = append(s.inflightClaims, &InflightClaim{
 			Spec:      claim.Spec,
 			Name:      claim.Name,
 			Pool:      pool,
-			UsedPorts: se.UsedPorts(),
+			UsedPorts: used,
 			Persisted: true,
 		})
 	}

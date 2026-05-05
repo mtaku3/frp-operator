@@ -7,6 +7,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
@@ -42,14 +43,19 @@ func (r *Registrar) Reconcile(ctx context.Context, claim *v1alpha1.ExitClaim) (r
 		factory = admin.New
 	}
 	orig := claim.DeepCopy()
-	c := factory(fmt.Sprintf("http://%s:%d", claim.Status.PublicIP, adminPort))
+	url := fmt.Sprintf("http://%s:%d", claim.Status.PublicIP, adminPort)
+	logger := log.FromContext(ctx).WithValues("claim", claim.Name, "adminURL", url)
+	logger.Info("registration: probing admin API")
+	c := factory(url)
 	info, err := c.GetServerInfo(ctx)
 	if err != nil {
+		logger.Error(err, "registration: admin API probe failed")
 		setCond(claim, v1alpha1.ConditionTypeRegistered, metav1.ConditionFalse,
 			v1alpha1.ReasonAdminAPIUnreachable, err.Error())
 		_ = r.KubeClient.Status().Patch(ctx, claim, client.MergeFrom(orig))
 		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 	}
+	logger.Info("registration: admin API reachable", "version", info.Version)
 	if info != nil && info.Version != "" {
 		claim.Status.FrpsVersion = info.Version
 	}

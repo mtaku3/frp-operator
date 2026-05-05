@@ -7,6 +7,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
@@ -48,12 +49,18 @@ func (l *Launcher) Reconcile(ctx context.Context, claim *v1alpha1.ExitClaim) (re
 		return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	logger := log.FromContext(ctx).WithValues("claim", claim.Name)
+	logger.Info("launch: invoking cloudProvider.Create", "kind", claim.Spec.ProviderClassRef.Kind)
 	hydrated, err := cp.Create(ctx, claim)
 	if err != nil {
+		logger.Error(err, "launch: cloudProvider.Create failed")
 		setCond(claim, v1alpha1.ConditionTypeLaunched, metav1.ConditionFalse, v1alpha1.ReasonProviderError, err.Error())
 		_ = l.KubeClient.Status().Patch(ctx, claim, client.MergeFrom(orig))
 		return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 	}
+	logger.Info("launch: cloudProvider.Create succeeded",
+		"providerID", hydrated.Status.ProviderID,
+		"publicIP", hydrated.Status.PublicIP)
 
 	// Copy hydrated status into the live object, preserving any conditions
 	// already accumulated by earlier reconciles.

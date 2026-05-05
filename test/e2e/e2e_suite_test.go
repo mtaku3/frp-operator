@@ -113,7 +113,10 @@ func dumpDiagnostics(label string) {
 	dump("kubectl", "-n", "frp-operator-system", "logs",
 		"-l", "control-plane=controller-manager", "--tail=2000", "--all-containers=true")
 	dump("kubectl", "get", "exitpools,exitclaims,tunnels", "-A", "-o", "wide")
+	dump("kubectl", "get", "exitclaims", "-A", "-o", "yaml")
 	dump("kubectl", "get", "events", "-A", "--sort-by=.lastTimestamp")
+	dump("docker", "ps", "-a")
+	dump("docker", "exec", "frp-operator-test-e2e-control-plane", "docker", "ps", "-a")
 }
 
 var _ = AfterEach(func() {

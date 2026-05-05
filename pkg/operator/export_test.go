@@ -11,3 +11,8 @@ func SetupIndexersForTest(ctx context.Context, mgr ctrl.Manager) error {
 	return setupIndexers(ctx, mgr)
 }
 
+// SetupHealthChecksForTest exposes setupHealthChecks to external test packages.
+func SetupHealthChecksForTest(mgr ctrl.Manager) error {
+	return setupHealthChecks(mgr)
+}
+

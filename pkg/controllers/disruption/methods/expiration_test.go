@@ -2,6 +2,7 @@ package methods_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -60,13 +61,16 @@ func TestExpiration_Forceful(t *testing.T) {
 
 func TestExpiration_ComputeCommands_BypassBudget(t *testing.T) {
 	cand := expirationCand("e", 2*time.Hour, time.Hour)
-	// Pass an empty budget map; Forceful should ignore it.
-	cmds, err := methods.NewExpiration().ComputeCommands(context.Background(), disruption.BudgetMap{}, cand)
+	// The controller is the single source of truth for the Forceful bypass:
+	// it injects MaxInt32 for every relevant pool. Mirror that here.
+	budgets := disruption.BudgetMap{}
+	budgets.Set(cand.Pool.Name, v1alpha1.DisruptionReasonExpired, math.MaxInt32)
+	cmds, err := methods.NewExpiration().ComputeCommands(context.Background(), budgets, cand)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(cmds) != 1 {
-		t.Fatalf("want 1 cmd despite zero budget, got %d", len(cmds))
+		t.Fatalf("want 1 cmd, got %d", len(cmds))
 	}
 	if len(cmds[0].Replacements) != 1 {
 		t.Fatalf("want 1 replacement, got %d", len(cmds[0].Replacements))

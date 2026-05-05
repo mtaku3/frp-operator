@@ -64,16 +64,9 @@ func (q *Queue) Enqueue(ctx context.Context, cmd *Command) error {
 	}
 	logger := log.FromContext(ctx).WithValues("method", cmd.Method, "reason", cmd.Reason)
 
-	// 1. Mark candidates: gates the provisioner away from re-using them.
-	for _, cand := range cmd.Candidates {
-		if cand == nil || cand.Claim == nil {
-			continue
-		}
-		q.Cluster.MarkExitForDeletion(cand.Claim.Name)
-	}
-
-	// 2. Launch replacements via the provisioner adapter. We only roll back
-	// the MarkedForDeletion flag if the replacement step fails.
+	// 1. Launch replacements via the provisioner adapter. We defer marking
+	// candidates for deletion until the replacements are Ready so a wait
+	// timeout doesn't leave them zombied (Marked but never deleted).
 	if len(cmd.Replacements) > 0 {
 		if q.Provisioner == nil {
 			return fmt.Errorf("command requires replacements but no ProvisionerTrigger wired")
@@ -86,11 +79,14 @@ func (q *Queue) Enqueue(ctx context.Context, cmd *Command) error {
 		}
 	}
 
-	// 3. Trigger the API delete. Lifecycle controller takes over.
+	// 2. Mark candidates and immediately trigger the API delete. The mark
+	// gates the provisioner during the API-delete window only; the lifecycle
+	// finalizer takes over from there. Karpenter follows this same model.
 	for _, cand := range cmd.Candidates {
 		if cand == nil || cand.Claim == nil {
 			continue
 		}
+		q.Cluster.MarkExitForDeletion(cand.Claim.Name)
 		var live v1alpha1.ExitClaim
 		if err := q.Client.Get(ctx, types.NamespacedName{Name: cand.Claim.Name}, &live); err != nil {
 			if apierrors.IsNotFound(err) {

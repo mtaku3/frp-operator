@@ -1,9 +1,6 @@
 package methods
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
@@ -45,12 +42,4 @@ func replacementForCandidate(c *disruption.Candidate) *v1alpha1.ExitClaim {
 			TerminationGracePeriod: tmpl.Spec.TerminationGracePeriod,
 		},
 	}
-}
-
-// randomSuffix returns 6 hex characters, suitable for ad-hoc claim names when
-// GenerateName isn't usable (e.g. unit tests that pre-create the object).
-func randomSuffix() string {
-	b := make([]byte, 3)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
 }

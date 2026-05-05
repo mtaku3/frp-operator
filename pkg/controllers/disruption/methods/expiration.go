@@ -2,7 +2,6 @@ package methods
 
 import (
 	"context"
-	"math"
 	"time"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
@@ -41,17 +40,10 @@ func (m *Expiration) ShouldDisrupt(_ context.Context, c *disruption.Candidate) b
 }
 
 func (m *Expiration) ComputeCommands(_ context.Context, budgets disruption.BudgetMap, candidates ...*disruption.Candidate) ([]*disruption.Command, error) {
-	// Forceful: synthesize a "max int" budget map so the per-pool cap is
-	// effectively disabled while still routing through the shared helper.
-	bypass := disruption.BudgetMap{}
-	for _, c := range candidates {
-		if c == nil || c.Pool == nil {
-			continue
-		}
-		bypass.Set(c.Pool.Name, v1alpha1.DisruptionReasonExpired, math.MaxInt32)
-	}
-	_ = budgets // deliberately ignored — Expiration is Forceful.
-	return computePerPoolWithReplacements(m.Name(), v1alpha1.DisruptionReasonExpired, bypass, candidates)
+	// Forceful: the controller injects MaxInt32 for every relevant pool into
+	// `budgets`, so we route through the shared helper as-is. The controller
+	// is the single source of truth for the bypass.
+	return computePerPoolWithReplacements(m.Name(), v1alpha1.DisruptionReasonExpired, budgets, candidates)
 }
 
 func (m *Expiration) now() time.Time {

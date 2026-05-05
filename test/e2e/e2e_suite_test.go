@@ -13,9 +13,11 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,7 +78,23 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	By("waiting for the operator to become Ready")
-	Expect(operator.WaitForOperatorReady(suiteCtx, k8sClient, 5*time.Minute)).To(Succeed())
+	if err := operator.WaitForOperatorReady(suiteCtx, k8sClient, 5*time.Minute); err != nil {
+		// Dump diagnostics so post-mortem doesn't require re-running CI.
+		fmt.Fprintln(GinkgoWriter, "===== operator readiness FAILED — diagnostics =====")
+		dump := func(args ...string) {
+			out, _ := utils.Run(exec.Command(args[0], args[1:]...))
+			fmt.Fprintln(GinkgoWriter, ">>>", strings.Join(args, " "))
+			fmt.Fprintln(GinkgoWriter, out)
+		}
+		dump("kubectl", "-n", "frp-operator-system", "get", "all")
+		dump("kubectl", "-n", "frp-operator-system", "describe", "deployment", "frp-operator-controller-manager")
+		dump("kubectl", "-n", "frp-operator-system", "describe", "pods")
+		dump("kubectl", "-n", "frp-operator-system", "logs",
+			"-l", "control-plane=controller-manager", "--tail=5000", "--all-containers=true")
+		dump("kubectl", "get", "crd")
+		dump("kubectl", "get", "events", "-n", "frp-operator-system", "--sort-by=.lastTimestamp")
+		Expect(err).NotTo(HaveOccurred())
+	}
 
 	By("applying shared ExitPool + ProviderClass + credentials")
 	yaml, err := os.ReadFile(filepath.Join("fixtures", "shared.yaml"))

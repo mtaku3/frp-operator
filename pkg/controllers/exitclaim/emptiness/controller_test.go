@@ -23,6 +23,7 @@ func newScheme(t *testing.T) *runtime.Scheme {
 	return s
 }
 
+//nolint:unparam // name kept variadic for future test cases
 func readyClaim(name string) *v1alpha1.ExitClaim {
 	return &v1alpha1.ExitClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
@@ -46,6 +47,7 @@ func boundTunnel(name, claimName string) *v1alpha1.Tunnel {
 	}
 }
 
+//nolint:unparam // type param kept generic for future condition assertions
 func findCondition(conds []metav1.Condition, t string) *metav1.Condition {
 	for i := range conds {
 		if conds[i].Type == t {

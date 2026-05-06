@@ -42,10 +42,10 @@ spec:
         args:
           {{- if .Values.leaderElection.enabled }}
           - --leader-elect
-          - --leader-elect-namespace={{ include "frp-operator.leaseNamespace" . }}
+          - --leader-election-namespace={{ include "frp-operator.leaseNamespace" . }}
           {{- end }}
           - --health-probe-bind-address=:8081
-          - --zap-log-level={{ .Values.logLevel }}
+          - --log-level={{ .Values.logLevel }}
           {{- with .Values.extraArgs }}
           {{- toYaml . | nindent 10 }}
           {{- end }}

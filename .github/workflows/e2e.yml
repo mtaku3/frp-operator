@@ -54,6 +54,12 @@ jobs:
             --set image.tag=helm-e2e \
             --set image.pullPolicy=IfNotPresent \
             --wait --timeout=3m
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n frp-operator-system get pods -o wide || true
+          kubectl -n frp-operator-system describe pods || true
+          kubectl -n frp-operator-system logs -l app.kubernetes.io/name=frp-operator --all-containers --tail=200 || true
       - name: Operator pod healthy
         run: |
           kubectl -n frp-operator-system rollout status deploy/frp-operator --timeout=2m

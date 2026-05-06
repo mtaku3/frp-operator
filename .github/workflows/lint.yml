@@ -22,3 +22,24 @@ jobs:
         run: make lint-config
       - name: Run linter
         run: make lint
+
+  helm-lint:
+    name: Helm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+      - name: helm lint
+        run: |
+          helm lint charts/frp-operator-crd
+          helm lint charts/frp-operator
+      - name: helm template (parse check)
+        run: |
+          helm template tcrd charts/frp-operator-crd > /dev/null
+          helm template top  charts/frp-operator     > /dev/null
+      - name: CRD sync drift gate
+        run: |
+          make helm-crds
+          git diff --exit-code charts/

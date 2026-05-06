@@ -1,6 +1,6 @@
 apiVersion: v2
 name: frp-operator
-description: Operator that manages frps tunnels via the four-CRD karpenter-shaped model.
+description: Kubernetes operator that manages frps tunnels via four CRDs (ExitPool, ExitClaim, Tunnel, ProviderClass).
 type: application
 version: 0.0.1
 appVersion: 0.0.1

@@ -63,7 +63,7 @@ func NewWithTTL(
 		launch:          &Launcher{KubeClient: c, CloudProvider: cp},
 		registration:    &Registrar{KubeClient: c, AdminFactory: adminFactory},
 		initialization:  &Initializer{KubeClient: c},
-		liveness:        &Liveness{KubeClient: c, RegistrationTTL: registrationTTL},
+		liveness:        &Liveness{KubeClient: c, AdminFactory: adminFactory, RegistrationTTL: registrationTTL},
 	}
 }
 

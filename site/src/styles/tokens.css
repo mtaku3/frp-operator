@@ -79,4 +79,6 @@
 }
 
 html, body { font-family: var(--font-body); color: var(--ink-base); background: var(--bg-base); line-height: var(--leading-body); }
+html { overflow-x: hidden; }
+body { overflow-x: hidden; }
 :focus-visible { outline: none; box-shadow: var(--shadow-glow); border-radius: var(--r-sm); }

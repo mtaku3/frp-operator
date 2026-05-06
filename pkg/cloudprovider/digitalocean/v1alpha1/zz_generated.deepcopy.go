@@ -88,16 +88,6 @@ func (in *DigitalOceanProviderClassList) DeepCopyObject() runtime.Object {
 func (in *DigitalOceanProviderClassSpec) DeepCopyInto(out *DigitalOceanProviderClassSpec) {
 	*out = *in
 	out.APITokenSecretRef = in.APITokenSecretRef
-	if in.Regions != nil {
-		in, out := &in.Regions, &out.Regions
-		*out = make([]string, len(*in))
-		copy(*out, *in)
-	}
-	if in.Sizes != nil {
-		in, out := &in.Sizes, &out.Sizes
-		*out = make([]string, len(*in))
-		copy(*out, *in)
-	}
 	if in.ImageSelectorTerms != nil {
 		in, out := &in.ImageSelectorTerms, &out.ImageSelectorTerms
 		*out = make([]ImageSelectorTerm, len(*in))

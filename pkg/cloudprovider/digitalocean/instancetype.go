@@ -46,23 +46,6 @@ func InstanceTypes() []*cloudprovider.InstanceType {
 	return out
 }
 
-// FilteredInstanceTypes narrows the catalog to a ProviderClass discovery
-// set: Sizes ∩ catalog, Offerings filtered to Regions ∩ supported.
-func FilteredInstanceTypes(allowedSizes, allowedRegions []string) []*cloudprovider.InstanceType {
-	regions := intersect(SupportedRegions, allowedRegions)
-	if len(regions) == 0 {
-		return nil
-	}
-	out := make([]*cloudprovider.InstanceType, 0, len(sizeCatalog))
-	for _, s := range sizeCatalog {
-		if !contains(allowedSizes, s.slug) {
-			continue
-		}
-		out = append(out, instanceTypeFor(s, regions))
-	}
-	return out
-}
-
 func instanceTypeFor(s sizeSpec, regions []string) *cloudprovider.InstanceType {
 	offerings := make(cloudprovider.Offerings, 0, len(regions))
 	for _, r := range regions {

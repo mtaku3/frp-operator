@@ -74,9 +74,9 @@ spec:
                 description: |-
                   ImageSelectorTerms is the discovery set of acceptable droplet
                   base images. Karpenter NodeClass equivalent: amiSelectorTerms.
-                  Scheduler picks one image per claim from the matched set; with
-                  only Slug supported today the selection reduces to "first item".
-                  Future arch-aware claims will narrow by image arch.
+                  Provider-side resolution picks one image per claim from the matched
+                  set; with only Slug supported today the selection reduces to "first
+                  item". Future arch-aware claims will narrow by image arch.
                 items:
                   description: |-
                     ImageSelectorTerm matches one or more DO base images. Mirrors
@@ -98,25 +98,6 @@ spec:
               monitoring:
                 description: Monitoring enables DO monitoring agent.
                 type: boolean
-              regions:
-                description: |-
-                  Regions is the discovery set of DO region slugs (nyc3, sfo3, ...).
-                  Karpenter NodeClass equivalent: subnetSelectorTerms — declares the
-                  candidate set; the scheduler picks one per claim by pinning
-                  topology.kubernetes.io/region in claim.Spec.Requirements.
-                items:
-                  type: string
-                minItems: 1
-                type: array
-              sizes:
-                description: |-
-                  Sizes is the discovery set of DO droplet size slugs. Scheduler
-                  picks the cheapest size that satisfies the bound tunnels' resource
-                  requests, and pins node.kubernetes.io/instance-type on the claim.
-                items:
-                  type: string
-                minItems: 1
-                type: array
               sshKeyIDs:
                 description: SSHKeyIDs lists DO ssh key IDs to inject.
                 items:
@@ -128,8 +109,6 @@ spec:
             required:
             - apiTokenSecretRef
             - imageSelectorTerms
-            - regions
-            - sizes
             type: object
           status:
             properties:

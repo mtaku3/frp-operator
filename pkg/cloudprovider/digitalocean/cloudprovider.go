@@ -144,27 +144,20 @@ func resolveImage(pc *dov1alpha1.DigitalOceanProviderClass) (string, error) {
 	return "", fmt.Errorf("digitalocean: providerclass %q has no image selector with slug", pc.Name)
 }
 
-// resolveSelection extracts the size + region the scheduler chose for
-// this claim. Falls back to the first entry of the ProviderClass
-// discovery set when the scheduler hasn't pinned (lets Phase A1 ship
-// before A2 wires real offering selection). Returns ("", "", err) if
-// neither claim nor class names a valid choice.
-func resolveSelection(
-	claim *v1alpha1.ExitClaim, pc *dov1alpha1.DigitalOceanProviderClass,
-) (size, region string, err error) {
+// resolveSelection extracts the size + region the scheduler pinned on
+// the claim. Karpenter requires the scheduler to narrow NodeClaim
+// requirements before launch, so an unpinned claim is a programming
+// error — surface it loudly rather than guess.
+func resolveSelection(claim *v1alpha1.ExitClaim) (size, region string, err error) {
 	size = firstRequirementValue(claim.Spec.Requirements, v1alpha1.RequirementInstanceType)
 	region = firstRequirementValue(claim.Spec.Requirements, v1alpha1.RequirementRegion)
 	if size == "" {
-		if len(pc.Spec.Sizes) == 0 {
-			return "", "", fmt.Errorf("digitalocean: providerclass %q has no sizes", pc.Name)
-		}
-		size = pc.Spec.Sizes[0]
+		return "", "", fmt.Errorf("digitalocean: claim %q has no %s requirement",
+			claim.Name, v1alpha1.RequirementInstanceType)
 	}
 	if region == "" {
-		if len(pc.Spec.Regions) == 0 {
-			return "", "", fmt.Errorf("digitalocean: providerclass %q has no regions", pc.Name)
-		}
-		region = pc.Spec.Regions[0]
+		return "", "", fmt.Errorf("digitalocean: claim %q has no %s requirement",
+			claim.Name, v1alpha1.RequirementRegion)
 	}
 	return size, region, nil
 }
@@ -205,7 +198,7 @@ func (c *CloudProvider) Create(ctx context.Context, claim *v1alpha1.ExitClaim) (
 		return nil, err
 	}
 
-	size, region, err := resolveSelection(claim, pc)
+	size, region, err := resolveSelection(claim)
 	if err != nil {
 		return nil, err
 	}
@@ -326,30 +319,16 @@ func (c *CloudProvider) List(ctx context.Context) ([]*v1alpha1.ExitClaim, error)
 	return out, nil
 }
 
-// GetInstanceTypes returns the discovered catalog for a pool. Karpenter
-// NodeClass equivalent: subnetSelectorTerms+amiSelectorTerms intersection.
-// Here: the cross-product of pc.Spec.Sizes × pc.Spec.Regions, narrowed to
-// what the operator's static catalog actually supports. Returned slice
-// is the candidate set the scheduler will sort by Offering.Price.
+// GetInstanceTypes returns the full provider catalog. Karpenter
+// equivalent: cloudprovider.GetInstanceTypes(nodePool) returns every
+// shape the cloud knows about; the scheduler narrows by NodePool
+// Requirements (instance-type, region, arch, capacity-type, ...).
+// The pool argument is unused — same as karpenter's AWS impl, which
+// returns the AWS-wide catalog regardless of pool.
 func (c *CloudProvider) GetInstanceTypes(
-	ctx context.Context, pool *v1alpha1.ExitPool,
+	_ context.Context, _ *v1alpha1.ExitPool,
 ) ([]*cloudprovider.InstanceType, error) {
-	if pool == nil {
-		return InstanceTypes(), nil
-	}
-	if pool.Spec.Template.Spec.ProviderClassRef.Kind != "DigitalOceanProviderClass" {
-		return nil, fmt.Errorf("digitalocean: pool %q references kind %q",
-			pool.Name, pool.Spec.Template.Spec.ProviderClassRef.Kind)
-	}
-	if c.kube == nil {
-		return InstanceTypes(), nil
-	}
-	var pc dov1alpha1.DigitalOceanProviderClass
-	if err := c.kube.Get(ctx, client.ObjectKey{Name: pool.Spec.Template.Spec.ProviderClassRef.Name}, &pc); err != nil {
-		return nil, fmt.Errorf("get DigitalOceanProviderClass %q: %w",
-			pool.Spec.Template.Spec.ProviderClassRef.Name, err)
-	}
-	return FilteredInstanceTypes(pc.Spec.Sizes, pc.Spec.Regions), nil
+	return InstanceTypes(), nil
 }
 
 func (c *CloudProvider) IsDrifted(ctx context.Context, claim *v1alpha1.ExitClaim) (cloudprovider.DriftReason, error) {
@@ -371,17 +350,22 @@ func (c *CloudProvider) IsDrifted(ctx context.Context, claim *v1alpha1.ExitClaim
 		}
 		return "", err
 	}
-	// Drift compares the live droplet against the discovery set declared
-	// on the ProviderClass. A droplet whose size or region is no longer
-	// in the allowed lists has drifted; the disruption controller will
-	// then mint a replacement and the new claim's Requirements will pin
-	// a fresh in-set choice.
-	if d.Size != nil && !contains(pc.Spec.Sizes, d.Size.Slug) {
-		return cloudprovider.DriftReason("SizeMismatch"), nil
+	// Drift compares the live droplet against what the scheduler pinned
+	// on this claim. Karpenter's equivalent: NodeClaim.Spec.Requirements
+	// is the source of truth post-launch; a NodeClass-only drift signal
+	// (image, vpc) is checked separately. Here ImageSelectorTerms drift
+	// is deferred to A3 (ProviderClass hash).
+	if size := firstRequirementValue(claim.Spec.Requirements, v1alpha1.RequirementInstanceType); size != "" {
+		if d.Size != nil && d.Size.Slug != size {
+			return cloudprovider.DriftReason("SizeMismatch"), nil
+		}
 	}
-	if d.Region != nil && !contains(pc.Spec.Regions, d.Region.Slug) {
-		return cloudprovider.DriftReason("RegionMismatch"), nil
+	if region := firstRequirementValue(claim.Spec.Requirements, v1alpha1.RequirementRegion); region != "" {
+		if d.Region != nil && d.Region.Slug != region {
+			return cloudprovider.DriftReason("RegionMismatch"), nil
+		}
 	}
+	_ = pc
 	return "", nil
 }
 

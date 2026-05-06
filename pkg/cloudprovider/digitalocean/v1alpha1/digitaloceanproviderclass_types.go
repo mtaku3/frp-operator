@@ -33,22 +33,11 @@ type DigitalOceanProviderClassList struct {
 type DigitalOceanProviderClassSpec struct {
 	// APITokenSecretRef references the Secret holding a DO API token.
 	APITokenSecretRef frpv1alpha1.SecretKeyRef `json:"apiTokenSecretRef"`
-	// Regions is the discovery set of DO region slugs (nyc3, sfo3, ...).
-	// Karpenter NodeClass equivalent: subnetSelectorTerms — declares the
-	// candidate set; the scheduler picks one per claim by pinning
-	// topology.kubernetes.io/region in claim.Spec.Requirements.
-	// +kubebuilder:validation:MinItems=1
-	Regions []string `json:"regions"`
-	// Sizes is the discovery set of DO droplet size slugs. Scheduler
-	// picks the cheapest size that satisfies the bound tunnels' resource
-	// requests, and pins node.kubernetes.io/instance-type on the claim.
-	// +kubebuilder:validation:MinItems=1
-	Sizes []string `json:"sizes"`
 	// ImageSelectorTerms is the discovery set of acceptable droplet
 	// base images. Karpenter NodeClass equivalent: amiSelectorTerms.
-	// Scheduler picks one image per claim from the matched set; with
-	// only Slug supported today the selection reduces to "first item".
-	// Future arch-aware claims will narrow by image arch.
+	// Provider-side resolution picks one image per claim from the matched
+	// set; with only Slug supported today the selection reduces to "first
+	// item". Future arch-aware claims will narrow by image arch.
 	// +kubebuilder:validation:MinItems=1
 	ImageSelectorTerms []ImageSelectorTerm `json:"imageSelectorTerms"`
 	// VPCUUID optionally pins the VPC.

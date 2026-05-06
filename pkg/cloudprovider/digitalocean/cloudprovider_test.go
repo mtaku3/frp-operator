@@ -91,8 +91,6 @@ func TestCreate_Idempotent(t *testing.T) {
 	pc := &dov1alpha1.DigitalOceanProviderClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "do-default"},
 		Spec: dov1alpha1.DigitalOceanProviderClassSpec{
-			Regions:            []string{"nyc3"},
-			Sizes:              []string{"s-1vcpu-1gb"},
 			ImageSelectorTerms: []dov1alpha1.ImageSelectorTerm{{Slug: "ubuntu-22-04-x64"}},
 		},
 	}
@@ -113,7 +111,11 @@ func TestCreate_Idempotent(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "exit-1"},
 		Spec: v1alpha1.ExitClaimSpec{
 			ProviderClassRef: v1alpha1.ProviderClassRef{Kind: "DigitalOceanProviderClass", Name: "do-default"},
-			Frps:             v1alpha1.FrpsConfig{Version: "v0.68.1", BindPort: 7000, AllowPorts: []string{"80"}, Auth: v1alpha1.FrpsAuthConfig{Method: "token"}},
+			Requirements: []v1alpha1.NodeSelectorRequirementWithMinValues{
+				{Key: v1alpha1.RequirementInstanceType, Operator: v1alpha1.NodeSelectorOpIn, Values: []string{"s-1vcpu-1gb"}},
+				{Key: v1alpha1.RequirementRegion, Operator: v1alpha1.NodeSelectorOpIn, Values: []string{"nyc3"}},
+			},
+			Frps: v1alpha1.FrpsConfig{Version: "v0.68.1", BindPort: 7000, AllowPorts: []string{"80"}, Auth: v1alpha1.FrpsAuthConfig{Method: "token"}},
 		},
 	}
 	out, err := cp.Create(context.Background(), claim)
@@ -132,8 +134,6 @@ func TestCreate_HydratesCapacity(t *testing.T) {
 	pc := &dov1alpha1.DigitalOceanProviderClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "pc"},
 		Spec: dov1alpha1.DigitalOceanProviderClassSpec{
-			Regions:            []string{"nyc3"},
-			Sizes:              []string{"s-2vcpu-4gb"},
 			ImageSelectorTerms: []dov1alpha1.ImageSelectorTerm{{Slug: "ubuntu-22-04-x64"}},
 		},
 	}
@@ -149,7 +149,11 @@ func TestCreate_HydratesCapacity(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "e"},
 		Spec: v1alpha1.ExitClaimSpec{
 			ProviderClassRef: v1alpha1.ProviderClassRef{Kind: "DigitalOceanProviderClass", Name: "pc"},
-			Frps:             v1alpha1.FrpsConfig{Version: "v0.68.1", AllowPorts: []string{"80"}, Auth: v1alpha1.FrpsAuthConfig{Method: "token"}},
+			Requirements: []v1alpha1.NodeSelectorRequirementWithMinValues{
+				{Key: v1alpha1.RequirementInstanceType, Operator: v1alpha1.NodeSelectorOpIn, Values: []string{"s-2vcpu-4gb"}},
+				{Key: v1alpha1.RequirementRegion, Operator: v1alpha1.NodeSelectorOpIn, Values: []string{"nyc3"}},
+			},
+			Frps: v1alpha1.FrpsConfig{Version: "v0.68.1", AllowPorts: []string{"80"}, Auth: v1alpha1.FrpsAuthConfig{Method: "token"}},
 		},
 	}
 	out, err := cp.Create(context.Background(), claim)
@@ -174,8 +178,6 @@ func TestDelete_NotFound(t *testing.T) {
 	pc := &dov1alpha1.DigitalOceanProviderClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "pc"},
 		Spec: dov1alpha1.DigitalOceanProviderClassSpec{
-			Regions:            []string{"nyc3"},
-			Sizes:              []string{"s-1vcpu-1gb"},
 			ImageSelectorTerms: []dov1alpha1.ImageSelectorTerm{{Slug: "ubuntu-22-04-x64"}},
 		},
 	}

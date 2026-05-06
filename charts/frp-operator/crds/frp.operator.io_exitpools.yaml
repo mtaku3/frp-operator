@@ -85,17 +85,20 @@ spec:
                   - type: string
                   pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                   x-kubernetes-int-or-string: true
-                description: "Limits is an extensible ResourceList ceiling. Recognized
-                  keys:\n\n\tcpu, memory                                standard k8s
-                  names\n\tfrp.operator.io/exits                      count of ExitClaims\n\tfrp.operator.io/bandwidthMbps
-                  \             aggregate bandwidth\n\tfrp.operator.io/monthlyTrafficGB
-                  \          aggregate traffic budget\n\nThe named alias (rather than
-                  inlining corev1.ResourceList directly on\nthe field) is preserved
-                  deliberately for the documentation hook above.\nVerified with controller-gen
-                  v0.20.1: the alias is transparently\nexpanded in the generated CRD
-                  schema, producing the same\nadditionalProperties (resource.Quantity
-                  int-or-string with the standard\nquantity pattern) that ExitPoolStatus.Resources
-                  gets from inlining\ncorev1.ResourceList. See config/crd/bases/frp.operator.io_exitpools.yaml."
+                description: |-
+                  Limits is an extensible ResourceList ceiling. Recognized keys:
+                    cpu, memory                                standard k8s names
+                    frp.operator.io/exits                      count of ExitClaims
+                    frp.operator.io/bandwidthMbps              aggregate bandwidth
+                    frp.operator.io/monthlyTrafficGB           aggregate traffic budget
+
+                  The named alias (rather than inlining corev1.ResourceList directly on
+                  the field) is preserved deliberately for the documentation hook above.
+                  Verified with controller-gen v0.20.1: the alias is transparently
+                  expanded in the generated CRD schema, producing the same
+                  additionalProperties (resource.Quantity int-or-string with the standard
+                  quantity pattern) that ExitPoolStatus.Resources gets from inlining
+                  corev1.ResourceList. See config/crd/bases/frp.operator.io_exitpools.yaml.
                 type: object
               replicas:
                 description: |-

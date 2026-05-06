@@ -36,6 +36,8 @@ func newPool(name string, allowPorts []string, limits v1alpha1.Limits) *v1alpha1
 
 func solveCtx() context.Context { return context.Background() }
 
+const testTunnelUID = "uid-2"
+
 func TestSolve_NoExitsNoPools_TunnelErrors(t *testing.T) {
 	c := state.NewCluster(nil)
 	s := New(c, cloudprovider.NewRegistry(), nil)
@@ -152,7 +154,7 @@ func TestSolve_RehydratesPendingClaim_AcrossSolves(t *testing.T) {
 	// the pending claim (no NewClaims minted).
 	s := New(c, nil, nil)
 	tun := tunnelWithPorts("tunnel-2", 80)
-	tun.UID = "uid-2"
+	tun.UID = testTunnelUID
 	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
 	if err != nil {
 		t.Fatalf("solve: %v", err)
@@ -165,6 +167,90 @@ func TestSolve_RehydratesPendingClaim_AcrossSolves(t *testing.T) {
 	}
 	if res.Bindings[0].ExitClaimName != "default-abc12345" {
 		t.Fatalf("expected binding to default-abc12345, got %q", res.Bindings[0].ExitClaimName)
+	}
+}
+
+// TestSolve_RehydratesUnlaunchedClaim_AcrossSolves covers issue #7:
+// a claim minted by Solve 1 but not yet launched (Status.ProviderID empty)
+// must still be rehydrated as an inflight binpack candidate when Solve 2
+// runs. Without the pendingClaims index, c.Exits() is empty for such
+// claims and Solve 2 mints a duplicate.
+func TestSolve_RehydratesUnlaunchedClaim_AcrossSolves(t *testing.T) {
+	c := state.NewCluster(nil)
+	c.UpdatePool(newPool("default", []string{"80", "443"}, nil))
+
+	pendingClaim := &v1alpha1.ExitClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "default-deadbeef",
+			Labels: map[string]string{v1alpha1.LabelExitPool: "default"},
+		},
+		Spec: v1alpha1.ExitClaimSpec{
+			Frps: v1alpha1.FrpsConfig{
+				Version: "v0.68.1", Auth: v1alpha1.FrpsAuthConfig{Method: "token"},
+				AllowPorts: []string{"80", "443"},
+			},
+		},
+		// Status.ProviderID intentionally empty — this is the unlaunched case.
+	}
+	c.UpdateExit(pendingClaim)
+
+	s := New(c, nil, nil)
+	tun := tunnelWithPorts("tunnel-2", 80)
+	tun.UID = testTunnelUID
+	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
+	if err != nil {
+		t.Fatalf("solve: %v", err)
+	}
+	if len(res.NewClaims) != 0 {
+		t.Fatalf("expected 0 NewClaims (binpack onto pending), got %d", len(res.NewClaims))
+	}
+	if len(res.Bindings) != 1 {
+		t.Fatalf("expected 1 binding, got %d", len(res.Bindings))
+	}
+	if res.Bindings[0].ExitClaimName != "default-deadbeef" {
+		t.Fatalf("expected binding to default-deadbeef, got %q", res.Bindings[0].ExitClaimName)
+	}
+}
+
+// TestSolve_RehydratesUnlaunchedClaim_RespectsTunnelBindingPorts verifies
+// that rehydration of an unlaunched claim picks up the ports already
+// bound to it via Tunnel bindings. A second tunnel requesting the same
+// port should fall through to a NewClaim (no port collision allowed),
+// while a tunnel with a non-overlapping port should binpack.
+func TestSolve_RehydratesUnlaunchedClaim_RespectsTunnelBindingPorts(t *testing.T) {
+	c := state.NewCluster(nil)
+	c.UpdatePool(newPool("default", []string{"80", "443"}, nil))
+
+	pendingClaim := &v1alpha1.ExitClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "default-cafef00d",
+			Labels: map[string]string{v1alpha1.LabelExitPool: "default"},
+		},
+		Spec: v1alpha1.ExitClaimSpec{
+			Frps: v1alpha1.FrpsConfig{
+				Version: "v0.68.1", Auth: v1alpha1.FrpsAuthConfig{Method: "token"},
+				AllowPorts: []string{"80", "443"},
+			},
+		},
+	}
+	c.UpdateExit(pendingClaim)
+	c.UpdateTunnelBinding("default/tunnel-1", "default-cafef00d", []int32{80})
+
+	s := New(c, nil, nil)
+	tun := tunnelWithPorts("tunnel-2", 443)
+	tun.UID = testTunnelUID
+	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
+	if err != nil {
+		t.Fatalf("solve: %v", err)
+	}
+	if len(res.NewClaims) != 0 {
+		t.Fatalf("expected 0 NewClaims, got %d", len(res.NewClaims))
+	}
+	if len(res.Bindings) != 1 || res.Bindings[0].ExitClaimName != "default-cafef00d" {
+		t.Fatalf("expected binding to default-cafef00d, got %+v", res.Bindings)
+	}
+	if got := res.Bindings[0].AssignedPorts; len(got) != 1 || got[0] != 443 {
+		t.Fatalf("expected port 443 assigned, got %v", got)
 	}
 }
 

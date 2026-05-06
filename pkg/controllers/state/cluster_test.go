@@ -37,6 +37,40 @@ var _ = Describe("Cluster.UpdateExit / DeleteExit", func() {
 	})
 })
 
+var _ = Describe("Cluster pending claim index", func() {
+	It("retains pre-launch claims in PendingClaims and promotes them on launch", func() {
+		c := state.NewCluster(k8sClient)
+		c.UpdateExit(newClaim("p1", ""))
+		Expect(c.PendingClaims()).To(HaveLen(1))
+		Expect(c.PendingClaims()[0].Name).To(Equal("p1"))
+		Expect(c.ExitForName("p1")).To(BeNil()) // no StateExit until launch
+
+		// Launch.
+		c.UpdateExit(newClaim("p1", "fake://p1-id"))
+		Expect(c.PendingClaims()).To(BeEmpty())
+		Expect(c.ExitForName("p1")).NotTo(BeNil())
+	})
+
+	It("removes pending entry on DeleteExit even before launch", func() {
+		c := state.NewCluster(k8sClient)
+		c.UpdateExit(newClaim("p2", ""))
+		c.DeleteExit("p2")
+		Expect(c.PendingClaims()).To(BeEmpty())
+	})
+
+	It("PortsForClaimName aggregates Tunnel binding ports", func() {
+		c := state.NewCluster(k8sClient)
+		c.UpdateExit(newClaim("p3", ""))
+		c.UpdateTunnelBinding("default/svc-a", "p3", []int32{80, 443})
+		c.UpdateTunnelBinding("default/svc-b", "p3", []int32{8080})
+		ports := c.PortsForClaimName("p3")
+		Expect(ports).To(HaveKey(int32(80)))
+		Expect(ports).To(HaveKey(int32(443)))
+		Expect(ports).To(HaveKey(int32(8080)))
+		Expect(c.PortsForClaimName("nonexistent")).To(BeEmpty())
+	})
+})
+
 var _ = Describe("Cluster.UpdateTunnelBinding", func() {
 	It("derives StateExit.Allocations from bindings", func() {
 		c := state.NewCluster(k8sClient)

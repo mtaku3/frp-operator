@@ -20,6 +20,13 @@ type Cluster struct {
 	// nameToProviderID gives us O(1) lookup by ExitClaim name.
 	nameToProviderID map[string]string
 
+	// pendingClaims keyed by name, holds claims observed via informer
+	// before the lifecycle controller has launched them (Status.ProviderID
+	// still empty). Without this index the scheduler cannot see freshly-
+	// persisted claims when binpacking, leading to duplicate-claim races
+	// across separate Solve runs (see issue #7).
+	pendingClaims map[string]*v1alpha1.ExitClaim
+
 	// pools keyed by name.
 	pools map[string]*StatePool
 
@@ -44,6 +51,7 @@ func NewCluster(kube client.Client) *Cluster {
 	return &Cluster{
 		exits:            map[string]*StateExit{},
 		nameToProviderID: map[string]string{},
+		pendingClaims:    map[string]*v1alpha1.ExitClaim{},
 		pools:            map[string]*StatePool{},
 		bindings:         map[TunnelKey]*TunnelBinding{},
 		kubeClient:       kube,
@@ -86,13 +94,18 @@ func (c *Cluster) UpdateExit(claim *v1alpha1.ExitClaim) {
 	c.mu.Lock()
 	id := claim.Status.ProviderID
 	if id == "" {
-		// Claim hasn't been launched yet; index by name only.
+		// Claim hasn't been launched yet; index by name + retain a copy
+		// in pendingClaims so the scheduler can rehydrate it when
+		// binpacking (issue #7).
 		c.nameToProviderID[claim.Name] = ""
+		c.pendingClaims[claim.Name] = claim.DeepCopy()
 		p, d := c.bumpAndCollectTriggers()
 		c.mu.Unlock()
 		fireTriggers(p, d)
 		return
 	}
+	// Promotion: claim has graduated from pending → launched.
+	delete(c.pendingClaims, claim.Name)
 	// If the same name previously pointed at a different ProviderID,
 	// drop the orphaned entry from c.exits before writing the new one.
 	if oldID, ok := c.nameToProviderID[claim.Name]; ok && oldID != "" && oldID != id {
@@ -120,11 +133,20 @@ func (c *Cluster) DeleteExit(name string) {
 	c.mu.Lock()
 	id, ok := c.nameToProviderID[name]
 	if !ok {
+		// Pending-only path: claim was deleted before launch.
+		if _, hadPending := c.pendingClaims[name]; hadPending {
+			delete(c.pendingClaims, name)
+			p, d := c.bumpAndCollectTriggers()
+			c.mu.Unlock()
+			fireTriggers(p, d)
+			return
+		}
 		c.mu.Unlock()
 		return
 	}
 	delete(c.exits, id)
 	delete(c.nameToProviderID, name)
+	delete(c.pendingClaims, name)
 	p, d := c.bumpAndCollectTriggers()
 	c.mu.Unlock()
 	fireTriggers(p, d)
@@ -144,6 +166,39 @@ func (c *Cluster) ExitForName(name string) *StateExit {
 		return nil
 	}
 	return c.exits[id]
+}
+
+// PendingClaims returns deep copies of all claims observed but not yet
+// launched (Status.ProviderID empty). Used by the scheduler to rehydrate
+// inflight slots so a Solve running before a previous Solve's claim
+// reaches Ready does not mint a duplicate.
+func (c *Cluster) PendingClaims() []*v1alpha1.ExitClaim {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]*v1alpha1.ExitClaim, 0, len(c.pendingClaims))
+	for _, p := range c.pendingClaims {
+		out = append(out, p.DeepCopy())
+	}
+	return out
+}
+
+// PortsForClaimName returns the set of ports currently bound to the
+// named ExitClaim, derived by scanning recorded Tunnel bindings. Works
+// for pending claims (no StateExit/Allocations yet) and for launched
+// ones; returns an empty map if the claim has no bindings.
+func (c *Cluster) PortsForClaimName(name string) map[int32]struct{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := map[int32]struct{}{}
+	for _, b := range c.bindings {
+		if b.ExitClaimName != name {
+			continue
+		}
+		for _, p := range b.AssignedPorts {
+			out[p] = struct{}{}
+		}
+	}
+	return out
 }
 
 // Exits returns a snapshot of all known StateExits. Caller may safely

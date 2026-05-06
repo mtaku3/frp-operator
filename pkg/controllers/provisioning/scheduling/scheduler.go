@@ -61,13 +61,10 @@ func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Resu
 	// Without this, a Solve that runs before the previous Solve's claim
 	// reaches Ready would mint a fresh duplicate claim instead of packing
 	// onto the pending one.
-	for _, se := range s.Cluster.Exits() {
-		claim, allocs := se.SnapshotForRead()
-		if claim == nil {
-			continue
-		}
-		if isReady(claim) {
-			continue // existing-exit stage handles Ready ones.
+	rehydrated := map[string]struct{}{}
+	rehydrate := func(claim *v1alpha1.ExitClaim, used map[int32]struct{}) {
+		if _, dup := rehydrated[claim.Name]; dup {
+			return
 		}
 		poolName := claim.Labels[v1alpha1.LabelExitPool]
 		var pool *v1alpha1.ExitPool
@@ -78,11 +75,7 @@ func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Resu
 			}
 		}
 		if pool == nil {
-			continue
-		}
-		used := make(map[int32]struct{}, len(allocs))
-		for p := range allocs {
-			used[p] = struct{}{}
+			return
 		}
 		s.inflightClaims = append(s.inflightClaims, &InflightClaim{
 			Spec:      claim.Spec,
@@ -91,6 +84,31 @@ func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Resu
 			UsedPorts: used,
 			Persisted: true,
 		})
+		rehydrated[claim.Name] = struct{}{}
+	}
+	for _, se := range s.Cluster.Exits() {
+		claim, allocs := se.SnapshotForRead()
+		if claim == nil {
+			continue
+		}
+		if isReady(claim) {
+			continue // existing-exit stage handles Ready ones.
+		}
+		used := make(map[int32]struct{}, len(allocs))
+		for p := range allocs {
+			used[p] = struct{}{}
+		}
+		rehydrate(claim, used)
+	}
+	// Pending claims (Status.ProviderID still empty) live in a separate
+	// index because they have no StateExit yet. Without rehydrating them
+	// the scheduler can mint a duplicate ExitClaim across separate Solve
+	// runs (issue #7).
+	for _, claim := range s.Cluster.PendingClaims() {
+		if isReady(claim) {
+			continue
+		}
+		rehydrate(claim, s.Cluster.PortsForClaimName(claim.Name))
 	}
 
 	results := Results{TunnelErrors: map[string]error{}}

@@ -94,6 +94,18 @@ func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Resu
 		if isReady(claim) {
 			continue // existing-exit stage handles Ready ones.
 		}
+		// Skip claims being torn down: rehydrating them lets the
+		// scheduler rebind tunnels onto a doomed claim, fighting
+		// finalize and stalling container teardown (issue #8). Same
+		// guard exists on the existing-exit path; rehydration needed
+		// it too because Cluster.MarkExitForDeletion is also checked
+		// independently below.
+		if claim.GetDeletionTimestamp() != nil {
+			continue
+		}
+		if se.IsMarkedForDeletion() {
+			continue
+		}
 		used := make(map[int32]struct{}, len(allocs))
 		for p := range allocs {
 			used[p] = struct{}{}
@@ -107,6 +119,9 @@ func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Resu
 	for _, claim := range s.Cluster.PendingClaims() {
 		if isReady(claim) {
 			continue
+		}
+		if claim.GetDeletionTimestamp() != nil {
+			continue // see issue #8.
 		}
 		rehydrate(claim, s.Cluster.PortsForClaimName(claim.Name))
 	}

@@ -13,6 +13,7 @@ import (
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 	"github.com/mtaku3/frp-operator/pkg/cloudprovider"
 	"github.com/mtaku3/frp-operator/pkg/cloudprovider/frps/admin"
+	"github.com/mtaku3/frp-operator/pkg/controllers/state"
 )
 
 // DefaultTerminationGracePeriod bounds how long finalize will wait for
@@ -24,6 +25,10 @@ type Controller struct {
 	Client        client.Client
 	CloudProvider *cloudprovider.Registry
 	AdminFactory  func(baseURL string) *admin.Client
+	// Cluster is the in-memory state cache. Optional; when set, finalize
+	// marks the exit for deletion early so the scheduler stops rebinding
+	// tunnels onto a doomed claim while we drain it (issue #8).
+	Cluster *state.Cluster
 	// RegistrationTTL is wired into the Liveness phase. Zero falls back
 	// to DefaultRegistrationTTL.
 	RegistrationTTL time.Duration
@@ -97,6 +102,14 @@ func (r *Controller) Reconcile(ctx context.Context, req ctrl.Request) (reconcile
 
 // finalize drains tunnels, calls provider Delete, and strips the finalizer.
 func (r *Controller) finalize(ctx context.Context, claim *v1alpha1.ExitClaim) (reconcile.Result, error) {
+	// Mark the exit for deletion in the cache before anything else so
+	// concurrent Solves stop considering it as a binpack candidate even
+	// before the informer delivers the DeletionTimestamp event. Without
+	// this gate the scheduler can rebind a freshly-released tunnel onto
+	// the same exit we're about to delete (issue #8).
+	if r.Cluster != nil {
+		r.Cluster.MarkExitForDeletion(claim.Name)
+	}
 	bound, err := r.tunnelsBoundTo(ctx, claim.Name)
 	if err != nil {
 		return reconcile.Result{}, err

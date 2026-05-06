@@ -1,0 +1,5 @@
+# Annotations to inject into every CRD's metadata.annotations.
+additionalAnnotations: {}
+
+# Labels to inject into every CRD's metadata.labels.
+additionalLabels: {}

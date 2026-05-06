@@ -1,0 +1,13 @@
+apiVersion: v2
+name: frp-operator-crd
+description: Custom Resource Definitions for frp-operator
+type: application
+version: 0.0.1
+appVersion: 0.0.1
+keywords:
+  - frp
+  - tunnel
+  - operator
+home: https://github.com/mtaku3/frp-operator
+sources:
+  - https://github.com/mtaku3/frp-operator

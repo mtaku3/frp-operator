@@ -52,7 +52,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: helm-crds
-helm-crds: manifests ## Sync CRDs from config/crd/bases into both Helm charts.
+helm-crds: ## Sync CRDs from config/crd/bases into both Helm charts.
 	@mkdir -p charts/frp-operator-crd/templates charts/frp-operator/crds
 	@rm -f charts/frp-operator-crd/templates/frp.operator.io_*.yaml
 	@rm -f charts/frp-operator/crds/frp.operator.io_*.yaml

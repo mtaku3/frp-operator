@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg-base:    #fffbeb;
+  --bg-elev-1:  #ffffff;
+  --bg-elev-2:  #fdf6e3;
+  --bg-pill:    #fed7aa;
+
+  --ink-base:    #0f172a;
+  --ink-muted:   #334155;
+  --ink-faint:   #64748b;
+  --ink-on-pill: #9a3412;
+
+  --accent:    #d97706;
+  --accent-hi: #b45309;
+  --accent-lo: #fef3c7;
+  --on-accent: #ffffff;
+
+  --line:        #f1eddf;
+  --line-strong: #e7e0c8;
+
+  --code-bg:         #1c1917;
+  --code-ink:        #fafaf9;
+  --code-amber:      #fbbf24;
+  --code-lime:       #84cc16;
+  --code-stone:      #78716c;
+  --code-inline-bg:  #fdf6e3;
+  --code-inline-ink: #9a3412;
+
+  --font-heading: "Fredoka", ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  --font-body:    "Nunito", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "Menlo", monospace;
+  --leading-body:    1.6;
+  --leading-heading: 1.15;
+
+  --t-xs: 12px; --t-sm: 14px; --t-base: 16px;
+  --t-md: 18px; --t-lg: 22px; --t-xl: 28px;
+  --t-2xl: 36px; --t-3xl: 48px; --t-4xl: 64px;
+
+  --r-sm: 6px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-pill: 9999px;
+
+  --shadow-sm:   0 1px 2px rgba(120, 53, 15, 0.04);
+  --shadow-md:   0 4px 12px rgba(120, 53, 15, 0.06), 0 1px 3px rgba(120, 53, 15, 0.04);
+  --shadow-lg:   0 12px 32px rgba(120, 53, 15, 0.08), 0 4px 8px rgba(120, 53, 15, 0.04);
+  --shadow-glow: 0 0 0 4px rgba(217, 119, 6, 0.18);
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-6: 24px; --space-8: 32px; --space-12: 48px; --space-16: 64px; --space-24: 96px;
+}
+
+[data-theme="dark"] {
+  --bg-base:     #1c1917;
+  --bg-elev-1:   #292524;
+  --bg-elev-2:   #44403c;
+  --bg-pill:     #57534e;
+  --ink-base:    #fdf6e3;
+  --ink-muted:   #d6d3d1;
+  --ink-faint:   #a8a29e;
+  --ink-on-pill: #fef3c7;
+  --accent:      #fbbf24;
+  --accent-hi:   #fcd34d;
+  --accent-lo:   #422006;
+  --on-accent:   #1c1917;
+  --line:        #44403c;
+  --line-strong: #57534e;
+  --code-bg:           #0c0a09;
+  --code-inline-bg:    #292524;
+  --code-inline-ink:   #fcd34d;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+html, body { font-family: var(--font-body); color: var(--ink-base); background: var(--bg-base); line-height: var(--leading-body); }
+:focus-visible { outline: none; box-shadow: var(--shadow-glow); border-radius: var(--r-sm); }

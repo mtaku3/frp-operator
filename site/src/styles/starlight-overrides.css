@@ -27,11 +27,11 @@
   font-size: 0.92em;
 }
 
-/* Move hamburger menu button to the LEFT side of the header.
-   Preserve Starlight's default top/sizing — only flip the inline axis. */
+/* Move hamburger to LEFT. Starlight uses inset-inline-end logical
+   property; we must override that, not `right`. Preserve top/size. */
 starlight-menu-button button {
-  right: auto;
-  left: var(--sl-nav-pad-x);
+  inset-inline-end: auto;
+  inset-inline-start: var(--sl-nav-pad-x);
 }
 
 /* Mobile: title needs left padding so hamburger doesn't overlap. */
@@ -39,18 +39,15 @@ starlight-menu-button button {
   .title-wrapper { padding-inline-start: 2.5rem; }
 }
 
-/* Header layout: title pinned left, right-group + search flushed right.
-   Default DOM order is [title-wrapper, search-wrapper, right-group].
-   We push title left with auto margin and reorder the other two so
-   search lands flush right. Right-group still sits to its left. */
-.header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+/* Default desktop header is CSS grid: [title auto] [search 1fr] [right auto].
+   Search button is left-aligned inside its 1fr cell. Push it right. */
+@media (min-width: 50rem) {
+  .header > div:nth-child(2) {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+  }
 }
-.header > .title-wrapper { margin-inline-end: auto; }
-.header > div:nth-child(2) { order: 3; }
-.header > .right-group    { order: 2; }
 
 /* Desktop sidebar toggle button injected via Starlight head script.
    Hidden on mobile (mobile already has the hamburger). */

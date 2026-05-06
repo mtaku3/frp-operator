@@ -9,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
-	"github.com/mtaku3/frp-operator/pkg/cloudprovider"
 	"github.com/mtaku3/frp-operator/pkg/controllers/state"
 )
 
@@ -40,7 +39,7 @@ const testTunnelUID = "uid-2"
 
 func TestSolve_NoExitsNoPools_TunnelErrors(t *testing.T) {
 	c := state.NewCluster(nil)
-	s := New(c, cloudprovider.NewRegistry(), nil)
+	s := New(c, fakeRegistry(), nil)
 	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("t1", 80)})
 	if err != nil {
 		t.Fatalf("solve: %v", err)
@@ -56,7 +55,7 @@ func TestSolve_NoExitsNoPools_TunnelErrors(t *testing.T) {
 func TestSolve_OnePool_NoExits_ProducesNewClaim(t *testing.T) {
 	c := state.NewCluster(nil)
 	c.UpdatePool(newPool("p1", []string{"80", "443"}, nil))
-	s := New(c, cloudprovider.NewRegistry(), nil)
+	s := New(c, fakeRegistry(), nil)
 	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("t1", 80)})
 	if len(res.NewClaims) != 1 {
 		t.Fatalf("expected 1 NewClaim, got %d", len(res.NewClaims))
@@ -72,7 +71,7 @@ func TestSolve_OnePool_NoExits_ProducesNewClaim(t *testing.T) {
 func TestSolve_TwoTunnels_BinpackOntoOneInflight(t *testing.T) {
 	c := state.NewCluster(nil)
 	c.UpdatePool(newPool("p1", []string{"80", "443"}, nil))
-	s := New(c, cloudprovider.NewRegistry(), nil)
+	s := New(c, fakeRegistry(), nil)
 	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{
 		tunnelWithPorts("t1", 80),
 		tunnelWithPorts("t2", 443),
@@ -97,7 +96,7 @@ func TestSolve_OneReadyExit_BindsExisting(t *testing.T) {
 		AllowPorts: []string{"80", "443", "1024-1030"},
 	}
 	c.UpdateExit(claim)
-	s := New(c, cloudprovider.NewRegistry(), nil)
+	s := New(c, fakeRegistry(), nil)
 	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("t1", 80)})
 	if len(res.NewClaims) != 0 {
 		t.Fatalf("expected 0 NewClaims, got %d", len(res.NewClaims))
@@ -116,7 +115,7 @@ func TestSolve_PortCollideOnExisting_ProducesNewClaim(t *testing.T) {
 	// pre-populate binding so 80 is taken
 	c.UpdateTunnelBinding(state.TunnelKey("default/other"), "e1", []int32{80})
 
-	s := New(c, cloudprovider.NewRegistry(), nil)
+	s := New(c, fakeRegistry(), nil)
 	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("t1", 80)})
 	if len(res.NewClaims) != 1 {
 		t.Fatalf("expected 1 NewClaim, got %d (errors=%v)", len(res.NewClaims), res.TunnelErrors)
@@ -152,7 +151,7 @@ func TestSolve_RehydratesPendingClaim_AcrossSolves(t *testing.T) {
 
 	// A fresh tunnel arrives in a new Solve; expected to binpack onto
 	// the pending claim (no NewClaims minted).
-	s := New(c, nil, nil)
+	s := New(c, fakeRegistry(), nil)
 	tun := tunnelWithPorts("tunnel-2", 80)
 	tun.UID = testTunnelUID
 	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
@@ -194,7 +193,7 @@ func TestSolve_RehydratesUnlaunchedClaim_AcrossSolves(t *testing.T) {
 	}
 	c.UpdateExit(pendingClaim)
 
-	s := New(c, nil, nil)
+	s := New(c, fakeRegistry(), nil)
 	tun := tunnelWithPorts("tunnel-2", 80)
 	tun.UID = testTunnelUID
 	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
@@ -236,7 +235,7 @@ func TestSolve_RehydratesUnlaunchedClaim_RespectsTunnelBindingPorts(t *testing.T
 	c.UpdateExit(pendingClaim)
 	c.UpdateTunnelBinding("default/tunnel-1", "default-cafef00d", []int32{80})
 
-	s := New(c, nil, nil)
+	s := New(c, fakeRegistry(), nil)
 	tun := tunnelWithPorts("tunnel-2", 443)
 	tun.UID = testTunnelUID
 	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
@@ -280,7 +279,7 @@ func TestSolve_SkipsDeletingClaimDuringRehydration(t *testing.T) {
 	}
 	c.UpdateExit(deleting)
 
-	s := New(c, nil, nil)
+	s := New(c, fakeRegistry(), nil)
 	tun := tunnelWithPorts("tunnel-x", 80)
 	tun.UID = "uid-x"
 	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
@@ -318,7 +317,7 @@ func TestSolve_SkipsMarkedForDeletionExit(t *testing.T) {
 	c.UpdateExit(claim)
 	c.MarkExitForDeletion("default-marked")
 
-	s := New(c, nil, nil)
+	s := New(c, fakeRegistry(), nil)
 	tun := tunnelWithPorts("tunnel-y", 80)
 	tun.UID = "uid-y"
 	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
@@ -353,7 +352,7 @@ func TestSolve_SkipsDeletingPendingClaim(t *testing.T) {
 	}
 	c.UpdateExit(pending)
 
-	s := New(c, nil, nil)
+	s := New(c, fakeRegistry(), nil)
 	tun := tunnelWithPorts("tunnel-z", 80)
 	tun.UID = "uid-z"
 	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
@@ -375,7 +374,7 @@ func TestSolve_StableSalt_SameNameAcrossSolves(t *testing.T) {
 	c := state.NewCluster(nil)
 	c.UpdatePool(newPool("default", []string{"80", "443"}, nil))
 
-	s := New(c, nil, nil)
+	s := New(c, fakeRegistry(), nil)
 	tun := tunnelWithPorts("t-stable", 80)
 	tun.UID = "uid-stable"
 
@@ -409,7 +408,7 @@ func TestSolve_PoolLimitsExceeded_TunnelErrors(t *testing.T) {
 	pool.Status.Exits = 1
 	c.UpdatePool(pool)
 
-	s := New(c, cloudprovider.NewRegistry(), nil)
+	s := New(c, fakeRegistry(), nil)
 	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tunnelWithPorts("t1", 80)})
 	if len(res.NewClaims) != 0 {
 		t.Fatalf("limit exceeded should suppress NewClaim; got %d", len(res.NewClaims))

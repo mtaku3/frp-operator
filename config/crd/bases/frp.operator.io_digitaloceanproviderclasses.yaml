@@ -61,8 +61,14 @@ spec:
               defaultImage:
                 default: fatedier/frps:%s
                 description: |-
-                  DefaultImage is the frps binary version pulled in cloud-init,
-                  templated as "%s" -> version.
+                  DefaultImage is the frps binary download URL template used by
+                  cloud-init. DigitalOcean provisions plain VMs (cloud-init), NOT
+                  containers, so this MUST be a binary URL like
+                  "https://github.com/fatedier/frp/releases/download/%s/frp_%s_linux_amd64.tar.gz".
+                  The historic default value below is a container reference and is
+                  retained for CRD compatibility; cloud-init substitutes the URL
+                  template when this looks non-URL. The default fix is deferred to
+                  Phase 9 (requires CRD regeneration).
                 type: string
               imageID:
                 default: ubuntu-22-04-x64
@@ -71,12 +77,25 @@ spec:
               monitoring:
                 description: Monitoring enables DO monitoring agent.
                 type: boolean
-              region:
-                description: Region is the DO region slug (nyc3, sfo3, ...).
-                type: string
-              size:
-                description: Size is the droplet size slug (s-1vcpu-1gb, ...).
-                type: string
+              regions:
+                description: |-
+                  Regions is the discovery set of DO region slugs (nyc3, sfo3, ...).
+                  Karpenter NodeClass equivalent: subnetSelectorTerms — declares the
+                  candidate set; the scheduler picks one per claim by pinning
+                  topology.kubernetes.io/region in claim.Spec.Requirements.
+                items:
+                  type: string
+                minItems: 1
+                type: array
+              sizes:
+                description: |-
+                  Sizes is the discovery set of DO droplet size slugs. Scheduler
+                  picks the cheapest size that satisfies the bound tunnels' resource
+                  requests, and pins node.kubernetes.io/instance-type on the claim.
+                items:
+                  type: string
+                minItems: 1
+                type: array
               sshKeyIDs:
                 description: SSHKeyIDs lists DO ssh key IDs to inject.
                 items:
@@ -87,8 +106,8 @@ spec:
                 type: string
             required:
             - apiTokenSecretRef
-            - region
-            - size
+            - regions
+            - sizes
             type: object
           status:
             properties:

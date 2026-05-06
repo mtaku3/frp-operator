@@ -91,8 +91,8 @@ func TestCreate_Idempotent(t *testing.T) {
 	pc := &dov1alpha1.DigitalOceanProviderClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "do-default"},
 		Spec: dov1alpha1.DigitalOceanProviderClassSpec{
-			Region: "nyc3",
-			Size:   "s-1vcpu-1gb",
+			Regions: []string{"nyc3"},
+			Sizes:   []string{"s-1vcpu-1gb"},
 		},
 	}
 	scheme := runtime.NewScheme()
@@ -130,7 +130,7 @@ func TestCreate_Idempotent(t *testing.T) {
 func TestCreate_HydratesCapacity(t *testing.T) {
 	pc := &dov1alpha1.DigitalOceanProviderClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "pc"},
-		Spec:       dov1alpha1.DigitalOceanProviderClassSpec{Region: "nyc3", Size: "s-2vcpu-4gb"},
+		Spec:       dov1alpha1.DigitalOceanProviderClassSpec{Regions: []string{"nyc3"}, Sizes: []string{"s-2vcpu-4gb"}},
 	}
 	scheme := runtime.NewScheme()
 	_ = dov1alpha1.AddToScheme(scheme)
@@ -168,7 +168,7 @@ func TestCreate_RefusesWrongKind(t *testing.T) {
 func TestDelete_NotFound(t *testing.T) {
 	pc := &dov1alpha1.DigitalOceanProviderClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "pc"},
-		Spec:       dov1alpha1.DigitalOceanProviderClassSpec{Region: "nyc3", Size: "s-1vcpu-1gb"},
+		Spec:       dov1alpha1.DigitalOceanProviderClassSpec{Regions: []string{"nyc3"}, Sizes: []string{"s-1vcpu-1gb"}},
 	}
 	scheme := runtime.NewScheme()
 	_ = dov1alpha1.AddToScheme(scheme)

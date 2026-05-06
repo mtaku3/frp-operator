@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -157,14 +158,14 @@ func isReady(claim *v1alpha1.ExitClaim) bool {
 	return false
 }
 
-func (s *Scheduler) add(_ context.Context, t *v1alpha1.Tunnel, r *Results) error {
+func (s *Scheduler) add(ctx context.Context, t *v1alpha1.Tunnel, r *Results) error {
 	if err := s.addToExistingExit(t, r); err == nil {
 		return nil
 	}
 	if err := s.addToInflightClaim(t, r); err == nil {
 		return nil
 	}
-	return s.addToNewClaim(t, r)
+	return s.addToNewClaim(ctx, t, r)
 }
 
 func (s *Scheduler) addToExistingExit(t *v1alpha1.Tunnel, r *Results) error {
@@ -202,7 +203,7 @@ func (s *Scheduler) addToInflightClaim(t *v1alpha1.Tunnel, r *Results) error {
 	return fmt.Errorf("no inflight claim fits")
 }
 
-func (s *Scheduler) addToNewClaim(t *v1alpha1.Tunnel, r *Results) error {
+func (s *Scheduler) addToNewClaim(ctx context.Context, t *v1alpha1.Tunnel, r *Results) error {
 	var lastErr error
 	for _, pool := range s.pools {
 		if err := Compatible(pool.Spec.Template.Spec.Requirements, t.Spec.Requirements); err != nil {
@@ -213,7 +214,18 @@ func (s *Scheduler) addToNewClaim(t *v1alpha1.Tunnel, r *Results) error {
 			lastErr = fmt.Errorf("pool %q limit %s exceeded", pool.Name, dim)
 			continue
 		}
+		requested := t.Spec.Resources.Requests
+		it, off, err := SelectInstanceType(ctx, s.CloudProvider, pool, t.Spec.Requirements, requested)
+		if err != nil {
+			lastErr = err
+			continue
+		}
 		c := NewClaimFromPool(pool, string(t.UID))
+		// Pin scheduler-chosen instance-type + offering requirements
+		// onto the claim so cloudprovider.Create has no ambiguity.
+		// Karpenter narrows NodeClaim.Spec.Requirements identically.
+		c.Spec.Requirements = append(c.Spec.Requirements, PinChosen(it, off)...)
+		c.Spec.Resources.Requests = copyResourceList(requested)
 		assigned, err := c.CanAdd(t)
 		if err != nil {
 			lastErr = err
@@ -232,6 +244,17 @@ func (s *Scheduler) addToNewClaim(t *v1alpha1.Tunnel, r *Results) error {
 		return lastErr
 	}
 	return fmt.Errorf("no pool can produce a claim for tunnel %s", tunnelKey(t))
+}
+
+func copyResourceList(in corev1.ResourceList) corev1.ResourceList {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(corev1.ResourceList, len(in))
+	for k, v := range in {
+		out[k] = v.DeepCopy()
+	}
+	return out
 }
 
 // sortPoolsByWeight orders pools highest-weight-first. Karpenter does the

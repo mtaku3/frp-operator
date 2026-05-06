@@ -112,6 +112,50 @@ func instanceTypeBySize(slug string) *cloudprovider.InstanceType {
 	return nil
 }
 
+// firstRequirementValue returns the first Values[0] for a requirement
+// key with operator In. Karpenter pins exactly one value per chosen
+// dimension (instance-type, region) so taking [0] is safe.
+func firstRequirementValue(reqs []v1alpha1.NodeSelectorRequirementWithMinValues, key string) string {
+	for _, r := range reqs {
+		if r.Key != key {
+			continue
+		}
+		if r.Operator != v1alpha1.NodeSelectorOpIn {
+			continue
+		}
+		if len(r.Values) == 0 {
+			continue
+		}
+		return r.Values[0]
+	}
+	return ""
+}
+
+// resolveSelection extracts the size + region the scheduler chose for
+// this claim. Falls back to the first entry of the ProviderClass
+// discovery set when the scheduler hasn't pinned (lets Phase A1 ship
+// before A2 wires real offering selection). Returns ("", "", err) if
+// neither claim nor class names a valid choice.
+func resolveSelection(
+	claim *v1alpha1.ExitClaim, pc *dov1alpha1.DigitalOceanProviderClass,
+) (size, region string, err error) {
+	size = firstRequirementValue(claim.Spec.Requirements, v1alpha1.RequirementInstanceType)
+	region = firstRequirementValue(claim.Spec.Requirements, v1alpha1.RequirementRegion)
+	if size == "" {
+		if len(pc.Spec.Sizes) == 0 {
+			return "", "", fmt.Errorf("digitalocean: providerclass %q has no sizes", pc.Name)
+		}
+		size = pc.Spec.Sizes[0]
+	}
+	if region == "" {
+		if len(pc.Spec.Regions) == 0 {
+			return "", "", fmt.Errorf("digitalocean: providerclass %q has no regions", pc.Name)
+		}
+		region = pc.Spec.Regions[0]
+	}
+	return size, region, nil
+}
+
 func (c *CloudProvider) Create(ctx context.Context, claim *v1alpha1.ExitClaim) (*v1alpha1.ExitClaim, error) {
 	pc, err := c.resolveClass(ctx, claim)
 	if err != nil {
@@ -148,10 +192,15 @@ func (c *CloudProvider) Create(ctx context.Context, claim *v1alpha1.ExitClaim) (
 		imageSlug = "ubuntu-22-04-x64"
 	}
 
+	size, region, err := resolveSelection(claim, pc)
+	if err != nil {
+		return nil, err
+	}
+
 	req := &godo.DropletCreateRequest{
 		Name:       name,
-		Region:     pc.Spec.Region,
-		Size:       pc.Spec.Size,
+		Region:     region,
+		Size:       size,
 		Image:      godo.DropletCreateImage{Slug: imageSlug},
 		UserData:   userData,
 		Tags:       []string{ManagedTag},
@@ -182,7 +231,16 @@ func (c *CloudProvider) hydrate(
 	out.Status.PublicIP = publicIPv4(d)
 	out.Status.ImageID = pc.Spec.ImageID
 	out.Status.FrpsVersion = claim.Spec.Frps.Version
-	if it := instanceTypeBySize(pc.Spec.Size); it != nil {
+	// Prefer the live droplet size (DO is the source of truth post-create);
+	// fall back to the scheduler-pinned requirement when Size is unset.
+	sizeSlug := ""
+	if d.Size != nil {
+		sizeSlug = d.Size.Slug
+	}
+	if sizeSlug == "" {
+		sizeSlug = firstRequirementValue(claim.Spec.Requirements, v1alpha1.RequirementInstanceType)
+	}
+	if it := instanceTypeBySize(sizeSlug); it != nil {
 		out.Status.Capacity = it.Capacity.DeepCopy()
 		out.Status.Allocatable = it.Allocatable()
 	} else {
@@ -253,10 +311,30 @@ func (c *CloudProvider) List(ctx context.Context) ([]*v1alpha1.ExitClaim, error)
 	return out, nil
 }
 
+// GetInstanceTypes returns the discovered catalog for a pool. Karpenter
+// NodeClass equivalent: subnetSelectorTerms+amiSelectorTerms intersection.
+// Here: the cross-product of pc.Spec.Sizes × pc.Spec.Regions, narrowed to
+// what the operator's static catalog actually supports. Returned slice
+// is the candidate set the scheduler will sort by Offering.Price.
 func (c *CloudProvider) GetInstanceTypes(
-	_ context.Context, _ *v1alpha1.ExitPool,
+	ctx context.Context, pool *v1alpha1.ExitPool,
 ) ([]*cloudprovider.InstanceType, error) {
-	return InstanceTypes(), nil
+	if pool == nil {
+		return InstanceTypes(), nil
+	}
+	if pool.Spec.Template.Spec.ProviderClassRef.Kind != "DigitalOceanProviderClass" {
+		return nil, fmt.Errorf("digitalocean: pool %q references kind %q",
+			pool.Name, pool.Spec.Template.Spec.ProviderClassRef.Kind)
+	}
+	if c.kube == nil {
+		return InstanceTypes(), nil
+	}
+	var pc dov1alpha1.DigitalOceanProviderClass
+	if err := c.kube.Get(ctx, client.ObjectKey{Name: pool.Spec.Template.Spec.ProviderClassRef.Name}, &pc); err != nil {
+		return nil, fmt.Errorf("get DigitalOceanProviderClass %q: %w",
+			pool.Spec.Template.Spec.ProviderClassRef.Name, err)
+	}
+	return FilteredInstanceTypes(pc.Spec.Sizes, pc.Spec.Regions), nil
 }
 
 func (c *CloudProvider) IsDrifted(ctx context.Context, claim *v1alpha1.ExitClaim) (cloudprovider.DriftReason, error) {
@@ -278,10 +356,15 @@ func (c *CloudProvider) IsDrifted(ctx context.Context, claim *v1alpha1.ExitClaim
 		}
 		return "", err
 	}
-	if d.Size != nil && d.Size.Slug != pc.Spec.Size {
+	// Drift compares the live droplet against the discovery set declared
+	// on the ProviderClass. A droplet whose size or region is no longer
+	// in the allowed lists has drifted; the disruption controller will
+	// then mint a replacement and the new claim's Requirements will pin
+	// a fresh in-set choice.
+	if d.Size != nil && !contains(pc.Spec.Sizes, d.Size.Slug) {
 		return cloudprovider.DriftReason("SizeMismatch"), nil
 	}
-	if d.Region != nil && d.Region.Slug != pc.Spec.Region {
+	if d.Region != nil && !contains(pc.Spec.Regions, d.Region.Slug) {
 		return cloudprovider.DriftReason("RegionMismatch"), nil
 	}
 	return "", nil

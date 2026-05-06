@@ -33,10 +33,17 @@ type DigitalOceanProviderClassList struct {
 type DigitalOceanProviderClassSpec struct {
 	// APITokenSecretRef references the Secret holding a DO API token.
 	APITokenSecretRef frpv1alpha1.SecretKeyRef `json:"apiTokenSecretRef"`
-	// Region is the DO region slug (nyc3, sfo3, ...).
-	Region string `json:"region"`
-	// Size is the droplet size slug (s-1vcpu-1gb, ...).
-	Size string `json:"size"`
+	// Regions is the discovery set of DO region slugs (nyc3, sfo3, ...).
+	// Karpenter NodeClass equivalent: subnetSelectorTerms — declares the
+	// candidate set; the scheduler picks one per claim by pinning
+	// topology.kubernetes.io/region in claim.Spec.Requirements.
+	// +kubebuilder:validation:MinItems=1
+	Regions []string `json:"regions"`
+	// Sizes is the discovery set of DO droplet size slugs. Scheduler
+	// picks the cheapest size that satisfies the bound tunnels' resource
+	// requests, and pins node.kubernetes.io/instance-type on the claim.
+	// +kubebuilder:validation:MinItems=1
+	Sizes []string `json:"sizes"`
 	// ImageID is the droplet base image; default ubuntu-22-04-x64.
 	// +kubebuilder:default="ubuntu-22-04-x64"
 	ImageID string `json:"imageID,omitempty"`

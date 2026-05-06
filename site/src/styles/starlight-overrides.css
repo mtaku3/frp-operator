@@ -28,30 +28,32 @@
 }
 
 /* Move hamburger menu button to the LEFT side of the header
-   and ensure the icon stays centered. */
+   and vertically center it within the nav height. */
 starlight-menu-button button {
   right: auto;
   left: var(--sl-nav-pad-x);
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-starlight-menu-button button svg {
-  display: block;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 /* Make room on the title side so the hamburger doesn't overlap.
    Only matters at widths where the menu button is shown. */
 @media (max-width: 50rem) {
-  .title-wrapper { padding-inline-start: 3rem; }
+  .title-wrapper { padding-inline-start: 2.75rem; }
 }
 
-/* Push the right-group flush to the right edge of the header. */
+/* Header layout: title left, then a flex spacer pushes search +
+   right-group to the right edge. Search sits to the LEFT of the
+   right-group; flip its flex order so search lands flush right. */
 .header { justify-content: space-between; }
-.right-group { margin-inline-start: auto; }
+.header > div:nth-child(2) {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.header > div:nth-child(2) site-search { order: 2; }
+.header > div:nth-child(2) .right-group { order: 1; }
 
 /* Desktop sidebar toggle button injected via Starlight head script.
    Hidden on mobile (mobile already has the hamburger). */

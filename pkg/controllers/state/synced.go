@@ -50,6 +50,12 @@ func (c *Cluster) Synced(ctx context.Context) bool {
 		if claim.Status.ProviderID != "" {
 			apiClaimProviderIDs[claim.Status.ProviderID] = struct{}{}
 		}
+		// Presence by name MUST be checked first so freshly-persisted
+		// claims with no ProviderID yet still gate subsequent Solves
+		// (otherwise scheduler can mint a duplicate; see issue #7).
+		if _, ok := c.nameToProviderID[claim.Name]; !ok {
+			return false
+		}
 		if claim.Status.ProviderID == "" {
 			continue
 		}

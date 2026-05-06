@@ -42,4 +42,26 @@ var _ = Describe("Cluster.Synced", func() {
 		c.UpdateExit(newClaim("ghost", "fake://ghost-id")) // cache only, never in API
 		Expect(c.Synced(context.Background())).To(BeFalse())
 	})
+
+	It("returns false when pre-launch claim exists in API but not cache (issue #7)", func() {
+		ctx := context.Background()
+		claim := &v1alpha1.ExitClaim{
+			ObjectMeta: metav1.ObjectMeta{Name: "e-prelaunch"},
+			Spec: v1alpha1.ExitClaimSpec{
+				ProviderClassRef: v1alpha1.ProviderClassRef{Group: "frp.operator.io", Kind: "FakeProviderClass", Name: "default"},
+				Frps:             v1alpha1.FrpsConfig{Version: "v0.68.1", AllowPorts: []string{"80"}, Auth: v1alpha1.FrpsAuthConfig{Method: "token"}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, claim)).To(Succeed())
+		// Status.ProviderID intentionally left empty — simulates a freshly-
+		// persisted claim whose informer event has not reached the cache.
+		defer func() { _ = k8sClient.Delete(ctx, claim) }()
+
+		c := state.NewCluster(k8sClient)
+		Expect(c.Synced(ctx)).To(BeFalse())
+
+		// Once the cache observes the claim by name, Synced flips to true.
+		c.UpdateExit(claim)
+		Expect(c.Synced(ctx)).To(BeTrue())
+	})
 })

@@ -46,15 +46,7 @@ var _ = Describe("Scheduling", Ordered, func() {
 				"--ignore-not-found", "--wait=false"))
 		})
 
-		// PIt: cross-Solve binpack race — two tunnels arriving in
-		// separate provisioner Solve runs each mint their own
-		// ExitClaim instead of sharing. Same class of bug PR #5
-		// fixed for the v1alpha1-old scheduler; needs equivalent
-		// guard for the new addToInflightClaim → addToNewClaim
-		// path. Tracked as follow-up; architecture works (every
-		// other spec passes) so deferring rather than blocking
-		// the karpenter-refactor merge.
-		PIt("places sched-a and sched-b on the same ExitClaim", func() {
+		It("places sched-a and sched-b on the same ExitClaim", func() {
 			Eventually(func(g Gomega) {
 				a, err := tunnelutil.Get(suiteCtx, k8sClient, ns, "sched-a")
 				g.Expect(err).NotTo(HaveOccurred())

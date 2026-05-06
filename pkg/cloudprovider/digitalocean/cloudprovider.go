@@ -131,6 +131,19 @@ func firstRequirementValue(reqs []v1alpha1.NodeSelectorRequirementWithMinValues,
 	return ""
 }
 
+// resolveImage returns the droplet image slug to launch. With only
+// Slug supported on ImageSelectorTerm today, this reduces to "first
+// term's Slug". Phase B will arch-narrow when claims pin
+// kubernetes.io/arch in their Requirements.
+func resolveImage(pc *dov1alpha1.DigitalOceanProviderClass) (string, error) {
+	for _, t := range pc.Spec.ImageSelectorTerms {
+		if t.Slug != "" {
+			return t.Slug, nil
+		}
+	}
+	return "", fmt.Errorf("digitalocean: providerclass %q has no image selector with slug", pc.Name)
+}
+
 // resolveSelection extracts the size + region the scheduler chose for
 // this claim. Falls back to the first entry of the ProviderClass
 // discovery set when the scheduler hasn't pinned (lets Phase A1 ship
@@ -187,9 +200,9 @@ func (c *CloudProvider) Create(ctx context.Context, claim *v1alpha1.ExitClaim) (
 		return nil, fmt.Errorf("render cloud-init: %w", err)
 	}
 
-	imageSlug := pc.Spec.ImageID
-	if imageSlug == "" {
-		imageSlug = "ubuntu-22-04-x64"
+	imageSlug, err := resolveImage(pc)
+	if err != nil {
+		return nil, err
 	}
 
 	size, region, err := resolveSelection(claim, pc)
@@ -229,7 +242,9 @@ func (c *CloudProvider) hydrate(
 	out.Status.ProviderID = providerIDFor(d.ID)
 	out.Status.ExitName = d.Name
 	out.Status.PublicIP = publicIPv4(d)
-	out.Status.ImageID = pc.Spec.ImageID
+	if img, err := resolveImage(pc); err == nil {
+		out.Status.ImageID = img
+	}
 	out.Status.FrpsVersion = claim.Spec.Frps.Version
 	// Prefer the live droplet size (DO is the source of truth post-create);
 	// fall back to the scheduler-pinned requirement when Size is unset.

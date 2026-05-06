@@ -44,9 +44,13 @@ type DigitalOceanProviderClassSpec struct {
 	// requests, and pins node.kubernetes.io/instance-type on the claim.
 	// +kubebuilder:validation:MinItems=1
 	Sizes []string `json:"sizes"`
-	// ImageID is the droplet base image; default ubuntu-22-04-x64.
-	// +kubebuilder:default="ubuntu-22-04-x64"
-	ImageID string `json:"imageID,omitempty"`
+	// ImageSelectorTerms is the discovery set of acceptable droplet
+	// base images. Karpenter NodeClass equivalent: amiSelectorTerms.
+	// Scheduler picks one image per claim from the matched set; with
+	// only Slug supported today the selection reduces to "first item".
+	// Future arch-aware claims will narrow by image arch.
+	// +kubebuilder:validation:MinItems=1
+	ImageSelectorTerms []ImageSelectorTerm `json:"imageSelectorTerms"`
 	// VPCUUID optionally pins the VPC.
 	// +optional
 	VPCUUID string `json:"vpcUUID,omitempty"`
@@ -67,6 +71,20 @@ type DigitalOceanProviderClassSpec struct {
 	// TODO(phase9): regenerate CRD with proper binary-URL default in DefaultImage
 	// +kubebuilder:default="fatedier/frps:%s"
 	DefaultImage string `json:"defaultImage,omitempty"`
+}
+
+// ImageSelectorTerm matches one or more DO base images. Mirrors
+// karpenter's AMISelectorTerm: a struct with multiple match modes so
+// future selectors (alias, tags) can be added without a CRD bump.
+// At least one of Slug or Alias must be set; an empty term is invalid.
+type ImageSelectorTerm struct {
+	// Slug is the exact DO image slug (e.g. ubuntu-22-04-x64).
+	// +optional
+	Slug string `json:"slug,omitempty"`
+	// Alias is a moving-tag-style shorthand (e.g. ubuntu@22.04).
+	// Resolution is provider-side. Reserved for future use.
+	// +optional
+	Alias string `json:"alias,omitempty"`
 }
 
 type DigitalOceanProviderClassStatus struct {

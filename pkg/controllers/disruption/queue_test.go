@@ -18,14 +18,23 @@ import (
 )
 
 type fakeProvisioner struct {
-	created []*v1alpha1.ExitClaim
-	err     error
-	kube    client.Client
+	created      []*v1alpha1.ExitClaim
+	err          error
+	kube         client.Client
+	beforeCreate func()
+	skipCreate   bool
 }
 
 func (f *fakeProvisioner) CreateReplacements(ctx context.Context, claims []*v1alpha1.ExitClaim) error {
+	if f.beforeCreate != nil {
+		f.beforeCreate()
+	}
 	if f.err != nil {
 		return f.err
+	}
+	if f.skipCreate {
+		f.created = append(f.created, claims...)
+		return nil
 	}
 	for _, c := range claims {
 		c.Name = "replacement-" + randomNameSuffix()
@@ -102,6 +111,68 @@ func TestQueue_DeletesCandidateWithoutReplacements(t *testing.T) {
 	if live.DeletionTimestamp == nil {
 		t.Fatal("expected DeletionTimestamp set")
 	}
+}
+
+// TestQueue_CordonsBeforeReplacements verifies that the queue stamps
+// Disrupted=True on every candidate BEFORE asking the provisioner to
+// launch replacements. This is the cordon gate the scheduler reads
+// during the replacement-Ready wait window.
+func TestQueue_CordonsBeforeReplacements(t *testing.T) {
+	claim := candReadyClaim("e1")
+	claim.Finalizers = []string{v1alpha1.TerminationFinalizer}
+	q, kube, cluster, prov := newQueueTestSetup(t, claim)
+
+	// Trap the moment the provisioner is asked to create replacements;
+	// at that moment the candidate must already carry Disrupted=True.
+	prov.beforeCreate = func() {
+		var live v1alpha1.ExitClaim
+		_ = kube.Get(context.Background(), types.NamespacedName{Name: "e1"}, &live)
+		if !disruptedConditionTrue(live.Status.Conditions) {
+			t.Fatal("candidate should be cordoned (Disrupted=True) before CreateReplacements")
+		}
+	}
+
+	replacement := &v1alpha1.ExitClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "r1"},
+		Status: v1alpha1.ExitClaimStatus{
+			Conditions: []metav1.Condition{{
+				Type: v1alpha1.ConditionTypeReady, Status: metav1.ConditionTrue,
+				Reason: "Ok", Message: "ok", LastTransitionTime: metav1.Now(),
+			}},
+		},
+	}
+
+	cmd := &disruption.Command{
+		Reason: v1alpha1.DisruptionReasonDrifted,
+		Method: "Drift",
+		Candidates: []*disruption.Candidate{{
+			Claim: claim,
+			State: cluster.ExitForName("e1"),
+			Pool:  &v1alpha1.ExitPool{ObjectMeta: metav1.ObjectMeta{Name: "p1"}},
+		}},
+		Replacements: []*v1alpha1.ExitClaim{replacement},
+	}
+
+	// Pre-create the replacement Ready so wait returns immediately;
+	// fakeProvisioner.CreateReplacements doesn't auto-mark Ready.
+	if err := kube.Create(context.Background(), replacement); err != nil {
+		t.Fatalf("seed replacement: %v", err)
+	}
+	_ = kube.Status().Update(context.Background(), replacement)
+
+	prov.skipCreate = true // replacement already exists
+	if err := q.Enqueue(context.Background(), cmd); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+}
+
+func disruptedConditionTrue(conds []metav1.Condition) bool {
+	for _, c := range conds {
+		if c.Type == v1alpha1.ConditionTypeDisrupted && c.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func TestQueue_RequiresProvisionerForReplacements(t *testing.T) {

@@ -107,6 +107,12 @@ func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Resu
 		if se.IsMarkedForDeletion() {
 			continue
 		}
+		if disruptedTrue(claim.Status.Conditions) {
+			// Disruption queue cordons the claim by stamping
+			// Disrupted=True before launching replacements; the
+			// rehydrate path must respect that for restart safety.
+			continue
+		}
 		used := make(map[int32]struct{}, len(allocs))
 		for p := range allocs {
 			used[p] = struct{}{}
@@ -123,6 +129,9 @@ func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Resu
 		}
 		if claim.GetDeletionTimestamp() != nil {
 			continue // see issue #8.
+		}
+		if disruptedTrue(claim.Status.Conditions) {
+			continue
 		}
 		rehydrate(claim, s.Cluster.PortsForClaimName(claim.Name))
 	}

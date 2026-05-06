@@ -28,7 +28,7 @@ spec:
   selector: { app: sched-a-backend }
   ports:
   - name: http
-    port: 80
+    port: 8090
     targetPort: 80
     protocol: TCP
 ---
@@ -61,6 +61,6 @@ spec:
   selector: { app: sched-b-backend }
   ports:
   - name: http
-    port: 81
+    port: 8091
     targetPort: 80
     protocol: TCP

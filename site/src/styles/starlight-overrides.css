@@ -48,3 +48,11 @@
 .sl-markdown-content :not(pre) > code {
   color: var(--code-inline-ink);
 }
+
+/* GitHub social icon stays neutral — brand icon, not accent. */
+.social-icons a {
+  color: var(--ink-muted);
+}
+.social-icons a:hover {
+  color: var(--ink-base);
+}

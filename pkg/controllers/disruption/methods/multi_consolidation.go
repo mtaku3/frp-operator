@@ -51,8 +51,10 @@ func (m *MultiNodeConsolidation) ComputeCommands(
 	}
 	// Bucket per pool; budget is per-pool.
 	perPool := map[string][]*disruption.Candidate{}
+	pools := map[string]*v1alpha1.ExitPool{}
 	for _, c := range candidates {
 		perPool[c.Pool.Name] = append(perPool[c.Pool.Name], c)
+		pools[c.Pool.Name] = c.Pool
 	}
 	out := []*disruption.Command{}
 	for poolName, cs := range perPool {
@@ -65,12 +67,9 @@ func (m *MultiNodeConsolidation) ComputeCommands(
 				break
 			}
 			pair := []*disruption.Candidate{cs[i], cs[i+1]}
-			if err := m.Sim.CanRepack(ctx, pair); err == nil {
-				out = append(out, &disruption.Command{
-					Candidates: pair,
-					Reason:     v1alpha1.DisruptionReasonUnderutilized,
-					Method:     m.Name(),
-				})
+			cmd := m.tryPair(ctx, pools[poolName], pair)
+			if cmd != nil {
+				out = append(out, cmd)
 				remaining := budgets.Allowed(poolName, v1alpha1.DisruptionReasonUnderutilized) - 2
 				budgets.Set(poolName, v1alpha1.DisruptionReasonUnderutilized, remaining)
 				i += 2
@@ -80,4 +79,35 @@ func (m *MultiNodeConsolidation) ComputeCommands(
 		}
 	}
 	return out, nil
+}
+
+// tryPair runs the two consolidation strategies in karpenter's priority
+// order:
+//
+//  1. Repack onto existing non-candidate exits (no replacement).
+//  2. Replace with a single cheaper instance type if the simulator
+//     reports the move is feasible AND strictly cheaper than the
+//     candidate aggregate.
+//
+// Returns nil if neither strategy produces a command.
+func (m *MultiNodeConsolidation) tryPair(
+	ctx context.Context, pool *v1alpha1.ExitPool, pair []*disruption.Candidate,
+) *disruption.Command {
+	if err := m.Sim.CanRepack(ctx, pair); err == nil {
+		return &disruption.Command{
+			Candidates: pair,
+			Reason:     v1alpha1.DisruptionReasonUnderutilized,
+			Method:     m.Name(),
+		}
+	}
+	plan, err := m.Sim.CanRepackWithReplacement(ctx, pool, pair)
+	if err != nil || plan == nil {
+		return nil
+	}
+	return &disruption.Command{
+		Candidates:   pair,
+		Replacements: []*v1alpha1.ExitClaim{plan.Replacement},
+		Reason:       v1alpha1.DisruptionReasonUnderutilized,
+		Method:       m.Name(),
+	}
 }

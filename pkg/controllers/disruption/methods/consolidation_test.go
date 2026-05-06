@@ -84,7 +84,7 @@ func setupSim(t *testing.T, claims []*v1alpha1.ExitClaim, tunnels []*v1alpha1.Tu
 	for _, tn := range tunnels {
 		cluster.UpdateTunnelBinding(state.TunnelKey(tn.Namespace+"/"+tn.Name), tn.Status.AssignedExit, tn.Status.AssignedPorts)
 	}
-	return methods.NewSimulator(cluster, kube), cluster
+	return methods.NewSimulator(cluster, kube, nil), cluster
 }
 
 func TestSimulator_RepackFits(t *testing.T) {

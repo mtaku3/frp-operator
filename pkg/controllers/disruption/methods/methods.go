@@ -8,17 +8,18 @@ import (
 )
 
 // DefaultMethods returns the canonical disruption Method ordering:
-// Emptiness → StaticDrift → Drift → Expiration → MultiNodeConsolidation →
-// SingleNodeConsolidation. This matches Karpenter's priority order; the
+// Emptiness → Drift → Expiration → MultiNodeConsolidation →
+// SingleNodeConsolidation. Matches Karpenter's priority order; the
 // controller stops after the first method that fires per reconcile.
 //
-// Phase 9 wiring calls this from the manager bootstrap so the ordering lives
-// in one place.
+// Karpenter has no "static drift" method — pool template metadata
+// changes silently propagate to new claims; existing claims keep their
+// at-creation labels until rebuild. This operator follows that
+// convention.
 func DefaultMethods(cluster *state.Cluster, kube client.Client) []disruption.Method {
 	sim := NewSimulator(cluster, kube)
 	return []disruption.Method{
 		NewEmptiness(),
-		NewStaticDrift(),
 		NewDrift(),
 		NewExpiration(),
 		NewMultiNodeConsolidation(sim),

@@ -1,0 +1,25 @@
+---
+---
+<nav class="nav">
+  <div class="wrap nav-row">
+    <a href="/" class="brand"><span class="brand-mark">f</span>frp-operator</a>
+    <div class="nav-links">
+      <a href="/docs/">Docs</a>
+      <a href="/docs/guides/allow-ports/">Guides</a>
+      <a href="/docs/reference/">Reference</a>
+      <a href="https://github.com/mtaku3/frp-operator">GitHub</a>
+    </div>
+    <a href="/docs/getting-started/install-kind/" class="nav-cta">Get started</a>
+  </div>
+</nav>
+
+<style>
+  .nav { padding: 18px 0; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: rgba(255, 251, 235, 0.92); backdrop-filter: blur(12px); z-index: 50; }
+  .nav-row { display: flex; align-items: center; justify-content: space-between; }
+  .brand { font-family: var(--font-heading); font-weight: 600; font-size: 18px; display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink-base); }
+  .brand-mark { width: 28px; height: 28px; background: var(--accent); border-radius: 8px; display: grid; place-items: center; color: var(--on-accent); font-weight: 700; font-size: 14px; }
+  .nav-links { display: flex; gap: 28px; font-size: 14px; }
+  .nav-links a { color: var(--ink-muted); text-decoration: none; }
+  .nav-links a:hover { color: var(--ink-base); }
+  .nav-cta { background: var(--ink-base); color: var(--bg-base); padding: 8px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; text-decoration: none; }
+</style>

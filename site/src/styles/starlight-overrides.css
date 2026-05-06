@@ -1,6 +1,41 @@
-/* Heading font + inline code color — pure typography overrides.
-   Do NOT touch --sl-color-* tokens; Starlight expects them as RGB
-   space-separated triplets for opacity modulation, not hex. */
+/* Apply cream + amber palette and Fredoka/Nunito fonts to Starlight.
+   Pure coloring/typography overrides — no layout, no positioning. */
+
+:root {
+  --sl-color-bg:               var(--bg-base);
+  --sl-color-bg-nav:           var(--bg-elev-1);
+  --sl-color-bg-sidebar:       var(--bg-elev-1);
+  --sl-color-bg-inline-code:   var(--code-inline-bg);
+  --sl-color-bg-accent:        var(--accent);
+  --sl-color-text:             var(--ink-base);
+  --sl-color-text-accent:      var(--accent);
+  --sl-color-text-invert:      var(--on-accent);
+  --sl-color-accent:           var(--accent);
+  --sl-color-accent-low:       var(--accent-lo);
+  --sl-color-accent-high:      var(--ink-on-pill);
+  --sl-color-hairline:         var(--line);
+  --sl-color-hairline-light:   var(--line);
+  --sl-color-hairline-shade:   var(--line-strong);
+  --sl-font:                   var(--font-body);
+  --sl-font-mono:              var(--font-mono);
+}
+
+[data-theme="dark"] {
+  --sl-color-bg:               var(--bg-base);
+  --sl-color-bg-nav:           var(--bg-elev-1);
+  --sl-color-bg-sidebar:       var(--bg-elev-1);
+  --sl-color-bg-inline-code:   var(--code-inline-bg);
+  --sl-color-bg-accent:        var(--accent);
+  --sl-color-text:             var(--ink-base);
+  --sl-color-text-accent:      var(--accent);
+  --sl-color-text-invert:      var(--on-accent);
+  --sl-color-accent:           var(--accent);
+  --sl-color-accent-low:       var(--accent-lo);
+  --sl-color-accent-high:      var(--ink-on-pill);
+  --sl-color-hairline:         var(--line);
+  --sl-color-hairline-light:   var(--line);
+  --sl-color-hairline-shade:   var(--line-strong);
+}
 
 .sl-markdown-content h1,
 .sl-markdown-content h2,
@@ -11,9 +46,5 @@
 }
 
 .sl-markdown-content :not(pre) > code {
-  background: var(--code-inline-bg);
   color: var(--code-inline-ink);
-  padding: 1px 6px;
-  border-radius: var(--r-sm);
-  font-size: 0.92em;
 }

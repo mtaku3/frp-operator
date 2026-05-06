@@ -1,0 +1,22 @@
+---
+title: Install on kind
+description: Spin up a local kind cluster and install both Helm charts.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution">Stub page — full walkthrough lands in a follow-up.</Aside>
+
+Quick reference for now:
+
+```bash
+helm upgrade --install frp-operator-crd \
+  oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+  --version 0.0.1 \
+  --namespace frp-operator-system --create-namespace
+
+helm upgrade --install frp-operator \
+  oci://ghcr.io/mtaku3/charts/frp-operator \
+  --version 0.0.1 \
+  --namespace frp-operator-system
+```

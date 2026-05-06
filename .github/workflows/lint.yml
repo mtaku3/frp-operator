@@ -43,3 +43,16 @@ jobs:
         run: |
           make helm-crds
           git diff --exit-code charts/
+
+  site-gen-drift:
+    name: Site reference drift gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install rsync
+        run: sudo apt-get update && sudo apt-get install -y rsync
+      - run: make site-gen
+      - run: git diff --exit-code site/src/content/docs/docs/reference/

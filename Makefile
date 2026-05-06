@@ -51,6 +51,21 @@ help: ## Display this help.
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
+.PHONY: site-gen
+site-gen: helm-docs ## Regenerate site reference docs (Helm values, flags, ADRs, conformance).
+	@mkdir -p site/src/content/docs/docs/reference/adrs
+	$(HELM_DOCS) \
+	  --chart-search-root=charts/frp-operator \
+	  --template-files=../../hack/helm-values-template.gotmpl \
+	  --output-file=../../site/src/content/docs/docs/reference/helm-values.mdx
+	go run hack/gen-flags-doc.go > site/src/content/docs/docs/reference/flags.mdx
+	@rm -rf site/src/content/docs/docs/reference/adrs && mkdir -p site/src/content/docs/docs/reference/adrs
+	@for f in docs/adr/*.md; do \
+	  base=$$(basename $$f .md); \
+	  title=$$(grep -m1 '^# ' $$f | sed 's/^# //'); \
+	  bash hack/copy-with-frontmatter.sh $$f "site/src/content/docs/docs/reference/adrs/$$base.mdx" "$$title" "Architecture decision record."; \
+	done
+
 .PHONY: helm-crds
 helm-crds: ## Sync CRDs from config/crd/bases into both Helm charts.
 	@mkdir -p charts/frp-operator-crd/templates charts/frp-operator/crds
@@ -234,10 +249,12 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
+HELM_DOCS    ?= $(LOCALBIN)/helm-docs
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.20.1
+HELM_DOCS_VERSION    ?= v1.14.2
 
 #ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
 ENVTEST_VERSION ?= $(shell v='$(call gomodver,sigs.k8s.io/controller-runtime)'; \
@@ -272,6 +289,11 @@ setup-envtest: envtest ## Download the binaries required for ENVTEST in the loca
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
+
+.PHONY: helm-docs
+helm-docs: $(HELM_DOCS) ## Download helm-docs locally if necessary.
+$(HELM_DOCS): $(LOCALBIN)
+	$(call go-install-tool,$(HELM_DOCS),github.com/norwoodj/helm-docs/cmd/helm-docs,$(HELM_DOCS_VERSION))
 
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.

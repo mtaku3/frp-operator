@@ -75,4 +75,3 @@ func instanceTypeFor(s sizeSpec, regions []string) *cloudprovider.InstanceType {
 		},
 	}
 }
-

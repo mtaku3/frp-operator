@@ -30,6 +30,7 @@ import (
 	"github.com/mtaku3/frp-operator/pkg/controllers/exitpool/hash"
 	"github.com/mtaku3/frp-operator/pkg/controllers/exitpool/readiness"
 	"github.com/mtaku3/frp-operator/pkg/controllers/exitpool/validation"
+	pchash "github.com/mtaku3/frp-operator/pkg/controllers/providerclass/hash"
 	"github.com/mtaku3/frp-operator/pkg/controllers/provisioning"
 	"github.com/mtaku3/frp-operator/pkg/controllers/servicewatcher"
 	"github.com/mtaku3/frp-operator/pkg/controllers/state"
@@ -295,6 +296,41 @@ func setupPoolControllers(mgr ctrl.Manager, registry *cloudprovider.Registry) er
 	}
 	if err := (&validation.Controller{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
 		return err
+	}
+	if err := setupProviderClassHash(mgr, registry); err != nil {
+		return err
+	}
+	return nil
+}
+
+// setupProviderClassHash registers one hash controller per registered
+// ProviderClass kind. Mirrors the karpenter NodeClass-hash controller —
+// stamps the PC's spec hash on itself, on every referencing pool, and
+// on every referencing claim. Drift compares pool's vs claim's stamp.
+func setupProviderClassHash(mgr ctrl.Manager, registry *cloudprovider.Registry) error {
+	logger := log.FromContext(context.Background())
+	scheme := mgr.GetScheme()
+	for _, kind := range registry.Kinds() {
+		cp, err := registry.For(kind)
+		if err != nil {
+			continue
+		}
+		for _, obj := range cp.GetSupportedProviderClasses() {
+			gvks, _, err := scheme.ObjectKinds(obj)
+			if err != nil || len(gvks) == 0 {
+				logger.Info("skipping providerclass-hash controller: type not in scheme",
+					"kind", kindOf(obj))
+				continue
+			}
+			ctl := &pchash.Controller{
+				Client: mgr.GetClient(),
+				Watch:  obj,
+				Kind:   gvks[0].Kind,
+			}
+			if err := ctl.SetupWithManager(mgr); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

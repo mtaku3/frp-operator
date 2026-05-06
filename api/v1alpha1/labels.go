@@ -29,8 +29,9 @@ const (
 
 // Well-known annotation keys.
 const (
-	AnnotationDoNotDisrupt = Group + "/do-not-disrupt"
-	AnnotationPoolHash     = Group + "/pool-hash"
+	AnnotationDoNotDisrupt      = Group + "/do-not-disrupt"
+	AnnotationPoolHash          = Group + "/pool-hash"
+	AnnotationProviderClassHash = Group + "/providerclass-hash"
 
 	// ServiceWatcher annotations on Service for translation into Tunnel.Spec.
 	AnnotationServiceCPURequest       = Group + "/resources.requests.cpu"

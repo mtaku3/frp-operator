@@ -24,12 +24,28 @@ func (m *Drift) ShouldDisrupt(_ context.Context, c *disruption.Candidate) bool {
 	if c.State.IsMarkedForDeletion() {
 		return false
 	}
-	claimHash := c.Claim.Annotations[v1alpha1.AnnotationPoolHash]
-	poolHash := c.Pool.Annotations[v1alpha1.AnnotationPoolHash]
-	if claimHash == "" || poolHash == "" {
+	if hashesDiffer(c.Claim, c.Pool, v1alpha1.AnnotationPoolHash) {
+		return true
+	}
+	if hashesDiffer(c.Claim, c.Pool, v1alpha1.AnnotationProviderClassHash) {
+		return true
+	}
+	return false
+}
+
+// hashesDiffer reports whether claim and pool both carry the named
+// hash annotation and the values differ. Missing on either side is
+// treated as "not drifted yet" so a hash controller that hasn't
+// caught up doesn't churn replacements.
+func hashesDiffer(claim, pool interface {
+	GetAnnotations() map[string]string
+}, key string) bool {
+	a := claim.GetAnnotations()[key]
+	b := pool.GetAnnotations()[key]
+	if a == "" || b == "" {
 		return false
 	}
-	return claimHash != poolHash
+	return a != b
 }
 
 func (m *Drift) ComputeCommands(

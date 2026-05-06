@@ -10,16 +10,16 @@ const rows = [
   { name: 'Drift detection + auto consolidation',    a: no,  b: no,  c: yes },
 ];
 ---
-<section class="border-y border-[var(--line)] bg-[var(--bg-elev-2)] px-6 py-24 mt-16">
+<section class="mt-16 border-y border-line bg-elev-2 px-6 py-24">
   <div class="mx-auto max-w-6xl">
     <div class="mb-3 text-center text-xs font-bold uppercase tracking-[0.08em] text-accent">Compare</div>
     <h2 class="text-center font-heading text-3xl font-semibold tracking-tight md:text-4xl">Pick the right operator.</h2>
     <p class="mx-auto mb-14 mt-3 max-w-[60ch] text-center text-base text-ink-muted md:text-lg">
       Same neighborhood, different priorities. Here's how the three stack up.
     </p>
-    <div class="overflow-x-auto rounded-lg border border-[var(--line)] bg-white shadow-md">
+    <div class="overflow-x-auto rounded-lg border border-line bg-elev-1 shadow-md">
       <div class="min-w-[540px]">
-        <div class="grid grid-cols-[1.4fr_1fr_1fr_1fr] items-center bg-[var(--bg-elev-2)] px-5 py-4 text-sm md:grid-cols-[1.6fr_1fr_1fr_1fr]">
+        <div class="grid grid-cols-compare items-center bg-elev-2 px-5 py-4 text-sm md:grid-cols-compare-md">
           <span></span>
           <span class="text-center font-heading font-bold">inlets-operator</span>
           <span class="text-center font-heading font-bold">chisel-operator</span>
@@ -29,20 +29,20 @@ const rows = [
           </span>
         </div>
         {rows.map((r) => (
-          <div class="grid grid-cols-[1.4fr_1fr_1fr_1fr] items-center border-t border-[var(--line)] px-5 py-3 text-sm md:grid-cols-[1.6fr_1fr_1fr_1fr]">
+          <div class="grid grid-cols-compare items-center border-t border-line px-5 py-3 text-sm md:grid-cols-compare-md">
             <span class="text-left font-medium text-ink">{r.name}</span>
             <span class={`flex items-center justify-center ${r.a === yes ? 'text-accent' : 'text-slate-400'}`} set:html={r.a}></span>
             <span class={`flex items-center justify-center ${r.b === yes ? 'text-accent' : 'text-slate-400'}`} set:html={r.b}></span>
             <span class={`flex items-center justify-center ${r.c === yes ? 'text-accent' : 'text-slate-400'}`} set:html={r.c}></span>
           </div>
         ))}
-        <div class="grid grid-cols-[1.4fr_1fr_1fr_1fr] items-center border-t border-[var(--line)] px-5 py-3 text-sm md:grid-cols-[1.6fr_1fr_1fr_1fr]">
+        <div class="grid grid-cols-compare items-center border-t border-line px-5 py-3 text-sm md:grid-cols-compare-md">
           <span class="text-left font-medium text-ink">Tunnel protocol</span>
           <span class="text-center text-xs text-ink-muted">inlets</span>
           <span class="text-center text-xs text-ink-muted">chisel</span>
           <span class="text-center text-xs font-semibold text-accent">frp (TCP/UDP/HTTP/HTTPS)</span>
         </div>
-        <div class="border-t border-[var(--line)] bg-[var(--bg-elev-2)] px-5 py-4 text-xs text-ink-faint">
+        <div class="border-t border-line bg-elev-2 px-5 py-4 text-xs text-ink-faint">
           Last verified against inlets-operator v0.18 and chisel-operator main · 2026-05-06.
         </div>
       </div>

@@ -7,19 +7,19 @@
     <p class="mx-auto mb-14 mt-3 max-w-[60ch] text-center text-base text-ink-muted md:text-lg">
       Two charts: CRDs first, then the operator. Pulls from GHCR's OCI registry.
     </p>
-    <div class="mx-auto max-w-[720px] overflow-x-auto rounded-lg bg-[var(--code-bg)] px-8 py-7 text-sm leading-7 text-[var(--code-ink)] shadow-lg font-mono">
+    <div class="mx-auto max-w-[720px] overflow-x-auto rounded-lg bg-code-bg px-8 py-7 font-mono text-sm leading-7 text-code-ink shadow-lg">
 <pre class="m-0"><code class="bg-transparent p-0 font-mono text-inherit">
-<span class="text-[var(--code-stone)]">$</span> <span>helm upgrade --install frp-operator-crd \</span>
-      <span class="text-[var(--code-lime)]">oci://ghcr.io/mtaku3/charts/frp-operator-crd</span> \
-      <span class="text-[var(--code-amber)]">--version</span> <span class="text-[var(--code-lime)]">0.0.1</span> \
-      <span class="text-[var(--code-amber)]">--namespace</span> <span class="text-[var(--code-lime)]">frp-operator-system</span> <span class="text-[var(--code-amber)]">--create-namespace</span>
+<span class="text-code-stone">$</span> <span>helm upgrade --install frp-operator-crd \</span>
+      <span class="text-code-lime">oci://ghcr.io/mtaku3/charts/frp-operator-crd</span> \
+      <span class="text-code-amber">--version</span> <span class="text-code-lime">0.0.1</span> \
+      <span class="text-code-amber">--namespace</span> <span class="text-code-lime">frp-operator-system</span> <span class="text-code-amber">--create-namespace</span>
 
-<span class="text-[var(--code-stone)]">$</span> <span>helm upgrade --install frp-operator \</span>
-      <span class="text-[var(--code-lime)]">oci://ghcr.io/mtaku3/charts/frp-operator</span> \
-      <span class="text-[var(--code-amber)]">--version</span> <span class="text-[var(--code-lime)]">0.0.1</span> \
-      <span class="text-[var(--code-amber)]">--namespace</span> <span class="text-[var(--code-lime)]">frp-operator-system</span>
+<span class="text-code-stone">$</span> <span>helm upgrade --install frp-operator \</span>
+      <span class="text-code-lime">oci://ghcr.io/mtaku3/charts/frp-operator</span> \
+      <span class="text-code-amber">--version</span> <span class="text-code-lime">0.0.1</span> \
+      <span class="text-code-amber">--namespace</span> <span class="text-code-lime">frp-operator-system</span>
 
-<span class="italic text-[var(--code-stone)]"># Operator running. Apply your first ExitPool next.</span>
+<span class="italic text-code-stone"># Operator running. Apply your first ExitPool next.</span>
 </code></pre>
     </div>
   </div>

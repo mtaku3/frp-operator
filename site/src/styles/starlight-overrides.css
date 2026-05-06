@@ -29,7 +29,25 @@
 
 /* Hamburger stays at Starlight default (top-right floating fixed button).
    Moving it left without overriding the entire Header component creates
-   overlap problems with the title because it's position:fixed. */
+   overlap problems because it's position:fixed.
+
+   Tailwind's preflight resets buttons (font: inherit; appearance: button)
+   and SVGs (display: block) which can throw off Starlight's circular
+   button. Re-assert flex centering + padding so the icon stays centered
+   inside the 2.5rem button. */
+starlight-menu-button button {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.5rem !important;
+  box-sizing: border-box !important;
+}
+starlight-menu-button button svg {
+  display: block !important;
+  flex-shrink: 0 !important;
+  width: var(--sl-icon-size, 1em) !important;
+  height: var(--sl-icon-size, 1em) !important;
+}
 
 /* Default desktop header is CSS grid: [title auto] [search 1fr] [right auto].
    Search button sits at the LEFT of its 1fr cell by default — push it

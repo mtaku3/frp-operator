@@ -128,7 +128,7 @@ func (q *Queue) Enqueue(ctx context.Context, cmd *Command) error {
 // after a fresh Get). The condition's Reason carries the disruption
 // reason for observability.
 func (q *Queue) cordon(ctx context.Context, claimName string, reason v1alpha1.DisruptionReason) error {
-	for attempt := 0; attempt < 2; attempt++ {
+	for range 2 {
 		var live v1alpha1.ExitClaim
 		if err := q.Client.Get(ctx, types.NamespacedName{Name: claimName}, &live); err != nil {
 			if apierrors.IsNotFound(err) {

@@ -15,6 +15,16 @@ limitations under the License.
 */
 
 // Package v1alpha1 contains API Schema definitions for the frp v1alpha1 API group.
+//
+// This package registers the core kinds (ExitPool, ExitClaim, Tunnel) into
+// the frp.operator.io/v1alpha1 GroupVersion. Per-provider ProviderClass
+// kinds (LocalDockerProviderClass, DigitalOceanProviderClass, ...) live in
+// their own packages under pkg/cloudprovider/<name>/v1alpha1 and share the
+// same GroupVersion but maintain independent SchemeBuilders. Manager wiring
+// must therefore call AddToScheme on each of those provider packages in
+// addition to this core package — registering only this one will not
+// surface ProviderClass kinds to the API server or controller cache.
+//
 // +kubebuilder:object:generate=true
 // +groupName=frp.operator.io
 package v1alpha1

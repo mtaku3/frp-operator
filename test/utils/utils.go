@@ -1,21 +1,11 @@
 /*
 Copyright (C) 2026.
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public
-License along with this program. If not, see
-<https://www.gnu.org/licenses/agpl-3.0.html>.
+Licensed under the GNU Affero General Public License, version 3.
 */
 
+// Package utils contains generic helpers shared by every e2e package.
+// Run wraps os/exec with project-rooted CWD + GinkgoWriter logging.
 package utils
 
 import (
@@ -24,66 +14,66 @@ import (
 	"os/exec"
 	"strings"
 
-	. "github.com/onsi/ginkgo/v2" // nolint:revive,staticcheck
+	. "github.com/onsi/ginkgo/v2" //nolint:revive,staticcheck
 )
 
 const (
 	defaultKindBinary  = "kind"
-	defaultKindCluster = "kind"
+	defaultKindCluster = "frp-operator-test-e2e"
 )
 
-// Run executes the provided command within this context
+// Run executes cmd at the project root, capturing combined output and
+// streaming the command line to GinkgoWriter so failures are debuggable.
 func Run(cmd *exec.Cmd) (string, error) {
 	dir, _ := getProjectDir()
 	cmd.Dir = dir
-
 	cmd.Env = append(os.Environ(), "GO111MODULE=on")
 	command := strings.Join(cmd.Args, " ")
-	_, _ = fmt.Fprintf(GinkgoWriter, "running: %q\n", command)
+	_, _ = fmt.Fprintf(GinkgoWriter, "running: %q (cwd=%s)\n", command, dir)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return string(output), fmt.Errorf("%q failed with error %q: %w", command, string(output), err)
+		return string(output), fmt.Errorf("%q failed: %w; output=%s", command, err, string(output))
 	}
-
 	return string(output), nil
 }
 
-// LoadImageToKindClusterWithName loads a local docker image to the kind cluster
+// LoadImageToKindClusterWithName runs `kind load docker-image NAME --name CLUSTER`.
 func LoadImageToKindClusterWithName(name string) error {
 	cluster := defaultKindCluster
 	if v, ok := os.LookupEnv("KIND_CLUSTER"); ok {
 		cluster = v
 	}
-	kindOptions := []string{"load", "docker-image", name, "--name", cluster}
 	kindBinary := defaultKindBinary
 	if v, ok := os.LookupEnv("KIND"); ok {
 		kindBinary = v
 	}
-	cmd := exec.Command(kindBinary, kindOptions...)
-	_, err := Run(cmd)
+	_, err := Run(exec.Command(kindBinary, "load", "docker-image", name, "--name", cluster))
 	return err
 }
 
-// GetNonEmptyLines converts given command output string into individual objects
-// according to line breakers, and ignores the empty elements in it.
+// KindClusterName returns the configured kind cluster name (env or default).
+func KindClusterName() string {
+	if v, ok := os.LookupEnv("KIND_CLUSTER"); ok {
+		return v
+	}
+	return defaultKindCluster
+}
+
+// GetNonEmptyLines splits output on \n and drops empty entries.
 func GetNonEmptyLines(output string) []string {
 	var res []string
-	elements := strings.SplitSeq(output, "\n")
-	for element := range elements {
-		if element != "" {
-			res = append(res, element)
+	for line := range strings.SplitSeq(output, "\n") {
+		if line != "" {
+			res = append(res, line)
 		}
 	}
-
 	return res
 }
 
-// getProjectDir returns the directory where the project is rooted, by
-// stripping the well-known `/test/e2e` suffix from the cwd.
 func getProjectDir() (string, error) {
 	wd, err := os.Getwd()
 	if err != nil {
-		return wd, fmt.Errorf("failed to get current working directory: %w", err)
+		return wd, fmt.Errorf("get cwd: %w", err)
 	}
 	wd = strings.ReplaceAll(wd, "/test/e2e", "")
 	return wd, nil

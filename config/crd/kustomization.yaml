@@ -2,9 +2,11 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
-- bases/frp.operator.io_exitservers.yaml
+- bases/frp.operator.io_exitpools.yaml
+- bases/frp.operator.io_exitclaims.yaml
 - bases/frp.operator.io_tunnels.yaml
-- bases/frp.operator.io_schedulingpolicies.yaml
+- bases/frp.operator.io_localdockerproviderclasses.yaml
+- bases/frp.operator.io_digitaloceanproviderclasses.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

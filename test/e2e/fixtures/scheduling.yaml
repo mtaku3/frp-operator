@@ -2,33 +2,65 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sched-a-be
+  name: sched-a-backend
   namespace: default
 spec:
   replicas: 1
-  selector: {matchLabels: {app: sched-a}}
+  selector:
+    matchLabels: { app: sched-a-backend }
   template:
-    metadata: {labels: {app: sched-a}}
+    metadata:
+      labels: { app: sched-a-backend }
     spec:
       containers:
-      - name: http-echo
-        image: hashicorp/http-echo
-        args: ["-text=sched-a", "-listen=:8080"]
-        ports: [{containerPort: 8080}]
+      - name: nginx
+        image: nginx:1.27-alpine
+        ports: [{ containerPort: 80 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sched-a
+  namespace: default
+spec:
+  type: LoadBalancer
+  loadBalancerClass: frp.operator.io/frp
+  selector: { app: sched-a-backend }
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sched-b-be
+  name: sched-b-backend
   namespace: default
 spec:
   replicas: 1
-  selector: {matchLabels: {app: sched-b}}
+  selector:
+    matchLabels: { app: sched-b-backend }
   template:
-    metadata: {labels: {app: sched-b}}
+    metadata:
+      labels: { app: sched-b-backend }
     spec:
       containers:
-      - name: http-echo
-        image: hashicorp/http-echo
-        args: ["-text=sched-b", "-listen=:8081"]
-        ports: [{containerPort: 8081}]
+      - name: nginx
+        image: nginx:1.27-alpine
+        ports: [{ containerPort: 80 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sched-b
+  namespace: default
+spec:
+  type: LoadBalancer
+  loadBalancerClass: frp.operator.io/frp
+  selector: { app: sched-b-backend }
+  ports:
+  - name: http
+    port: 81
+    targetPort: 80
+    protocol: TCP

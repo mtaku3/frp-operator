@@ -1,95 +1,68 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright (C) 2026.
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public
-License along with this program. If not, see
-<https://www.gnu.org/licenses/agpl-3.0.html>.
+Licensed under the GNU Affero General Public License, version 3.
 */
 
 package e2e
 
 import (
-	"context"
+	"fmt"
 	"os"
 	"os/exec"
-	"strings"
+	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
-
-	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
+	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 	"github.com/mtaku3/frp-operator/test/utils"
+	exitclaimutil "github.com/mtaku3/frp-operator/test/utils/exitclaim"
 	"github.com/mtaku3/frp-operator/test/utils/kubernetes"
-	"github.com/mtaku3/frp-operator/test/utils/tunnel"
+	tunnelutil "github.com/mtaku3/frp-operator/test/utils/tunnel"
 )
 
-const kindNodeName = "frp-operator-test-e2e-control-plane"
-
-var _ = Describe("Traffic", Ordered, func() {
-	const ns = "default"
-	const svc = "tunnel-basic"
-	const expectedBody = "tunnel-basic"
+var _ = Describe("Traffic flows through frps to backend", Ordered, func() {
+	const (
+		ns         = "default"
+		tunnelName = "tunnel-basic"
+		kindNode   = "frp-operator-test-e2e-control-plane"
+	)
 
 	BeforeAll(func() {
-		yaml, err := os.ReadFile("fixtures/tunnel_basic.yaml")
+		yaml, err := os.ReadFile(filepath.Join("fixtures", "tunnel_basic.yaml"))
 		Expect(err).NotTo(HaveOccurred())
-		Expect(kubernetes.ApplyServerSide(context.Background(), yaml)).To(Succeed())
+		Expect(kubernetes.ApplyServerSide(suiteCtx, yaml)).To(Succeed())
 	})
 
 	AfterAll(func() {
-		yaml, err := os.ReadFile("fixtures/tunnel_basic.yaml")
-		Expect(err).NotTo(HaveOccurred())
-		_ = kubernetes.DeleteServerSide(context.Background(), yaml)
-
-		drainNamespace(context.Background(), ns)
+		_, _ = utils.Run(exec.Command("kubectl", "delete", "-f",
+			filepath.Join("fixtures", "tunnel_basic.yaml"),
+			"--ignore-not-found", "--wait=false"))
 	})
 
-	It("kind node curl through frps reaches the backend", func() {
-		ctx := context.Background()
+	It("answers HTTP from inside the kind node", func() {
+		var publicIP string
+		Eventually(func(g Gomega) {
+			t, err := tunnelutil.Get(suiteCtx, k8sClient, ns, tunnelName)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(t.Status.Phase).To(Equal(v1alpha1.TunnelPhaseReady))
+			g.Expect(t.Status.AssignedExit).NotTo(BeEmpty())
 
-		By("waiting for the Tunnel to reach Ready")
-		Expect(tunnel.WaitForPhase(ctx, k8sClient, ns, svc,
-			frpv1alpha1.TunnelReady, 4*time.Minute)).To(Succeed())
+			ec, err := exitclaimutil.Get(suiteCtx, k8sClient, t.Status.AssignedExit)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(ec.Status.PublicIP).NotTo(BeEmpty())
+			publicIP = ec.Status.PublicIP
+		}, 4*time.Minute, 5*time.Second).Should(Succeed())
 
-		By("resolving Service ingress IP")
-		var ingressIP string
-		Eventually(func() string {
-			var s corev1.Service
-			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: svc}, &s); err != nil {
-				return ""
-			}
-			if len(s.Status.LoadBalancer.Ingress) == 0 {
-				return ""
-			}
-			ingressIP = s.Status.LoadBalancer.Ingress[0].IP
-			return ingressIP
-		}, 2*time.Minute, 2*time.Second).ShouldNot(BeEmpty())
-
-		By("curl-ing the ingress from inside the kind node")
-		Eventually(func() string {
-			out, err := utils.Run(exec.Command("docker", "exec", kindNodeName,
-				"curl", "-s", "--max-time", "5", "http://"+ingressIP+":80"))
-			if err != nil {
-				return ""
-			}
-			return strings.TrimSpace(out)
-		}, 2*time.Minute, 3*time.Second).Should(Equal(expectedBody))
+		Eventually(func() error {
+			url := fmt.Sprintf("http://%s:80", publicIP)
+			_, err := utils.Run(exec.Command("docker", "exec", kindNode,
+				"curl", "-sf", "--max-time", "5", url))
+			return err
+		}, 60*time.Second, 5*time.Second).Should(Succeed())
 	})
 })

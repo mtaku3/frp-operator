@@ -8,7 +8,7 @@ patches:
   target:
     kind: Deployment
     name: controller-manager
-- path: namespace_psa_patch.yaml
+- path: psa_relax.yaml
   target:
     kind: Namespace
     name: frp-operator-system

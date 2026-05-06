@@ -1,19 +1,7 @@
 /*
 Copyright (C) 2026.
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public
-License along with this program. If not, see
-<https://www.gnu.org/licenses/agpl-3.0.html>.
+Licensed under the GNU Affero General Public License, version 3.
 */
 
 package kubernetes
@@ -26,18 +14,40 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// WaitForDeleted polls until the named object Get returns a NotFound
-// error, or the timeout elapses.
+// WaitFor polls fn until it returns (true, nil) or the deadline elapses.
+// fn errors are retried; the last one is returned on timeout.
+func WaitFor(ctx context.Context, fn func(context.Context) (bool, error), timeout, interval time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for {
+		ok, err := fn(ctx)
+		if err == nil && ok {
+			return nil
+		}
+		if err != nil {
+			lastErr = err
+		}
+		if time.Now().After(deadline) {
+			if lastErr != nil {
+				return fmt.Errorf("waited %s: %w", timeout, lastErr)
+			}
+			return fmt.Errorf("condition not met within %s", timeout)
+		}
+		time.Sleep(interval)
+	}
+}
+
+// WaitForDeleted polls until Get returns NotFound for obj.
 func WaitForDeleted(ctx context.Context, c client.Client, obj client.Object, timeout time.Duration) error {
 	key := client.ObjectKeyFromObject(obj)
 	deadline := time.Now().Add(timeout)
 	for {
+		err := c.Get(ctx, key, obj)
+		if err != nil && client.IgnoreNotFound(err) == nil {
+			return nil
+		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("object %s not deleted within %s", key, timeout)
-		}
-		err := c.Get(ctx, key, obj)
-		if client.IgnoreNotFound(err) == nil && err != nil {
-			return nil
 		}
 		time.Sleep(time.Second)
 	}

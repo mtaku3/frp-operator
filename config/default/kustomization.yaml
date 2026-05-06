@@ -5,7 +5,6 @@ resources:
 - ../crd
 - ../rbac
 - ../manager
-- ../webhook
 
 # [METRICS] Expose the controller manager metrics service.
 - metrics_service.yaml

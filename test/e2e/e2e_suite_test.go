@@ -1,24 +1,14 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright (C) 2026.
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public
-License along with this program. If not, see
-<https://www.gnu.org/licenses/agpl-3.0.html>.
+Licensed under the GNU Affero General Public License, version 3.
 */
 
+// Package e2e is the Ginkgo end-to-end suite. The build tag `e2e`
+// keeps the suite out of `go test ./...` for unit-test runs; CI flips
+// the tag in Makefile target `test-e2e`.
 package e2e
 
 import (
@@ -26,16 +16,21 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	frpv1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
+	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
+	dov1alpha1 "github.com/mtaku3/frp-operator/pkg/cloudprovider/digitalocean/v1alpha1"
+	ldv1alpha1 "github.com/mtaku3/frp-operator/pkg/cloudprovider/localdocker/v1alpha1"
 	"github.com/mtaku3/frp-operator/test/utils"
 	"github.com/mtaku3/frp-operator/test/utils/kubernetes"
 	"github.com/mtaku3/frp-operator/test/utils/operator"
@@ -43,54 +38,104 @@ import (
 
 const (
 	managerImage = "example.com/frp-operator:v0.0.1"
+	overlayPath  = "config/overlays/e2e"
 )
 
 var (
+	suiteCtx  context.Context
 	k8sClient client.Client
-	suiteCtx  = context.Background()
 )
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	_, _ = fmt.Fprintln(GinkgoWriter, "frp-operator e2e suite")
-	RunSpecs(t, "e2e")
+	RunSpecs(t, "frp-operator e2e suite")
 }
 
 var _ = BeforeSuite(func() {
-	By("registering CRDs in the scheme")
-	Expect(frpv1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
+	suiteCtx = context.Background()
 
-	cfg := ctrl.GetConfigOrDie()
-	c, err := client.New(cfg, client.Options{Scheme: scheme.Scheme})
-	Expect(err).NotTo(HaveOccurred())
-	k8sClient = c
+	By("registering CRDs in the scheme")
+	Expect(v1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
+	Expect(ldv1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
+	Expect(dov1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
 
 	By("building and loading the manager image")
-	_, err = utils.Run(exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", managerImage)))
+	_, err := utils.Run(exec.Command("make", "docker-build", "IMG="+managerImage))
 	Expect(err).NotTo(HaveOccurred())
-	Expect(utils.LoadImageToKindClusterWithName(managerImage)).To(Succeed())
+	cluster := os.Getenv("KIND_CLUSTER")
+	if cluster == "" {
+		cluster = "frp-operator-test-e2e"
+	}
+	_, err = utils.Run(exec.Command("kind", "load", "docker-image", managerImage, "--name", cluster))
+	Expect(err).NotTo(HaveOccurred())
 
 	By("applying the e2e overlay")
-	_, err = utils.Run(exec.Command(
-		"kubectl", "apply", "-k", "config/overlays/e2e",
-		"--server-side", "--force-conflicts",
-	))
+	_, err = utils.Run(exec.Command("kubectl", "apply", "-k", overlayPath, "--server-side", "--force-conflicts"))
 	Expect(err).NotTo(HaveOccurred())
 
-	By("waiting for the operator to become Ready (Deployment + cert + dry-run admission probe)")
-	Expect(operator.WaitForReady(suiteCtx, k8sClient, 5*time.Minute, true)).To(Succeed())
+	cfg := ctrl.GetConfigOrDie()
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).NotTo(HaveOccurred())
 
-	By("applying shared SchedulingPolicy and credentials Secret")
-	yaml, err := os.ReadFile("fixtures/shared.yaml")
+	By("waiting for the operator to become Ready")
+	if err := operator.WaitForOperatorReady(suiteCtx, k8sClient, 5*time.Minute); err != nil {
+		// Dump diagnostics so post-mortem doesn't require re-running CI.
+		fmt.Fprintln(GinkgoWriter, "===== operator readiness FAILED — diagnostics =====")
+		dump := func(args ...string) {
+			out, _ := utils.Run(exec.Command(args[0], args[1:]...))
+			fmt.Fprintln(GinkgoWriter, ">>>", strings.Join(args, " "))
+			fmt.Fprintln(GinkgoWriter, out)
+		}
+		dump("kubectl", "-n", "frp-operator-system", "get", "all")
+		dump("kubectl", "-n", "frp-operator-system", "describe", "deployment", "frp-operator-controller-manager")
+		dump("kubectl", "-n", "frp-operator-system", "describe", "pods")
+		dump("kubectl", "-n", "frp-operator-system", "logs",
+			"-l", "control-plane=controller-manager", "--tail=5000", "--all-containers=true")
+		dump("kubectl", "get", "crd")
+		dump("kubectl", "get", "events", "-n", "frp-operator-system", "--sort-by=.lastTimestamp")
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	By("applying shared ExitPool + ProviderClass + credentials")
+	yaml, err := os.ReadFile(filepath.Join("fixtures", "shared.yaml"))
 	Expect(err).NotTo(HaveOccurred())
 	Expect(kubernetes.ApplyServerSide(suiteCtx, yaml)).To(Succeed())
 })
 
-var _ = AfterSuite(func() {
-	if os.Getenv("KEEP_E2E_RESOURCES") == "1" {
-		return
+// dumpDiagnostics is callable from BeforeSuite and AfterEach.
+func dumpDiagnostics(label string) {
+	fmt.Fprintln(GinkgoWriter, "===== "+label+" =====")
+	dump := func(args ...string) {
+		out, _ := utils.Run(exec.Command(args[0], args[1:]...))
+		fmt.Fprintln(GinkgoWriter, ">>>", strings.Join(args, " "))
+		fmt.Fprintln(GinkgoWriter, out)
 	}
+	dump("kubectl", "-n", "frp-operator-system", "logs",
+		"-l", "control-plane=controller-manager", "--tail=2000", "--all-containers=true")
+	dump("kubectl", "get", "exitpools,exitclaims,tunnels", "-A", "-o", "wide")
+	dump("kubectl", "get", "exitclaims", "-A", "-o", "yaml")
+	dump("kubectl", "get", "events", "-A", "--sort-by=.lastTimestamp")
+	dump("docker", "ps", "-a")
+	// Dump logs from each frps container so we see frp's own
+	// startup diagnostics (TOML parse, listen errors, etc).
+	if out, err := utils.Run(exec.Command("bash", "-c",
+		"for c in $(docker ps -q --filter ancestor=fatedier/frps:v0.68.1); do "+
+			"echo '>>> docker logs '$c; docker logs --tail=200 $c 2>&1 || true; "+
+			"echo '>>> docker exec '$c' cat /etc/frp/frps.toml'; "+
+			"docker exec $c cat /etc/frp/frps.toml 2>&1 || true; "+
+			"done")); err == nil {
+		fmt.Fprintln(GinkgoWriter, out)
+	}
+}
+
+var _ = AfterEach(func() {
+	if CurrentSpecReport().Failed() {
+		dumpDiagnostics("spec failed: " + CurrentSpecReport().LeafNodeText)
+	}
+})
+
+var _ = AfterSuite(func() {
 	By("deleting the e2e overlay")
-	_, _ = utils.Run(exec.Command("kubectl", "delete", "-k", "config/overlays/e2e",
+	_, _ = utils.Run(exec.Command("kubectl", "delete", "-k", overlayPath,
 		"--ignore-not-found", "--wait=false"))
 })

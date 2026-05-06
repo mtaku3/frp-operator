@@ -90,18 +90,16 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 	esac
 
 .PHONY: test-e2e
-test-e2e: setup-test-e2e manifests generate fmt vet ## Run e2e against a kind cluster.
-	@$(KIND) export kubeconfig --name $(KIND_CLUSTER) --kubeconfig /tmp/frp-operator-e2e.kubeconfig
-	KUBECONFIG=/tmp/frp-operator-e2e.kubeconfig KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) \
+test-e2e: ## Run the e2e Ginkgo suite on a kind cluster.
+	./hack/setup-kind-and-shared-dir.sh
+	@KUBECONFIG=/tmp/frp-operator-e2e.kubeconfig KIND_CLUSTER=$(KIND_CLUSTER) \
 		go test -tags=e2e ./test/e2e/ -v -ginkgo.v -timeout=20m; \
 	rc=$$?; \
 	if [ $$rc -ne 0 ]; then \
 		echo "===== operator logs (post-failure) ====="; \
 		KUBECONFIG=/tmp/frp-operator-e2e.kubeconfig kubectl logs -n frp-operator-system -l app.kubernetes.io/name=frp-operator --tail=5000 || true; \
-		echo "===== cluster state ====="; \
-		KUBECONFIG=/tmp/frp-operator-e2e.kubeconfig kubectl get tunnels,exitservers,services -A -o wide || true; \
 	fi; \
-	if [ "$(KEEP_CLUSTER)" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
+	if [ "$$E2E_KEEP_KIND" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
 	exit $$rc
 
 .PHONY: cleanup-test-e2e

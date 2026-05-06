@@ -1,21 +1,11 @@
 /*
 Copyright (C) 2026.
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public
-License along with this program. If not, see
-<https://www.gnu.org/licenses/agpl-3.0.html>.
+Licensed under the GNU Affero General Public License, version 3.
 */
 
+// Package kubernetes provides thin wrappers over `kubectl apply` and
+// generic wait helpers shared across the e2e suite.
 package kubernetes
 
 import (
@@ -27,9 +17,9 @@ import (
 	"github.com/mtaku3/frp-operator/test/utils"
 )
 
-// ApplyServerSide writes yaml to a temp file and runs
-// `kubectl apply --server-side --force-conflicts`. Server-side apply
-// avoids the 256 KB last-applied-configuration limit on big CRDs.
+// ApplyServerSide writes yaml to a temp file and runs kubectl apply
+// --server-side --force-conflicts -f. Server-side apply avoids the
+// 256 KB last-applied-configuration cap on big CRDs.
 func ApplyServerSide(_ context.Context, yaml []byte) error {
 	f, err := os.CreateTemp("", "e2e-*.yaml")
 	if err != nil {
@@ -49,10 +39,7 @@ func ApplyServerSide(_ context.Context, yaml []byte) error {
 	return nil
 }
 
-// DeleteServerSide writes yaml to a temp file and runs
-// `kubectl delete --ignore-not-found --wait=false -f`. Used by suite
-// teardown to remove kustomize-rendered manifests without blocking on
-// finalizers.
+// DeleteServerSide writes yaml to a temp file and runs kubectl delete.
 func DeleteServerSide(_ context.Context, yaml []byte) error {
 	f, err := os.CreateTemp("", "e2e-del-*.yaml")
 	if err != nil {

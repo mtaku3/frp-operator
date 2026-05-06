@@ -1,12 +1,8 @@
-# E2E overlay
+# config/overlays/e2e
 
-This overlay relaxes two security defaults so the operator can drive a
-real `frps` Docker container as part of `make test-e2e`:
-
-- Mounts `/var/run/docker.sock` from the host into the manager Pod so
-  the LocalDocker provisioner can talk to the host Docker daemon.
-- Sets PodSecurity admission on `frp-operator-system` to `baseline`
-  (the default overlay uses `restricted`).
-
-**Do not deploy this overlay outside of e2e.** The `restricted` PSA
-on `config/default` is the production default and stays unchanged.
+Kustomize overlay used by `make test-e2e`. Adds host bind-mounts for
+the Docker socket + the shared frps.toml directory, sets
+`DOCKER_HOST` / `LOCALDOCKER_*` env, and relaxes the PodSecurityAdmission
+labels on `frp-operator-system` so the manager can run as `runAsUser: 0`
+to talk to the docker socket. Webhooks are not present in this
+overlay — the operator no longer ships any.

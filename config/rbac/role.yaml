@@ -35,15 +35,12 @@ rules:
   - patch
   - update
 - apiGroups:
-  - admissionregistration.k8s.io
+  - ""
   resources:
-  - validatingwebhookconfigurations
+  - events
   verbs:
-  - get
-  - list
+  - create
   - patch
-  - update
-  - watch
 - apiGroups:
   - apps
   resources:
@@ -71,9 +68,11 @@ rules:
 - apiGroups:
   - frp.operator.io
   resources:
-  - exitservers
-  - schedulingpolicies
+  - exitclaims
+  - exitpools
   - tunnels
+  - localdockerproviderclasses
+  - digitaloceanproviderclasses
   verbs:
   - create
   - delete
@@ -85,17 +84,21 @@ rules:
 - apiGroups:
   - frp.operator.io
   resources:
-  - exitservers/finalizers
-  - schedulingpolicies/finalizers
+  - exitclaims/finalizers
+  - exitpools/finalizers
   - tunnels/finalizers
+  - localdockerproviderclasses/finalizers
+  - digitaloceanproviderclasses/finalizers
   verbs:
   - update
 - apiGroups:
   - frp.operator.io
   resources:
-  - exitservers/status
-  - schedulingpolicies/status
+  - exitclaims/status
+  - exitpools/status
   - tunnels/status
+  - localdockerproviderclasses/status
+  - digitaloceanproviderclasses/status
   verbs:
   - get
   - patch

@@ -13,16 +13,12 @@ spec:
     plural: tunnels
     shortNames:
     - tn
-    - tunnels
     singular: tunnel
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .status.phase
       name: Phase
-      type: string
-    - jsonPath: .spec.service.name
-      name: Service
       type: string
     - jsonPath: .status.assignedExit
       name: Exit
@@ -56,129 +52,107 @@ spec:
             type: object
           spec:
             properties:
-              allowPortSplit:
+              exitClaimRef:
                 description: |-
-                  AllowPortSplit lets a multi-port tunnel land across multiple exits when
-                  no single exit can host all ports. Default false → atomic placement.
-                type: boolean
-              exitRef:
-                description: |-
-                  ExitRef hard-pins the tunnel to a specific exit. If unset, the
-                  scheduler picks (or provisions) one.
+                  ExitClaimRef hard-pins the tunnel to a specific ExitClaim, bypassing
+                  the scheduler.
                 properties:
                   name:
-                    minLength: 1
                     type: string
                 required:
                 - name
-                type: object
-              immutableWhenReady:
-                description: |-
-                  ImmutableWhenReady locks rebind-triggering fields once status.phase
-                  reaches Ready and disables autonomous migration regardless of
-                  MigrationPolicy. Enforced by a validating webhook in a later phase.
-                type: boolean
-              migrationPolicy:
-                default: Never
-                enum:
-                - Never
-                - OnOvercommit
-                - OnExitLost
-                - OnOvercommitOrLost
-                type: string
-              placement:
-                description: |-
-                  Placement is a soft preference list applied during (re-)allocation.
-                  Ignored when ExitRef is set.
-                properties:
-                  providers:
-                    items:
-                      description: Provider identifies which Provisioner implementation
-                        manages an exit's VPS.
-                      enum:
-                      - digitalocean
-                      - external
-                      - local-docker
-                      type: string
-                    type: array
-                  regions:
-                    items:
-                      type: string
-                    type: array
-                  sizeOverride:
-                    type: string
                 type: object
               ports:
                 items:
                   properties:
                     name:
-                      minLength: 1
+                      description: Name is a free-form identifier; required when there
+                        is more than one port.
                       type: string
                     protocol:
                       default: TCP
+                      description: Protocol is "TCP" (default) or "UDP".
                       enum:
                       - TCP
                       - UDP
                       type: string
                     publicPort:
-                      description: PublicPort defaults to ServicePort when nil.
+                      description: |-
+                        PublicPort is the requested public port on the exit. 0 means
+                        auto-assign from AllowPorts.
                       format: int32
-                      maximum: 65535
-                      minimum: 1
                       type: integer
                     servicePort:
+                      description: ServicePort is the in-cluster port frpc forwards
+                        traffic from.
                       format: int32
-                      maximum: 65535
-                      minimum: 1
                       type: integer
                   required:
-                  - name
                   - servicePort
                   type: object
-                minItems: 1
                 type: array
               requirements:
+                items:
+                  description: |-
+                    NodeSelectorRequirementWithMinValues is the requirement struct used in
+                    ExitPool/ExitClaim/Tunnel requirements lists. It mirrors Karpenter's
+                    equivalent and adds the optional MinValues knob.
+                  properties:
+                    key:
+                      description: Key is the label/requirement key.
+                      type: string
+                    minValues:
+                      description: |-
+                        MinValues forces the scheduler to consider at least N distinct
+                        values for this key when packing.
+                      type: integer
+                    operator:
+                      description: Operator is one of In, NotIn, Exists, DoesNotExist,
+                        Gt, Lt.
+                      type: string
+                    values:
+                      description: |-
+                        Values is the operand list. Required for In, NotIn, Gt, Lt;
+                        must be empty for Exists, DoesNotExist.
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - key
+                  - operator
+                  type: object
+                type: array
+              resources:
+                description: Resources.Requests is the binpack input. Optional; empty
+                  fits anywhere.
                 properties:
-                  bandwidthMbps:
-                    format: int32
-                    minimum: 0
-                    type: integer
-                  monthlyTrafficGB:
-                    format: int64
-                    minimum: 0
-                    type: integer
-                type: object
-              schedulingPolicyRef:
-                properties:
-                  name:
-                    minLength: 1
-                    type: string
-                required:
-                - name
-                type: object
-              service:
-                properties:
-                  name:
-                    minLength: 1
-                    type: string
-                  namespace:
-                    minLength: 1
-                    type: string
-                required:
-                - name
-                - namespace
+                  requests:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: ResourceList is a set of (resource name, quantity)
+                      pairs.
+                    type: object
                 type: object
             required:
             - ports
-            - service
             type: object
           status:
             properties:
               assignedExit:
+                description: AssignedExit is the name of the ExitClaim this tunnel
+                  is bound to.
                 type: string
               assignedIP:
+                description: AssignedIP is the public IP of the assigned ExitClaim.
                 type: string
               assignedPorts:
+                description: |-
+                  AssignedPorts are the resolved public port numbers (auto-assigned
+                  values filled in for PublicPort=0 inputs).
                 items:
                   format: int32
                   type: integer
@@ -239,18 +213,8 @@ spec:
                   - type
                   type: object
                 type: array
-                x-kubernetes-list-map-keys:
-                - type
-                x-kubernetes-list-type: map
               phase:
-                enum:
-                - Pending
-                - Allocating
-                - Provisioning
-                - Connecting
-                - Ready
-                - Disconnected
-                - Failed
+                description: Phase is a coarse summary of Conditions.
                 type: string
             type: object
         type: object

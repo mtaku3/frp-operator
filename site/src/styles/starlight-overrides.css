@@ -1,15 +1,6 @@
-:root {
-  --sl-color-bg:           var(--bg-base);
-  --sl-color-bg-nav:       var(--bg-elev-1);
-  --sl-color-bg-sidebar:   var(--bg-elev-1);
-  --sl-color-text:         var(--ink-base);
-  --sl-color-text-accent:  var(--accent);
-  --sl-color-accent:       var(--accent);
-  --sl-color-accent-high:  var(--ink-on-pill);
-  --sl-color-hairline:     var(--line);
-  --sl-font:               var(--font-body);
-  --sl-font-mono:          var(--font-mono);
-}
+/* Heading font + inline code color — pure typography overrides.
+   Do NOT touch --sl-color-* tokens; Starlight expects them as RGB
+   space-separated triplets for opacity modulation, not hex. */
 
 .sl-markdown-content h1,
 .sl-markdown-content h2,

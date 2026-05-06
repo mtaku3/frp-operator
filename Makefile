@@ -59,7 +59,6 @@ site-gen: helm-docs ## Regenerate site reference docs (Helm values, flags, ADRs,
 	  --template-files=../../hack/helm-values-template.gotmpl \
 	  --output-file=../../site/src/content/docs/docs/reference/helm-values.mdx
 	go run hack/gen-flags-doc.go > site/src/content/docs/docs/reference/flags.mdx
-	bash hack/copy-with-frontmatter.sh docs/karpenter-conformance.md site/src/content/docs/docs/reference/karpenter-conformance.mdx "Karpenter conformance" "Scope decisions and divergences from upstream Karpenter."
 	@rm -rf site/src/content/docs/docs/reference/adrs && mkdir -p site/src/content/docs/docs/reference/adrs
 	@for f in docs/adr/*.md; do \
 	  base=$$(basename $$f .md); \

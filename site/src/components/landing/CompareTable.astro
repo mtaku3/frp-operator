@@ -47,11 +47,11 @@ const rows = [
   .compare-row { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; align-items: center; padding: 14px 22px; border-bottom: 1px solid var(--line); }
   .compare-row:last-child { border-bottom: 0; }
   .compare-head { background: var(--bg-elev-2); padding: 18px 22px; }
-  .compare-head .col-name { font-family: var(--font-heading); font-weight: 700; font-size: 16px; }
+  .compare-head .col-name { font-family: var(--font-heading); font-weight: 700; font-size: 16px; text-align: center; }
   .compare-head .col-name.col-frp { color: var(--accent); position: relative; }
   .compare-head .col-name.col-frp::after { content: "ours"; display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 700; padding: 2px 6px; background: var(--accent); color: var(--on-accent); border-radius: 999px; vertical-align: middle; }
-  .feature-name { color: var(--ink-base); font-weight: 500; font-size: 15px; }
-  .cell { text-align: center; }
+  .feature-name { color: var(--ink-base); font-weight: 500; font-size: 15px; text-align: left; }
+  .cell { display: flex; align-items: center; justify-content: center; }
   .cell :global(svg) { width: 22px; height: 22px; }
   .cell-yes { color: var(--accent); }
   .cell-no  { color: #94a3b8; }

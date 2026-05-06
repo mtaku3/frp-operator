@@ -26,3 +26,33 @@
   border-radius: var(--r-sm);
   font-size: 0.92em;
 }
+
+/* Sidebar group header: keep summary text + caret on the same line. */
+starlight-toc summary,
+.sidebar-content summary,
+nav.sidebar summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.sidebar-content summary > .group-label,
+nav.sidebar summary > .group-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Header: prevent theme-selector + icon overlap in tight spaces. */
+.right-group,
+.social-icons,
+starlight-theme-select {
+  flex-shrink: 0;
+}
+.right-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+@media (min-width: 50rem) {
+  starlight-theme-select { margin-inline-end: 0.25rem; }
+}

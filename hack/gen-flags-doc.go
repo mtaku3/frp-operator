@@ -45,10 +45,7 @@ func generate(srcPath string, out io.Writer) error {
 	fieldToEnv := extractEnvMappings(f)
 
 	// Step 2: Walk LoadConfigFromArgs to collect flag entries.
-	entries, err := extractFlags(f, fieldToEnv)
-	if err != nil {
-		return err
-	}
+	entries := extractFlags(f, fieldToEnv)
 
 	// Step 3: Render output.
 	if _, err := io.WriteString(out, header); err != nil {
@@ -160,7 +157,7 @@ var typeForMethod = map[string]string{
 }
 
 // extractFlags finds LoadConfigFromArgs and collects all fs.*Var calls.
-func extractFlags(f *ast.File, fieldToEnv map[string]string) ([]flagEntry, error) {
+func extractFlags(f *ast.File, fieldToEnv map[string]string) []flagEntry {
 	var entries []flagEntry
 	for _, decl := range f.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
@@ -217,7 +214,7 @@ func extractFlags(f *ast.File, fieldToEnv map[string]string) ([]flagEntry, error
 		})
 		break
 	}
-	return entries, nil
+	return entries
 }
 
 // fieldFromRef extracts field name from &cfg.FieldName expression.

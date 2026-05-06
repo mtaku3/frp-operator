@@ -52,7 +52,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: site-gen
-site-gen: $(HELM_DOCS) ## Regenerate site reference docs (Helm values, flags, ADRs, conformance).
+site-gen: helm-docs ## Regenerate site reference docs (Helm values, flags, ADRs, conformance).
 	@mkdir -p site/src/content/docs/docs/reference/adrs
 	$(HELM_DOCS) \
 	  --chart-search-root=charts/frp-operator \

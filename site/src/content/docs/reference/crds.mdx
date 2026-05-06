@@ -1,0 +1,22 @@
+---
+title: CRD reference
+description: Schema reference for the five frp.operator.io CRDs.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution">
+Auto-generated CRD reference is on the roadmap (see PR thread). For now, consult the CRD YAML directly — controller-gen produces complete OpenAPI v3 schemas with field descriptions in `config/crd/bases/`.
+</Aside>
+
+The operator ships five CRDs:
+
+| Kind | API group | Source schema |
+|------|-----------|---------------|
+| ExitPool | `frp.operator.io/v1alpha1` | [`config/crd/bases/frp.operator.io_exitpools.yaml`](https://github.com/mtaku3/frp-operator/blob/main/config/crd/bases/frp.operator.io_exitpools.yaml) |
+| ExitClaim | `frp.operator.io/v1alpha1` | [`config/crd/bases/frp.operator.io_exitclaims.yaml`](https://github.com/mtaku3/frp-operator/blob/main/config/crd/bases/frp.operator.io_exitclaims.yaml) |
+| Tunnel | `frp.operator.io/v1alpha1` | [`config/crd/bases/frp.operator.io_tunnels.yaml`](https://github.com/mtaku3/frp-operator/blob/main/config/crd/bases/frp.operator.io_tunnels.yaml) |
+| LocalDockerProviderClass | `frp.operator.io/v1alpha1` | [`config/crd/bases/frp.operator.io_localdockerproviderclasses.yaml`](https://github.com/mtaku3/frp-operator/blob/main/config/crd/bases/frp.operator.io_localdockerproviderclasses.yaml) |
+| DigitalOceanProviderClass | `frp.operator.io/v1alpha1` | [`config/crd/bases/frp.operator.io_digitaloceanproviderclasses.yaml`](https://github.com/mtaku3/frp-operator/blob/main/config/crd/bases/frp.operator.io_digitaloceanproviderclasses.yaml) |
+
+Each YAML contains the OpenAPI v3 schema with field descriptions sourced from kubebuilder marker comments in `api/v1alpha1/` and `pkg/cloudprovider/*/v1alpha1/`. `kubectl explain <kind>.spec` works against an installed cluster too.

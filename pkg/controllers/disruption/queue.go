@@ -54,19 +54,38 @@ func NewQueue(c client.Client, cluster *state.Cluster, p ProvisionerTrigger) *Qu
 	}
 }
 
-// Enqueue executes the command synchronously: mark candidates for deletion,
-// launch replacements (if any), wait for them to reach Ready, then trigger
-// the API delete on each candidate. The Phase 5 lifecycle finalizer takes
-// over from there to drain tunnels + call cloudProvider.Delete.
+// Enqueue executes the command synchronously:
+//
+//  1. Cordon every candidate by stamping Disrupted=True on its claim.
+//     Survives operator restart, unlike the in-memory MarkExitForDeletion
+//     gate. Karpenter analog: applying the karpenter.sh/disruption taint
+//     before launching replacements.
+//  2. Launch replacements via the provisioner adapter. The cordon ensures
+//     the scheduler stops binding new tunnels onto candidates during the
+//     replacement-Ready wait window, which can be many minutes.
+//  3. Wait for replacements to reach Ready.
+//  4. Mark candidates in-memory and trigger the API delete. The lifecycle
+//     finalizer takes over from there to drain tunnels + call
+//     cloudProvider.Delete.
 func (q *Queue) Enqueue(ctx context.Context, cmd *Command) error {
 	if cmd == nil {
 		return fmt.Errorf("nil command")
 	}
 	logger := log.FromContext(ctx).WithValues("method", cmd.Method, "reason", cmd.Reason)
 
-	// 1. Launch replacements via the provisioner adapter. We defer marking
-	// candidates for deletion until the replacements are Ready so a wait
-	// timeout doesn't leave them zombied (Marked but never deleted).
+	// 1. Cordon candidates first so the scheduler stops binding new
+	// tunnels during the (potentially long) replacement-Ready wait.
+	for _, cand := range cmd.Candidates {
+		if cand == nil || cand.Claim == nil {
+			continue
+		}
+		if err := q.cordon(ctx, cand.Claim.Name, cmd.Reason); err != nil {
+			return fmt.Errorf("cordon claim %s: %w", cand.Claim.Name, err)
+		}
+	}
+
+	// 2. Launch replacements. Cordon already gates the scheduler, so a
+	// wait timeout won't leave new tunnels piled onto a doomed exit.
 	if len(cmd.Replacements) > 0 {
 		if q.Provisioner == nil {
 			return fmt.Errorf("command requires replacements but no ProvisionerTrigger wired")
@@ -79,9 +98,8 @@ func (q *Queue) Enqueue(ctx context.Context, cmd *Command) error {
 		}
 	}
 
-	// 2. Mark candidates and immediately trigger the API delete. The mark
-	// gates the provisioner during the API-delete window only; the lifecycle
-	// finalizer takes over from there. Karpenter follows this same model.
+	// 3. Mark candidates and trigger the API delete. The mark gates the
+	// provisioner's in-memory cache; the lifecycle finalizer drains.
 	for _, cand := range cmd.Candidates {
 		if cand == nil || cand.Claim == nil {
 			continue
@@ -103,6 +121,66 @@ func (q *Queue) Enqueue(ctx context.Context, cmd *Command) error {
 		logger.Info("disruption deleted exit", "exitClaim", cand.Claim.Name)
 	}
 	return nil
+}
+
+// cordon stamps Disrupted=True on the named claim so the scheduler
+// excludes it from new bindings. Idempotent on conflict (single retry
+// after a fresh Get). The condition's Reason carries the disruption
+// reason for observability.
+func (q *Queue) cordon(ctx context.Context, claimName string, reason v1alpha1.DisruptionReason) error {
+	for attempt := 0; attempt < 2; attempt++ {
+		var live v1alpha1.ExitClaim
+		if err := q.Client.Get(ctx, types.NamespacedName{Name: claimName}, &live); err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+		if live.DeletionTimestamp != nil {
+			return nil
+		}
+		if disruptedTrue(live.Status.Conditions) {
+			return nil
+		}
+		patch := client.MergeFrom(live.DeepCopy())
+		live.Status.Conditions = upsertCondition(live.Status.Conditions, metav1.Condition{
+			Type:               v1alpha1.ConditionTypeDisrupted,
+			Status:             metav1.ConditionTrue,
+			Reason:             string(reason),
+			Message:            fmt.Sprintf("disruption: %s", reason),
+			LastTransitionTime: metav1.Now(),
+		})
+		err := q.Client.Status().Patch(ctx, &live, patch)
+		if err == nil {
+			return nil
+		}
+		if !apierrors.IsConflict(err) {
+			return err
+		}
+	}
+	return fmt.Errorf("cordon claim %s: conflict after retry", claimName)
+}
+
+func disruptedTrue(conds []metav1.Condition) bool {
+	for _, c := range conds {
+		if c.Type == v1alpha1.ConditionTypeDisrupted && c.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+func upsertCondition(conds []metav1.Condition, in metav1.Condition) []metav1.Condition {
+	for i := range conds {
+		if conds[i].Type == in.Type {
+			if conds[i].Status == in.Status {
+				in.LastTransitionTime = conds[i].LastTransitionTime
+			}
+			conds[i] = in
+			return conds
+		}
+	}
+	return append(conds, in)
 }
 
 // waitForReplacementsReady polls until every replacement claim — looked up by

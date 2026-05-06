@@ -33,6 +33,9 @@ func (e *ExistingExit) CanAdd(tunnel *v1alpha1.Tunnel) ([]int32, error) {
 	if claim.GetDeletionTimestamp() != nil {
 		return nil, fmt.Errorf("exit %s being deleted", claim.Name)
 	}
+	if disruptedTrue(claim.Status.Conditions) {
+		return nil, fmt.Errorf("exit %s is being disrupted", claim.Name)
+	}
 	if !readyTrue(claim.Status.Conditions) {
 		return nil, fmt.Errorf("exit %s not Ready", claim.Name)
 	}
@@ -116,6 +119,20 @@ func sumTunnelRequests(tunnels []*v1alpha1.Tunnel) corev1.ResourceList {
 func readyTrue(conds []metav1.Condition) bool {
 	for _, c := range conds {
 		if c.Type == "Ready" && c.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+// disruptedTrue reports whether a claim has Disrupted=True. The
+// disruption queue stamps this BEFORE launching replacements so the
+// scheduler stops binding new tunnels onto a doomed exit during the
+// (possibly long) replacement-Ready wait. Mirrors karpenter's
+// karpenter.sh/disruption taint check on existing nodes.
+func disruptedTrue(conds []metav1.Condition) bool {
+	for _, c := range conds {
+		if c.Type == v1alpha1.ConditionTypeDisrupted && c.Status == metav1.ConditionTrue {
 			return true
 		}
 	}

@@ -1,0 +1,23 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    {{- with .Values.additionalAnnotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+    controller-gen.kubebuilder.io/version: v0.20.1
+  labels:
+    {{- with .Values.additionalLabels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  name: exitpools.frp.operator.io
+spec:
+  group: frp.operator.io
+  names:
+    kind: ExitPool
+    listKind: ExitPoolList
+    plural: exitpools
+    singular: exitpool
+  scope: Cluster
+  versions: []

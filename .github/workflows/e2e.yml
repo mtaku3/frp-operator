@@ -20,3 +20,56 @@ jobs:
           config: test/e2e/kind-config.yaml
           cluster_name: frp-operator-test-e2e
       - run: make test-e2e
+
+  e2e-helm-install:
+    name: Helm install on kind
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+      - uses: helm/kind-action@v1.14.0
+        with:
+          version: v0.30.0
+          cluster_name: frp-operator-helm-test
+      - name: Build operator image
+        run: make docker-build IMG=frp-operator:helm-e2e
+      - name: Load image into kind
+        run: kind load docker-image frp-operator:helm-e2e --name frp-operator-helm-test
+      - name: helm install (CRD chart)
+        run: |
+          helm upgrade --install frp-operator-crd charts/frp-operator-crd \
+            --namespace frp-operator-system --create-namespace \
+            --wait
+      - name: helm install (operator chart)
+        run: |
+          helm upgrade --install frp-operator charts/frp-operator \
+            --namespace frp-operator-system \
+            --set image.repository=frp-operator \
+            --set image.tag=helm-e2e \
+            --set image.pullPolicy=IfNotPresent \
+            --wait --timeout=3m
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n frp-operator-system get pods -o wide || true
+          kubectl -n frp-operator-system describe pods || true
+          kubectl -n frp-operator-system logs -l app.kubernetes.io/name=frp-operator --all-containers --tail=200 || true
+      - name: Operator pod healthy
+        run: |
+          kubectl -n frp-operator-system rollout status deploy/frp-operator --timeout=2m
+          kubectl -n frp-operator-system get pods
+      - name: helm uninstall + reinstall (upgrade smoke)
+        run: |
+          helm upgrade frp-operator charts/frp-operator \
+            --namespace frp-operator-system \
+            --set image.repository=frp-operator \
+            --set image.tag=helm-e2e \
+            --set replicas=1 \
+            --wait --timeout=2m
+          kubectl -n frp-operator-system rollout status deploy/frp-operator --timeout=2m

@@ -4,6 +4,41 @@
 ## Description
 // TODO(user): An in-depth paragraph about your project and overview of use
 
+## Install
+
+The operator ships as two Helm charts following karpenter's split-chart layout:
+
+- `frp-operator-crd` — the five `frp.operator.io` CRDs, with full Helm lifecycle.
+- `frp-operator` — the operator Deployment, RBAC, and optional metrics / NetworkPolicy / PDB / HPA.
+
+```bash
+helm upgrade --install frp-operator-crd \
+  oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+  --version <X.Y.Z> \
+  --namespace frp-operator-system --create-namespace
+
+helm upgrade --install frp-operator \
+  oci://ghcr.io/mtaku3/charts/frp-operator \
+  --version <X.Y.Z> \
+  --namespace frp-operator-system
+```
+
+The operator chart also ships a `crds/` fallback for users who skip the CRD chart.
+Helm 3 only applies fallback CRDs on first install — schema upgrades require the CRD chart.
+
+Common toggles:
+
+| Value | Default | Purpose |
+|---|---|---|
+| `metrics.service.enabled` | `false` | Expose `:8443/metrics` via a ClusterIP Service |
+| `metrics.serviceMonitor.enabled` | `false` | Prometheus Operator scrape (requires `metrics.service.enabled`) |
+| `networkPolicy.enabled` | `false` | Default-deny ingress + allow-from `prometheusNamespace` |
+| `podDisruptionBudget.enabled` | `false` | Survive node drains |
+| `autoscaling.enabled` | `false` | HPA on CPU utilization |
+| `leaderElection.enabled` | `true` | Run with `--leader-elect` |
+
+See `charts/frp-operator/values.yaml` for the full surface.
+
 ## Getting Started
 
 ### Prerequisites

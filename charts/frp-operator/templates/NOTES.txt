@@ -1,0 +1,30 @@
+{{ .Chart.Name }} {{ .Chart.AppVersion }} installed in namespace "{{ .Release.Namespace }}" as release "{{ .Release.Name }}".
+
+Verify the operator is running:
+
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "frp-operator.fullname" . }}
+
+CRDs:
+  - exitpools.frp.operator.io
+  - exitclaims.frp.operator.io
+  - tunnels.frp.operator.io
+  - localdockerproviderclasses.frp.operator.io
+  - digitaloceanproviderclasses.frp.operator.io
+
+If you skipped the frp-operator-crd chart, the CRDs above were installed
+from this chart's crds/ directory and will NOT be updated by future
+`helm upgrade`. To get upgradeable CRDs, install frp-operator-crd:
+
+  helm upgrade --install frp-operator-crd \
+    oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+    --version {{ .Chart.AppVersion }} \
+    --namespace {{ .Release.Namespace }}
+
+Common toggles:
+  --set metrics.service.enabled=true
+  --set metrics.serviceMonitor.enabled=true   # requires Prometheus Operator
+  --set networkPolicy.enabled=true --set networkPolicy.prometheusNamespace=monitoring
+  --set podDisruptionBudget.enabled=true
+  --set autoscaling.enabled=true
+
+See `helm get manifest {{ .Release.Name }} -n {{ .Release.Namespace }}` for the full installed object set.

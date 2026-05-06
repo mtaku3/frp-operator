@@ -28,7 +28,13 @@
   .hero-lead { font-size: 20px; color: var(--ink-muted); max-width: 60ch; margin: 0 auto 40px; }
   .hero-ctas { display: flex; gap: 12px; justify-content: center; }
   @media (max-width: 768px) {
-    .hero h1 { font-size: 44px; }
+    .hero { padding: 64px 0 56px; }
+    .hero h1 { font-size: 40px; max-width: 18ch; }
     .hero-lead { font-size: 17px; }
+  }
+  @media (max-width: 480px) {
+    .hero h1 { font-size: 32px; }
+    .hero-ctas { flex-direction: column; align-items: stretch; }
+    .btn { justify-content: center; }
   }
 </style>

@@ -44,14 +44,16 @@ nav.sidebar summary > .group-label {
 
 /* Header: prevent theme-selector label-icon + caret overlap.
    Default Starlight gives the <select> --sl-select-width: 6.25em which
-   is tight under our Fredoka/Nunito stack. Bump width so the inline
-   icons no longer crash into the select chevron / native caret. */
-starlight-theme-select label,
-starlight-lang-select label {
-  --sl-select-width: 8.5em;
-}
-starlight-theme-select select,
-starlight-lang-select select {
-  padding-inline-start: 2em;
-  padding-inline-end: 1.75em;
+   is tight under our Fredoka/Nunito stack. Bump width on wide screens
+   only — narrow viewports keep Starlight's compact mobile layout. */
+@media (min-width: 50rem) {
+  starlight-theme-select label,
+  starlight-lang-select label {
+    --sl-select-width: 8.5em;
+  }
+  starlight-theme-select select,
+  starlight-lang-select select {
+    padding-inline-start: 2em;
+    padding-inline-end: 1.75em;
+  }
 }

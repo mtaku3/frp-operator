@@ -15,6 +15,10 @@
 <style>
   .footer { padding: 48px 0 64px; border-top: 1px solid var(--line); margin-top: 64px; }
   .footer-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; font-size: 14px; color: var(--ink-faint); }
+  @media (max-width: 480px) {
+    .footer-row { flex-direction: column; align-items: flex-start; }
+    .footer-links { flex-wrap: wrap; gap: 16px; }
+  }
   .footer-links { display: flex; gap: 24px; }
   .footer-links a { color: var(--ink-muted); text-decoration: none; }
 </style>

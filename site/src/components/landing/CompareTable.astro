@@ -58,5 +58,8 @@ const rows = [
   .cell-partial { color: var(--ink-muted); font-size: 13px; }
   .cell-frp-text { color: var(--accent); font-weight: 600; }
   .compare-foot { padding: 18px 22px; font-size: 13px; color: var(--ink-faint); background: var(--bg-elev-2); border-top: 1px solid var(--line); }
-  @media (max-width: 768px) { .compare-row { grid-template-columns: 1.4fr 1fr 1fr 1fr; padding: 12px 14px; font-size: 13px; } }
+  @media (max-width: 768px) {
+    .compare-table { overflow-x: auto; }
+    .compare-row { min-width: 540px; grid-template-columns: 1.4fr 1fr 1fr 1fr; padding: 12px 14px; font-size: 13px; }
+  }
 </style>

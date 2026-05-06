@@ -3,6 +3,7 @@ package methods
 import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/mtaku3/frp-operator/pkg/cloudprovider"
 	"github.com/mtaku3/frp-operator/pkg/controllers/disruption"
 	"github.com/mtaku3/frp-operator/pkg/controllers/state"
 )
@@ -16,8 +17,11 @@ import (
 // changes silently propagate to new claims; existing claims keep their
 // at-creation labels until rebuild. This operator follows that
 // convention.
-func DefaultMethods(cluster *state.Cluster, kube client.Client) []disruption.Method {
-	sim := NewSimulator(cluster, kube)
+//
+// registry is optional. When supplied, MultiNodeConsolidation gains a
+// "replace with cheaper instance type" branch.
+func DefaultMethods(cluster *state.Cluster, kube client.Client, registry *cloudprovider.Registry) []disruption.Method {
+	sim := NewSimulator(cluster, kube, registry)
 	return []disruption.Method{
 		NewEmptiness(),
 		NewDrift(),

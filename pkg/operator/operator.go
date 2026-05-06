@@ -134,7 +134,7 @@ func RunWithRESTConfig(
 	if err := (&emptiness.Controller{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("emptiness: %w", err)
 	}
-	if err := setupDisruption(mgr, cluster, prov, cfg); err != nil {
+	if err := setupDisruption(mgr, cluster, prov, registry, cfg); err != nil {
 		return fmt.Errorf("disruption: %w", err)
 	}
 	if err := setupPoolControllers(mgr, registry); err != nil {
@@ -268,7 +268,10 @@ func (a *provisionerAdapter) CreateReplacements(ctx context.Context, claims []*v
 }
 
 // setupDisruption wires the Phase-6 disruption controller + queue.
-func setupDisruption(mgr ctrl.Manager, cluster *state.Cluster, prov *provisioning.Provisioner, cfg *Config) error {
+func setupDisruption(
+	mgr ctrl.Manager, cluster *state.Cluster, prov *provisioning.Provisioner,
+	registry *cloudprovider.Registry, cfg *Config,
+) error {
 	queue := &disruption.Queue{
 		Client:                  mgr.GetClient(),
 		Cluster:                 cluster,
@@ -276,7 +279,7 @@ func setupDisruption(mgr ctrl.Manager, cluster *state.Cluster, prov *provisionin
 		ReplacementReadyTimeout: disruption.DefaultReplacementReadyTimeout,
 		ReplacementPollInterval: disruption.DefaultReplacementPollInterval,
 	}
-	dc := disruption.New(cluster, mgr.GetClient(), queue, methods.DefaultMethods(cluster, mgr.GetClient()))
+	dc := disruption.New(cluster, mgr.GetClient(), queue, methods.DefaultMethods(cluster, mgr.GetClient(), registry))
 	if cfg.DisruptionPollPeriod > 0 {
 		dc.PollInterval = cfg.DisruptionPollPeriod
 	}

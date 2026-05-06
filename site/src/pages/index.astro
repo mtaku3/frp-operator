@@ -1,9 +1,15 @@
 ---
 import Landing from '../layouts/Landing.astro';
+import Hero from '../components/landing/Hero.astro';
+import ValueStrip from '../components/landing/ValueStrip.astro';
+import Features from '../components/landing/Features.astro';
+import CompareTable from '../components/landing/CompareTable.astro';
+import InstallSnippet from '../components/landing/InstallSnippet.astro';
 ---
 <Landing>
-  <main style="padding: 64px 24px; text-align: center;">
-    <h1 style="font-family: var(--font-heading); font-size: 48px;">frp-operator</h1>
-    <p>Landing page sections land in subsequent tasks.</p>
-  </main>
+  <Hero />
+  <ValueStrip />
+  <Features />
+  <CompareTable />
+  <InstallSnippet />
 </Landing>

@@ -1,0 +1,16 @@
+{{ include "frp-operator.fullname" . }} installed in namespace {{ .Release.Namespace }}.
+
+Image: {{ include "frp-operator.image" . }}
+Replicas: {{ .Values.replicaCount }}
+Leader election: {{ .Values.leaderElect }}
+
+Next steps:
+  1. Create a ProviderClass (LocalDockerProviderClass or DigitalOceanProviderClass).
+  2. Create an ExitPool referencing the ProviderClass.
+  3. Create a Service of type=LoadBalancer with loadBalancerClass=frp.operator.io/frp.
+
+Watch the operator:
+  kubectl -n {{ .Release.Namespace }} logs -l app.kubernetes.io/name={{ include "frp-operator.name" . }} -f
+
+Inspect resources:
+  kubectl get exitpools,exitclaims,tunnels -A

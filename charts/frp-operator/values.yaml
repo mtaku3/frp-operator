@@ -1,0 +1,61 @@
+# Default values for frp-operator.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/mtaku3/frp-operator
+  pullPolicy: IfNotPresent
+  # Defaults to .Chart.AppVersion when empty.
+  tag: ""
+
+imagePullSecrets: []
+
+replicaCount: 1
+
+# Enable leader election. Set to false for single-replica dev installs.
+leaderElect: true
+
+# Health probe bind address inside the manager container.
+healthProbeBindAddress: ":8081"
+
+serviceAccount:
+  create: true
+  annotations: {}
+  # Defaults to the chart fullname when empty.
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""
+terminationGracePeriodSeconds: 10
+
+# Extra args appended to the manager command.
+extraArgs: []
+
+# Extra environment variables for the manager container.
+extraEnv: []

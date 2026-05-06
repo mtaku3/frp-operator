@@ -36,6 +36,8 @@ func newPool(name string, allowPorts []string, limits v1alpha1.Limits) *v1alpha1
 
 func solveCtx() context.Context { return context.Background() }
 
+const testTunnelUID = "uid-2"
+
 func TestSolve_NoExitsNoPools_TunnelErrors(t *testing.T) {
 	c := state.NewCluster(nil)
 	s := New(c, cloudprovider.NewRegistry(), nil)
@@ -152,7 +154,7 @@ func TestSolve_RehydratesPendingClaim_AcrossSolves(t *testing.T) {
 	// the pending claim (no NewClaims minted).
 	s := New(c, nil, nil)
 	tun := tunnelWithPorts("tunnel-2", 80)
-	tun.UID = "uid-2"
+	tun.UID = testTunnelUID
 	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
 	if err != nil {
 		t.Fatalf("solve: %v", err)
@@ -194,7 +196,7 @@ func TestSolve_RehydratesUnlaunchedClaim_AcrossSolves(t *testing.T) {
 
 	s := New(c, nil, nil)
 	tun := tunnelWithPorts("tunnel-2", 80)
-	tun.UID = "uid-2"
+	tun.UID = testTunnelUID
 	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
 	if err != nil {
 		t.Fatalf("solve: %v", err)
@@ -236,7 +238,7 @@ func TestSolve_RehydratesUnlaunchedClaim_RespectsTunnelBindingPorts(t *testing.T
 
 	s := New(c, nil, nil)
 	tun := tunnelWithPorts("tunnel-2", 443)
-	tun.UID = "uid-2"
+	tun.UID = testTunnelUID
 	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
 	if err != nil {
 		t.Fatalf("solve: %v", err)

@@ -51,6 +51,22 @@ help: ## Display this help.
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
+.PHONY: site-gen
+site-gen: $(HELM_DOCS) ## Regenerate site reference docs (Helm values, flags, ADRs, conformance).
+	@mkdir -p site/src/content/docs/reference/adrs
+	$(HELM_DOCS) \
+	  --chart-search-root=charts/frp-operator \
+	  --template-files=../../hack/helm-values-template.gotmpl \
+	  --output-file=../../site/src/content/docs/reference/helm-values.mdx
+	go run hack/gen-flags-doc.go > site/src/content/docs/reference/flags.mdx
+	bash hack/copy-with-frontmatter.sh docs/karpenter-conformance.md site/src/content/docs/reference/karpenter-conformance.mdx "Karpenter conformance" "Scope decisions and divergences from upstream Karpenter."
+	@rm -rf site/src/content/docs/reference/adrs && mkdir -p site/src/content/docs/reference/adrs
+	@for f in docs/adr/*.md; do \
+	  base=$$(basename $$f .md); \
+	  title=$$(grep -m1 '^# ' $$f | sed 's/^# //'); \
+	  bash hack/copy-with-frontmatter.sh $$f "site/src/content/docs/reference/adrs/$$base.mdx" "$$title" "Architecture decision record."; \
+	done
+
 .PHONY: helm-crds
 helm-crds: ## Sync CRDs from config/crd/bases into both Helm charts.
 	@mkdir -p charts/frp-operator-crd/templates charts/frp-operator/crds

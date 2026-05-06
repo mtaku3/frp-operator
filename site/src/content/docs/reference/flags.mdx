@@ -1,0 +1,29 @@
+---
+title: Operator flags
+description: Generated reference for frp-operator binary flags and env vars.
+---
+
+# Operator flags
+
+Generated from `pkg/operator/flags.go`. Do not edit by hand — run `make site-gen`.
+
+| Flag | Type | Default | Env var | Description |
+|------|------|---------|---------|-------------|
+| `--kubeconfig` | `string` | `KubeConfig` | `KUBECONFIG` | Path to kubeconfig (empty = in-cluster). |
+| `--leader-elect` | `bool` | `LeaderElection` | `LEADER_ELECT` | Enable leader election. |
+| `--leader-election-id` | `string` | `LeaderElectionID` | `LEADER_ELECTION_ID` | Leader election lock name. |
+| `--leader-election-namespace` | `string` | `LeaderElectionNS` | `LEADER_ELECTION_NAMESPACE` | Leader election lock namespace. |
+| `--disable-profiling` | `bool` | `DisableProfiling` | `DISABLE_PROFILING` | Disable pprof endpoints. |
+| `--batch-idle-duration` | `duration` | `BatchIdleDuration` | `BATCH_IDLE_DURATION` | Idle window before batch fires. |
+| `--batch-max-duration` | `duration` | `BatchMaxDuration` | `BATCH_MAX_DURATION` | Max time a batch may stay open. |
+| `--kube-client-qps` | `float64` | `qps` |  | Sustained kube client QPS. |
+| `--kube-client-burst` | `int` | `KubeClientBurst` | `KUBE_CLIENT_BURST` | Burst kube client QPS. |
+| `--log-level` | `string` | `LogLevel` | `LOG_LEVEL` | Log level (debug\|info\|warn\|error). |
+| `--metrics-bind-address` | `string` | `MetricsAddr` | `METRICS_BIND_ADDRESS` | Address the metrics server listens on. |
+| `--health-probe-bind-address` | `string` | `HealthProbeAddr` | `HEALTH_PROBE_BIND_ADDRESS` | Address the health probe listens on. |
+| `--preference-policy` | `string` | `PreferencePolicy` | `PREFERENCE_POLICY` | Scheduler preference policy: Respect \| Ignore. |
+| `--min-values-policy` | `string` | `MinValuesPolicy` | `MIN_VALUES_POLICY` | Scheduler MinValues policy: Strict \| BestEffort. |
+| `--registration-ttl` | `duration` | `RegistrationTTL` | `REGISTRATION_TTL` | How long to wait for a fresh exit to register. |
+| `--drift-ttl` | `duration` | `DriftTTL` | `DRIFT_TTL` | How long a drift must persist before disruption fires. |
+| `--disruption-poll-period` | `duration` | `DisruptionPollPeriod` | `DISRUPTION_POLL_PERIOD` | Disruption controller tick. |
+| `--feature-gates` | `string` | `""` |  | Comma-separated list of Name=bool gate overrides. |

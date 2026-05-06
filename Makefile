@@ -53,18 +53,18 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 
 .PHONY: site-gen
 site-gen: $(HELM_DOCS) ## Regenerate site reference docs (Helm values, flags, ADRs, conformance).
-	@mkdir -p site/src/content/docs/reference/adrs
+	@mkdir -p site/src/content/docs/docs/reference/adrs
 	$(HELM_DOCS) \
 	  --chart-search-root=charts/frp-operator \
 	  --template-files=../../hack/helm-values-template.gotmpl \
-	  --output-file=../../site/src/content/docs/reference/helm-values.mdx
-	go run hack/gen-flags-doc.go > site/src/content/docs/reference/flags.mdx
-	bash hack/copy-with-frontmatter.sh docs/karpenter-conformance.md site/src/content/docs/reference/karpenter-conformance.mdx "Karpenter conformance" "Scope decisions and divergences from upstream Karpenter."
-	@rm -rf site/src/content/docs/reference/adrs && mkdir -p site/src/content/docs/reference/adrs
+	  --output-file=../../site/src/content/docs/docs/reference/helm-values.mdx
+	go run hack/gen-flags-doc.go > site/src/content/docs/docs/reference/flags.mdx
+	bash hack/copy-with-frontmatter.sh docs/karpenter-conformance.md site/src/content/docs/docs/reference/karpenter-conformance.mdx "Karpenter conformance" "Scope decisions and divergences from upstream Karpenter."
+	@rm -rf site/src/content/docs/docs/reference/adrs && mkdir -p site/src/content/docs/docs/reference/adrs
 	@for f in docs/adr/*.md; do \
 	  base=$$(basename $$f .md); \
 	  title=$$(grep -m1 '^# ' $$f | sed 's/^# //'); \
-	  bash hack/copy-with-frontmatter.sh $$f "site/src/content/docs/reference/adrs/$$base.mdx" "$$title" "Architecture decision record."; \
+	  bash hack/copy-with-frontmatter.sh $$f "site/src/content/docs/docs/reference/adrs/$$base.mdx" "$$title" "Architecture decision record."; \
 	done
 
 .PHONY: helm-crds

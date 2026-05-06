@@ -27,25 +27,20 @@
   font-size: 0.92em;
 }
 
-/* Move hamburger to LEFT. Starlight uses inset-inline-end logical
-   property; we must override that, not `right`. Preserve top/size. */
-starlight-menu-button button {
-  inset-inline-end: auto;
-  inset-inline-start: var(--sl-nav-pad-x);
-}
-
-/* Mobile: title needs left padding so hamburger doesn't overlap. */
-@media (max-width: 50rem) {
-  .title-wrapper { padding-inline-start: 2.5rem; }
-}
+/* Hamburger stays at Starlight default (top-right floating fixed button).
+   Moving it left without overriding the entire Header component creates
+   overlap problems with the title because it's position:fixed. */
 
 /* Default desktop header is CSS grid: [title auto] [search 1fr] [right auto].
-   Search button is left-aligned inside its 1fr cell. Push it right. */
+   Search button sits at the LEFT of its 1fr cell by default — push it
+   right against the right-group. !important because Starlight component
+   styles share specificity with this override and load order isn't
+   guaranteed. */
 @media (min-width: 50rem) {
-  .header > div:nth-child(2) {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
+  .header > div.sl-flex:nth-child(2) {
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
   }
 }
 

@@ -11,7 +11,6 @@ export default defineConfig({
       customCss: [
         './src/styles/tokens.css',
         './src/styles/starlight-overrides.css',
-        './src/styles/global.css',
       ],
       sidebar: [
         { label: 'Getting started', collapsed: false, autogenerate: { directory: 'docs/getting-started', collapsed: false } },

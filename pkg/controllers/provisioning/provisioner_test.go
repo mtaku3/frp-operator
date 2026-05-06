@@ -8,6 +8,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
 )
@@ -110,5 +111,55 @@ var _ = Describe("Provisioner integration", func() {
 		var claims v1alpha1.ExitClaimList
 		Expect(k8sClient.List(ctx, &claims)).To(Succeed())
 		Expect(claims.Items).To(BeEmpty())
+	})
+
+	It("does not bind a tunnel onto a claim whose name collides with a deleting one (issue #8)", func() {
+		ctx := context.Background()
+		Expect(k8sClient.Create(ctx, defaultPool("pool-d", []string{"80"}))).To(Succeed())
+		t := newTunnel("tn-d", 80)
+		Expect(k8sClient.Create(ctx, t)).To(Succeed())
+
+		var initialName string
+		Eventually(func() string {
+			var got v1alpha1.Tunnel
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "tn-d"}, &got); err != nil {
+				return ""
+			}
+			initialName = got.Status.AssignedExit
+			return got.Status.AssignedExit
+		}, "20s", "200ms").ShouldNot(BeEmpty())
+
+		// Pin a finalizer on the claim and delete it so it stays around
+		// with DeletionTimestamp set. Stable salt means the next Solve
+		// would generate the same name; persistResults must NOT rebind
+		// the tunnel onto the deleting claim.
+		var ec v1alpha1.ExitClaim
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: initialName}, &ec)).To(Succeed())
+		ec.Finalizers = append(ec.Finalizers, "test.frp.operator.io/hold")
+		Expect(k8sClient.Update(ctx, &ec)).To(Succeed())
+		Expect(k8sClient.Delete(ctx, &ec)).To(Succeed())
+
+		// Clear Tunnel.AssignedExit to simulate finalize having drained it.
+		var t2 v1alpha1.Tunnel
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "tn-d"}, &t2)).To(Succeed())
+		patch := t2.DeepCopy()
+		patch.Status.AssignedExit = ""
+		patch.Status.AssignedPorts = nil
+		Expect(k8sClient.Status().Patch(ctx, patch, client.MergeFrom(&t2))).To(Succeed())
+
+		// Tunnel must NOT get rebound to the deleting claim. Wait long
+		// enough for at least one Solve to run.
+		Consistently(func() string {
+			var got v1alpha1.Tunnel
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "tn-d"}, &got); err != nil {
+				return ""
+			}
+			return got.Status.AssignedExit
+		}, "8s", "500ms").ShouldNot(Equal(initialName))
+
+		// Cleanup: strip our finalizer so envtest can GC.
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: initialName}, &ec)).To(Succeed())
+		ec.Finalizers = nil
+		Expect(k8sClient.Update(ctx, &ec)).To(Succeed())
 	})
 })

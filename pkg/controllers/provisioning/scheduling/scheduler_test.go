@@ -254,6 +254,117 @@ func TestSolve_RehydratesUnlaunchedClaim_RespectsTunnelBindingPorts(t *testing.T
 	}
 }
 
+// TestSolve_SkipsDeletingClaimDuringRehydration verifies that an
+// ExitClaim with DeletionTimestamp set is excluded from rehydration so
+// the scheduler does not rebind tunnels onto a doomed claim while the
+// lifecycle controller is draining it (issue #8).
+func TestSolve_SkipsDeletingClaimDuringRehydration(t *testing.T) {
+	c := state.NewCluster(nil)
+	c.UpdatePool(newPool("default", []string{"80", "443"}, nil))
+
+	now := metav1.Now()
+	deleting := &v1alpha1.ExitClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "default-deleting",
+			Labels:            map[string]string{v1alpha1.LabelExitPool: "default"},
+			DeletionTimestamp: &now,
+			Finalizers:        []string{v1alpha1.TerminationFinalizer},
+		},
+		Spec: v1alpha1.ExitClaimSpec{
+			Frps: v1alpha1.FrpsConfig{
+				Version: "v0.68.1", Auth: v1alpha1.FrpsAuthConfig{Method: "token"},
+				AllowPorts: []string{"80", "443"},
+			},
+		},
+		Status: v1alpha1.ExitClaimStatus{ProviderID: "fake://deleting"},
+	}
+	c.UpdateExit(deleting)
+
+	s := New(c, nil, nil)
+	tun := tunnelWithPorts("tunnel-x", 80)
+	tun.UID = "uid-x"
+	res, err := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
+	if err != nil {
+		t.Fatalf("solve: %v", err)
+	}
+	if len(res.NewClaims) != 1 {
+		t.Fatalf("expected 1 NewClaim (deleting claim must not be reused), got %d", len(res.NewClaims))
+	}
+	if res.Bindings[0].ExitClaimName == "default-deleting" {
+		t.Fatalf("tunnel must not bind onto deleting claim")
+	}
+}
+
+// TestSolve_SkipsMarkedForDeletionExit verifies that exits flagged via
+// Cluster.MarkExitForDeletion are also excluded from rehydration even
+// before the DeletionTimestamp event reaches the cache (issue #8).
+func TestSolve_SkipsMarkedForDeletionExit(t *testing.T) {
+	c := state.NewCluster(nil)
+	c.UpdatePool(newPool("default", []string{"80", "443"}, nil))
+
+	claim := &v1alpha1.ExitClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "default-marked",
+			Labels: map[string]string{v1alpha1.LabelExitPool: "default"},
+		},
+		Spec: v1alpha1.ExitClaimSpec{
+			Frps: v1alpha1.FrpsConfig{
+				Version: "v0.68.1", Auth: v1alpha1.FrpsAuthConfig{Method: "token"},
+				AllowPorts: []string{"80", "443"},
+			},
+		},
+		Status: v1alpha1.ExitClaimStatus{ProviderID: "fake://marked"},
+	}
+	c.UpdateExit(claim)
+	c.MarkExitForDeletion("default-marked")
+
+	s := New(c, nil, nil)
+	tun := tunnelWithPorts("tunnel-y", 80)
+	tun.UID = "uid-y"
+	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
+	if len(res.NewClaims) != 1 {
+		t.Fatalf("expected 1 NewClaim, got %d", len(res.NewClaims))
+	}
+	if res.Bindings[0].ExitClaimName == "default-marked" {
+		t.Fatalf("tunnel must not bind onto marked claim")
+	}
+}
+
+// TestSolve_SkipsDeletingPendingClaim verifies the same DeletionTimestamp
+// gate applies to pre-launch (Status.ProviderID == "") claims.
+func TestSolve_SkipsDeletingPendingClaim(t *testing.T) {
+	c := state.NewCluster(nil)
+	c.UpdatePool(newPool("default", []string{"80", "443"}, nil))
+
+	now := metav1.Now()
+	pending := &v1alpha1.ExitClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "default-pending-deleting",
+			Labels:            map[string]string{v1alpha1.LabelExitPool: "default"},
+			DeletionTimestamp: &now,
+			Finalizers:        []string{v1alpha1.TerminationFinalizer},
+		},
+		Spec: v1alpha1.ExitClaimSpec{
+			Frps: v1alpha1.FrpsConfig{
+				Version: "v0.68.1", Auth: v1alpha1.FrpsAuthConfig{Method: "token"},
+				AllowPorts: []string{"80", "443"},
+			},
+		},
+	}
+	c.UpdateExit(pending)
+
+	s := New(c, nil, nil)
+	tun := tunnelWithPorts("tunnel-z", 80)
+	tun.UID = "uid-z"
+	res, _ := s.Solve(solveCtx(), []*v1alpha1.Tunnel{tun})
+	if len(res.NewClaims) != 1 {
+		t.Fatalf("expected 1 NewClaim, got %d", len(res.NewClaims))
+	}
+	if res.Bindings[0].ExitClaimName == "default-pending-deleting" {
+		t.Fatalf("tunnel must not bind onto deleting pending claim")
+	}
+}
+
 // TestSolve_StableSalt_SameNameAcrossSolves verifies that the same
 // tunnel UID generates the same ExitClaim name across separate Solve
 // invocations. This is the property that lets the AlreadyExists swallow

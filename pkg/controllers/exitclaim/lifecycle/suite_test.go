@@ -25,6 +25,7 @@ import (
 	"github.com/mtaku3/frp-operator/pkg/cloudprovider/frps/admin"
 	ldv1alpha1 "github.com/mtaku3/frp-operator/pkg/cloudprovider/localdocker/v1alpha1"
 	"github.com/mtaku3/frp-operator/pkg/controllers/exitclaim/lifecycle"
+	"github.com/mtaku3/frp-operator/pkg/controllers/state"
 )
 
 var (
@@ -36,6 +37,7 @@ var (
 	adminSrv     *httptest.Server
 	adminCalls   atomic.Int32
 	adminVersion atomic.Value // string
+	testCluster  *state.Cluster
 )
 
 func TestLifecycle(t *testing.T) {
@@ -81,7 +83,9 @@ var _ = BeforeSuite(func() {
 
 	adminFactory := func(_ string) *admin.Client { return admin.New(adminSrv.URL) }
 
+	testCluster = state.NewCluster(mgr.GetClient())
 	ctlr := lifecycle.New(mgr.GetClient(), registry, adminFactory)
+	ctlr.Cluster = testCluster
 	Expect(ctlr.SetupWithManager(mgr)).To(Succeed())
 
 	var ctx context.Context

@@ -210,7 +210,13 @@ func (p *Provisioner) listPendingTunnels(ctx context.Context) ([]*v1alpha1.Tunne
 }
 
 func (p *Provisioner) persistResults(ctx context.Context, r scheduling.Results) error {
-	// 1. Create each NewClaim. Idempotent on AlreadyExists.
+	// 1. Create each NewClaim. Idempotent on AlreadyExists, but reject
+	// the AlreadyExists path if the existing claim is being deleted —
+	// the stable-salt naming scheme would otherwise rebind tunnels onto
+	// a doomed claim until its finalizer drains, blocking container
+	// teardown indefinitely (issue #8). Track the rejected names so we
+	// also skip emitting their bindings below.
+	rejectedClaims := map[string]struct{}{}
 	for _, c := range r.NewClaims {
 		labels := map[string]string{}
 		if c.Pool != nil {
@@ -223,12 +229,26 @@ func (p *Provisioner) persistResults(ctx context.Context, r scheduling.Results) 
 			},
 			Spec: c.Spec,
 		}
-		if err := p.KubeClient.Create(ctx, ec); err != nil && !apierrors.IsAlreadyExists(err) {
+		err := p.KubeClient.Create(ctx, ec)
+		if err == nil {
+			continue
+		}
+		if !apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("create ExitClaim %s: %w", c.Name, err)
+		}
+		var existing v1alpha1.ExitClaim
+		if getErr := p.KubeClient.Get(ctx, types.NamespacedName{Name: c.Name}, &existing); getErr != nil {
+			return fmt.Errorf("get existing ExitClaim %s: %w", c.Name, getErr)
+		}
+		if existing.DeletionTimestamp != nil {
+			rejectedClaims[c.Name] = struct{}{}
 		}
 	}
 	// 2. Patch tunnel status for each binding.
 	for _, b := range r.Bindings {
+		if _, rejected := rejectedClaims[b.ExitClaimName]; rejected {
+			continue
+		}
 		ns, name := splitKey(b.TunnelKey)
 		var t v1alpha1.Tunnel
 		if err := p.KubeClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: name}, &t); err != nil {

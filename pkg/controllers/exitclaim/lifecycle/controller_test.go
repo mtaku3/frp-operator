@@ -122,4 +122,28 @@ var _ = Describe("Controller", func() {
 			return err != nil
 		}, 30*time.Second, 200*time.Millisecond).Should(BeTrue())
 	})
+
+	It("marks the exit for deletion in the cluster cache during finalize (issue #8)", func() {
+		claim := makeClaim("mark-on-finalize")
+		Expect(k8sClient.Create(ctx, claim)).To(Succeed())
+		Eventually(func(g Gomega) {
+			got := &v1alpha1.ExitClaim{}
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "mark-on-finalize"}, got)).To(Succeed())
+			g.Expect(apimeta.IsStatusConditionTrue(got.Status.Conditions, v1alpha1.ConditionTypeReady)).To(BeTrue())
+			// Seed the cache with the launched claim so MarkExitForDeletion
+			// has something to flag. In production this is done by the
+			// informer; the lifecycle suite skips informer wiring.
+			testCluster.UpdateExit(got)
+		}, 30*time.Second, 200*time.Millisecond).Should(Succeed())
+
+		got := &v1alpha1.ExitClaim{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "mark-on-finalize"}, got)).To(Succeed())
+		Expect(k8sClient.Delete(ctx, got)).To(Succeed())
+
+		Eventually(func(g Gomega) {
+			se := testCluster.ExitForName("mark-on-finalize")
+			g.Expect(se).NotTo(BeNil(), "claim should still be in cache mid-finalize")
+			g.Expect(se.IsMarkedForDeletion()).To(BeTrue())
+		}, 15*time.Second, 100*time.Millisecond).Should(Succeed())
+	})
 })

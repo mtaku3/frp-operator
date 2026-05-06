@@ -126,7 +126,7 @@ func RunWithRESTConfig(
 	}
 	cluster.SetTriggers(func() { prov.Batcher.Trigger(types.UID("__cluster__")) }, nil)
 
-	if err := setupLifecycle(mgr, registry, cfg); err != nil {
+	if err := setupLifecycle(mgr, cluster, registry, cfg); err != nil {
 		return fmt.Errorf("lifecycle: %w", err)
 	}
 	if err := setupDisruption(mgr, cluster, prov, cfg); err != nil {
@@ -236,9 +236,10 @@ func setupProvisioning(
 }
 
 // setupLifecycle wires the Phase-5 ExitClaim lifecycle controller.
-func setupLifecycle(mgr ctrl.Manager, registry *cloudprovider.Registry, cfg *Config) error {
+func setupLifecycle(mgr ctrl.Manager, cluster *state.Cluster, registry *cloudprovider.Registry, cfg *Config) error {
 	adminFactory := func(baseURL string) *admin.Client { return admin.New(baseURL) }
 	c := lifecycle.NewWithTTL(mgr.GetClient(), registry, adminFactory, cfg.RegistrationTTL)
+	c.Cluster = cluster
 	return c.SetupWithManager(mgr)
 }
 

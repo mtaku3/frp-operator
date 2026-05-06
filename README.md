@@ -39,6 +39,23 @@ Common toggles:
 
 See `charts/frp-operator/values.yaml` for the full surface.
 
+## Docs site
+
+Full documentation lives at [frp-operator.vercel.app](https://frp-operator.vercel.app).
+
+The site is an Astro Starlight project under `site/`. Reference pages
+(Helm values, operator flags, ADRs, conformance) are generated from code
+via `make site-gen` and committed to git so Vercel builds without a Go
+toolchain. Deploy is handled by Vercel's GitHub integration on push to
+`main`; PRs get unique preview URLs automatically.
+
+Local dev:
+
+```sh
+make site-gen
+cd site && pnpm install && pnpm dev   # http://localhost:4321
+```
+
 ## Getting Started
 
 ### Prerequisites

@@ -51,6 +51,16 @@ help: ## Display this help.
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
+.PHONY: helm-crds
+helm-crds: manifests ## Sync CRDs from config/crd/bases into both Helm charts.
+	@mkdir -p charts/frp-operator-crd/templates charts/frp-operator/crds
+	@rm -f charts/frp-operator-crd/templates/frp.operator.io_*.yaml
+	@rm -f charts/frp-operator/crds/frp.operator.io_*.yaml
+	@for f in config/crd/bases/frp.operator.io_*.yaml; do \
+	  cp $$f charts/frp-operator/crds/$$(basename $$f); \
+	  scripts/wrap-crd-template.sh $$f charts/frp-operator-crd/templates/$$(basename $$f); \
+	done
+
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./..."

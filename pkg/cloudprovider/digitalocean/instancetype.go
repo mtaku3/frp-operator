@@ -76,24 +76,3 @@ func instanceTypeFor(s sizeSpec, regions []string) *cloudprovider.InstanceType {
 	}
 }
 
-func contains(haystack []string, needle string) bool {
-	for _, h := range haystack {
-		if h == needle {
-			return true
-		}
-	}
-	return false
-}
-
-func intersect(a, b []string) []string {
-	if len(b) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(a))
-	for _, x := range a {
-		if contains(b, x) {
-			out = append(out, x)
-		}
-	}
-	return out
-}

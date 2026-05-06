@@ -105,7 +105,9 @@ func cheapestCompatibleOffering(
 // Offering.Requirements as additions to a claim spec. Karpenter's
 // equivalent narrows NodeClaim.Spec.Requirements to the chosen
 // dimensions so the cloudprovider Create has no ambiguity.
-func PinChosen(it *cloudprovider.InstanceType, off *cloudprovider.Offering) []v1alpha1.NodeSelectorRequirementWithMinValues {
+func PinChosen(
+	it *cloudprovider.InstanceType, off *cloudprovider.Offering,
+) []v1alpha1.NodeSelectorRequirementWithMinValues {
 	out := make([]v1alpha1.NodeSelectorRequirementWithMinValues, 0, len(it.Requirements)+len(off.Requirements))
 	seen := map[string]struct{}{}
 	add := func(r v1alpha1.NodeSelectorRequirementWithMinValues) {

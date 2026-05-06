@@ -75,14 +75,11 @@ func computeCost(claim *v1alpha1.ExitClaim) float64 {
 }
 
 // lastBindingChange returns the time of the most recent transition of the
-// claim's Empty condition. Falls back to CreationTimestamp.
-//
-// Karpenter tracks an explicit "lastConsolidatableChange" stamp per node;
-// here we lean on the ConditionTypeEmpty LastTransitionTime, which is set
-// by the Phase 7 emptiness controller. Until that lands, we conservatively
-// fall back to CreationTimestamp — meaning Emptiness will fire as soon as
-// `now - creation >= ConsolidateAfter` for an empty exit, which is correct
-// (just slightly eager on the first observation).
+// claim's Empty condition. Falls back to CreationTimestamp on the brief
+// window before pkg/controllers/exitclaim/emptiness has stamped the
+// condition. Authoritative path: emptiness controller writes Empty=True
+// with LastTransitionTime when the claim transitions to zero bound
+// tunnels; ConsolidateAfter is measured from that stamp.
 func lastBindingChange(claim *v1alpha1.ExitClaim) time.Time {
 	if claim == nil {
 		return time.Time{}

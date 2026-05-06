@@ -25,6 +25,7 @@ import (
 	ldv1alpha1 "github.com/mtaku3/frp-operator/pkg/cloudprovider/localdocker/v1alpha1"
 	"github.com/mtaku3/frp-operator/pkg/controllers/disruption"
 	"github.com/mtaku3/frp-operator/pkg/controllers/disruption/methods"
+	"github.com/mtaku3/frp-operator/pkg/controllers/exitclaim/emptiness"
 	"github.com/mtaku3/frp-operator/pkg/controllers/exitclaim/lifecycle"
 	"github.com/mtaku3/frp-operator/pkg/controllers/exitpool/counter"
 	"github.com/mtaku3/frp-operator/pkg/controllers/exitpool/hash"
@@ -129,6 +130,9 @@ func RunWithRESTConfig(
 
 	if err := setupLifecycle(mgr, cluster, registry, cfg); err != nil {
 		return fmt.Errorf("lifecycle: %w", err)
+	}
+	if err := (&emptiness.Controller{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("emptiness: %w", err)
 	}
 	if err := setupDisruption(mgr, cluster, prov, cfg); err != nil {
 		return fmt.Errorf("disruption: %w", err)

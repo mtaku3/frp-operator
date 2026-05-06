@@ -1,6 +1,7 @@
 ---
 import '../styles/tokens.css';
 import '../styles/global.css';
+import '../styles/landing.css';
 import Nav from '../components/landing/Nav.astro';
 import Footer from '../components/landing/Footer.astro';
 
@@ -27,7 +28,7 @@ const {
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://frp-operator.vercel.app" />
 </head>
-<body class="bg-cream text-ink font-body overflow-x-hidden">
+<body>
   <Nav />
   <slot />
   <Footer />

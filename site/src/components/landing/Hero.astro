@@ -1,27 +1,40 @@
 ---
 ---
-<section class="relative overflow-hidden px-6 py-16 text-center md:py-24">
-  <div class="pointer-events-none absolute left-1/2 top-[-40px] -z-0 h-[400px] w-full max-w-[700px] -translate-x-1/2 bg-[radial-gradient(ellipse,rgba(217,119,6,0.08),transparent_60%)]"></div>
-  <div class="relative z-10 mx-auto max-w-6xl">
-    <span class="mb-7 inline-flex items-center gap-2 rounded-full bg-[var(--bg-pill)] px-3 py-1.5 text-xs font-semibold text-[var(--ink-on-pill)]">
-      <span class="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-white">v0.0.1</span>
-      Kubernetes operator
-    </span>
-    <h1 class="mx-auto mb-5 max-w-[14ch] font-heading text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
-      A <span class="text-accent">public IP</span> for every workload.
-    </h1>
-    <p class="mx-auto mb-10 max-w-[60ch] text-base text-ink-muted sm:text-lg md:text-xl">
-      frp-operator provisions cheap cloud exits and bin-packs your tunnels onto them, so any Service in any cluster gets a routable address — no matter what's blocking inbound on your side.
-    </p>
-    <div class="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-      <a href="#install" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-accent px-5 py-3 text-sm font-semibold text-white no-underline transition hover:-translate-y-0.5 hover:bg-accent-hi hover:shadow-md">
-        Install
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="h-4 w-4"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+<section class="hero">
+  <div class="wrap">
+    <span class="hero-pill">Kubernetes operator</span>
+    <h1>A <span class="accent">public IP</span> for every workload.</h1>
+    <p class="hero-lead">frp-operator provisions cheap cloud exits and bin-packs your tunnels onto them, so any Service in any cluster gets a routable address — no matter what's blocking inbound on your side.</p>
+    <div class="hero-ctas">
+      <a href="#install" class="btn btn-primary">Install
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="16" height="16"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
       </a>
-      <a href="https://github.com/mtaku3/frp-operator" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--line-strong)] px-5 py-3 text-sm font-semibold text-ink no-underline transition hover:bg-[var(--bg-elev-2)]">
-        <svg viewBox="0 0 24 24" fill="currentColor" class="h-[18px] w-[18px]"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.3 1.8 1.3 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.3.5-2.4 1.3-3.2-.1-.4-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.2.8.8 1.3 1.9 1.3 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></svg>
+      <a href="https://github.com/mtaku3/frp-operator" class="btn btn-secondary">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.3 1.8 1.3 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.3.5-2.4 1.3-3.2-.1-.4-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.2.8.8 1.3 1.9 1.3 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></svg>
         GitHub
       </a>
     </div>
   </div>
 </section>
+
+<style>
+  .hero { padding: 96px 0 80px; text-align: center; position: relative; overflow: hidden; }
+  .hero::before { content: ""; position: absolute; top: -40px; left: 50%; transform: translateX(-50%); width: 700px; max-width: 100%; height: 400px; background: radial-gradient(ellipse, rgba(217,119,6,0.08), transparent 60%); pointer-events: none; z-index: 0; }
+  .hero > * { position: relative; z-index: 1; }
+  .hero-pill { display: inline-flex; align-items: center; gap: 8px; background: var(--bg-pill); color: var(--ink-on-pill); padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; margin-bottom: 28px; }
+  .hero-pill::before { content: "v0.0.1"; background: var(--accent); color: var(--on-accent); padding: 2px 8px; border-radius: 999px; font-size: 11px; }
+  .hero h1 { font-family: var(--font-heading); font-size: 64px; font-weight: 600; line-height: 1.05; letter-spacing: -0.025em; margin: 0 auto 20px; max-width: 14ch; }
+  .hero h1 .accent { color: var(--accent); }
+  .hero-lead { font-size: 20px; color: var(--ink-muted); max-width: 60ch; margin: 0 auto 40px; }
+  .hero-ctas { display: flex; gap: 12px; justify-content: center; }
+  @media (max-width: 768px) {
+    .hero { padding: 64px 0 56px; }
+    .hero h1 { font-size: 40px; max-width: 18ch; }
+    .hero-lead { font-size: 17px; }
+  }
+  @media (max-width: 480px) {
+    .hero h1 { font-size: 32px; }
+    .hero-ctas { flex-direction: column; align-items: stretch; }
+    .btn { justify-content: center; }
+  }
+</style>

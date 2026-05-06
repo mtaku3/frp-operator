@@ -1,51 +1,66 @@
 ---
-const yes = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><polyline points="20 6 9 17 4 12"/></svg>`;
-const no = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-5 w-5"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
+const yes = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+const no = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
 const rows = [
-  { name: 'Auto VM provision',                       a: yes, b: yes, c: yes },
-  { name: 'Multiple tunnels per VM',                 a: no,  b: yes, c: yes },
-  { name: 'Bin-packing scheduler',                   a: no,  b: no,  c: yes },
-  { name: 'Cheapest-fit instance type',              a: no,  b: no,  c: yes },
-  { name: 'Pool budget caps',                        a: no,  b: no,  c: yes },
-  { name: 'Drift detection + auto consolidation',    a: no,  b: no,  c: yes },
+  { name: "Auto VM provision",                       a: yes, b: yes, c: yes },
+  { name: "Multiple tunnels per VM",                 a: no,  b: yes, c: yes },
+  { name: "Bin-packing scheduler",                   a: no,  b: no,  c: yes },
+  { name: "Cheapest-fit instance type",              a: no,  b: no,  c: yes },
+  { name: "Pool budget caps",                        a: no,  b: no,  c: yes },
+  { name: "Drift detection + auto consolidation",    a: no,  b: no,  c: yes },
 ];
 ---
-<section class="border-y border-[var(--line)] bg-[var(--bg-elev-2)] px-6 py-24 mt-16">
-  <div class="mx-auto max-w-6xl">
-    <div class="mb-3 text-center text-xs font-bold uppercase tracking-[0.08em] text-accent">Compare</div>
-    <h2 class="text-center font-heading text-3xl font-semibold tracking-tight md:text-4xl">Pick the right operator.</h2>
-    <p class="mx-auto mb-14 mt-3 max-w-[60ch] text-center text-base text-ink-muted md:text-lg">
-      Same neighborhood, different priorities. Here's how the three stack up.
-    </p>
-    <div class="overflow-x-auto rounded-lg border border-[var(--line)] bg-white shadow-md">
-      <div class="min-w-[540px]">
-        <div class="grid grid-cols-[1.4fr_1fr_1fr_1fr] items-center bg-[var(--bg-elev-2)] px-5 py-4 text-sm md:grid-cols-[1.6fr_1fr_1fr_1fr]">
-          <span></span>
-          <span class="text-center font-heading font-bold">inlets-operator</span>
-          <span class="text-center font-heading font-bold">chisel-operator</span>
-          <span class="text-center font-heading font-bold text-accent">
-            frp-operator
-            <span class="ml-1 inline-block rounded-full bg-accent px-1.5 py-0.5 align-middle text-[10px] font-bold text-white">ours</span>
-          </span>
-        </div>
-        {rows.map((r) => (
-          <div class="grid grid-cols-[1.4fr_1fr_1fr_1fr] items-center border-t border-[var(--line)] px-5 py-3 text-sm md:grid-cols-[1.6fr_1fr_1fr_1fr]">
-            <span class="text-left font-medium text-ink">{r.name}</span>
-            <span class={`flex items-center justify-center ${r.a === yes ? 'text-accent' : 'text-slate-400'}`} set:html={r.a}></span>
-            <span class={`flex items-center justify-center ${r.b === yes ? 'text-accent' : 'text-slate-400'}`} set:html={r.b}></span>
-            <span class={`flex items-center justify-center ${r.c === yes ? 'text-accent' : 'text-slate-400'}`} set:html={r.c}></span>
-          </div>
-        ))}
-        <div class="grid grid-cols-[1.4fr_1fr_1fr_1fr] items-center border-t border-[var(--line)] px-5 py-3 text-sm md:grid-cols-[1.6fr_1fr_1fr_1fr]">
-          <span class="text-left font-medium text-ink">Tunnel protocol</span>
-          <span class="text-center text-xs text-ink-muted">inlets</span>
-          <span class="text-center text-xs text-ink-muted">chisel</span>
-          <span class="text-center text-xs font-semibold text-accent">frp (TCP/UDP/HTTP/HTTPS)</span>
-        </div>
-        <div class="border-t border-[var(--line)] bg-[var(--bg-elev-2)] px-5 py-4 text-xs text-ink-faint">
-          Last verified against inlets-operator v0.18 and chisel-operator main · 2026-05-06.
-        </div>
+<section class="why">
+  <div class="wrap">
+    <div class="section-label">Compare</div>
+    <h2 class="section-title">Pick the right operator.</h2>
+    <p class="section-sub">Same neighborhood, different priorities. Here's how the three stack up.</p>
+    <div class="compare-table">
+      <div class="compare-row compare-head">
+        <span></span>
+        <span class="col-name">inlets-operator</span>
+        <span class="col-name">chisel-operator</span>
+        <span class="col-name col-frp">frp-operator</span>
       </div>
+      {rows.map((r) => (
+        <div class="compare-row">
+          <span class="feature-name">{r.name}</span>
+          <span class={`cell ${r.a === yes ? 'cell-yes' : 'cell-no'}`} set:html={r.a}></span>
+          <span class={`cell ${r.b === yes ? 'cell-yes' : 'cell-no'}`} set:html={r.b}></span>
+          <span class={`cell ${r.c === yes ? 'cell-yes' : 'cell-no'}`} set:html={r.c}></span>
+        </div>
+      ))}
+      <div class="compare-row">
+        <span class="feature-name">Tunnel protocol</span>
+        <span class="cell cell-partial">inlets</span>
+        <span class="cell cell-partial">chisel</span>
+        <span class="cell cell-partial cell-frp-text">frp (TCP/UDP/HTTP/HTTPS)</span>
+      </div>
+      <div class="compare-foot">Last verified against inlets-operator v0.18 and chisel-operator main · 2026-05-06.</div>
     </div>
   </div>
 </section>
+
+<style>
+  .why { padding: 96px 0; background: var(--bg-elev-2); margin-top: 64px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .compare-table { background: var(--bg-elev-1); border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow-md); }
+  .compare-row { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; align-items: center; padding: 14px 22px; border-bottom: 1px solid var(--line); }
+  .compare-row:last-child { border-bottom: 0; }
+  .compare-head { background: var(--bg-elev-2); padding: 18px 22px; }
+  .compare-head .col-name { font-family: var(--font-heading); font-weight: 700; font-size: 16px; text-align: center; }
+  .compare-head .col-name.col-frp { color: var(--accent); position: relative; }
+  .compare-head .col-name.col-frp::after { content: "ours"; display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 700; padding: 2px 6px; background: var(--accent); color: var(--on-accent); border-radius: 999px; vertical-align: middle; }
+  .feature-name { color: var(--ink-base); font-weight: 500; font-size: 15px; text-align: left; }
+  .cell { display: flex; align-items: center; justify-content: center; }
+  .cell :global(svg) { width: 22px; height: 22px; }
+  .cell-yes { color: var(--accent); }
+  .cell-no  { color: #94a3b8; }
+  .cell-partial { color: var(--ink-muted); font-size: 13px; }
+  .cell-frp-text { color: var(--accent); font-weight: 600; }
+  .compare-foot { padding: 18px 22px; font-size: 13px; color: var(--ink-faint); background: var(--bg-elev-2); border-top: 1px solid var(--line); }
+  @media (max-width: 768px) {
+    .compare-table { overflow-x: auto; }
+    .compare-row { min-width: 540px; grid-template-columns: 1.4fr 1fr 1fr 1fr; padding: 12px 14px; font-size: 13px; }
+    .compare-foot { min-width: 540px; }
+  }
+</style>

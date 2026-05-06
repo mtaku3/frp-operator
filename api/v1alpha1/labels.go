@@ -16,6 +16,17 @@ const (
 	LabelInitialized      = Group + "/initialized"
 )
 
+// Standard Karpenter requirement keys used in NodeSelectorRequirement
+// values. Scheduler pins these onto claim.Spec.Requirements when an
+// offering is chosen, so cloudprovider.Create can read the selected
+// instance type / region directly off the claim.
+const (
+	RequirementInstanceType = "node.kubernetes.io/instance-type"
+	RequirementRegion       = "topology.kubernetes.io/region"
+	RequirementZone         = "topology.kubernetes.io/zone"
+	RequirementCapacityType = "frp.operator.io/capacity-type"
+)
+
 // Well-known annotation keys.
 const (
 	AnnotationDoNotDisrupt = Group + "/do-not-disrupt"

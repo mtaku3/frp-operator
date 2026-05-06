@@ -112,6 +112,56 @@ func instanceTypeBySize(slug string) *cloudprovider.InstanceType {
 	return nil
 }
 
+// firstRequirementValue returns the first Values[0] for a requirement
+// key with operator In. Karpenter pins exactly one value per chosen
+// dimension (instance-type, region) so taking [0] is safe.
+func firstRequirementValue(reqs []v1alpha1.NodeSelectorRequirementWithMinValues, key string) string {
+	for _, r := range reqs {
+		if r.Key != key {
+			continue
+		}
+		if r.Operator != v1alpha1.NodeSelectorOpIn {
+			continue
+		}
+		if len(r.Values) == 0 {
+			continue
+		}
+		return r.Values[0]
+	}
+	return ""
+}
+
+// resolveImage returns the droplet image slug to launch. With only
+// Slug supported on ImageSelectorTerm today, this reduces to "first
+// term's Slug". Phase B will arch-narrow when claims pin
+// kubernetes.io/arch in their Requirements.
+func resolveImage(pc *dov1alpha1.DigitalOceanProviderClass) (string, error) {
+	for _, t := range pc.Spec.ImageSelectorTerms {
+		if t.Slug != "" {
+			return t.Slug, nil
+		}
+	}
+	return "", fmt.Errorf("digitalocean: providerclass %q has no image selector with slug", pc.Name)
+}
+
+// resolveSelection extracts the size + region the scheduler pinned on
+// the claim. Karpenter requires the scheduler to narrow NodeClaim
+// requirements before launch, so an unpinned claim is a programming
+// error — surface it loudly rather than guess.
+func resolveSelection(claim *v1alpha1.ExitClaim) (size, region string, err error) {
+	size = firstRequirementValue(claim.Spec.Requirements, v1alpha1.RequirementInstanceType)
+	region = firstRequirementValue(claim.Spec.Requirements, v1alpha1.RequirementRegion)
+	if size == "" {
+		return "", "", fmt.Errorf("digitalocean: claim %q has no %s requirement",
+			claim.Name, v1alpha1.RequirementInstanceType)
+	}
+	if region == "" {
+		return "", "", fmt.Errorf("digitalocean: claim %q has no %s requirement",
+			claim.Name, v1alpha1.RequirementRegion)
+	}
+	return size, region, nil
+}
+
 func (c *CloudProvider) Create(ctx context.Context, claim *v1alpha1.ExitClaim) (*v1alpha1.ExitClaim, error) {
 	pc, err := c.resolveClass(ctx, claim)
 	if err != nil {
@@ -143,15 +193,20 @@ func (c *CloudProvider) Create(ctx context.Context, claim *v1alpha1.ExitClaim) (
 		return nil, fmt.Errorf("render cloud-init: %w", err)
 	}
 
-	imageSlug := pc.Spec.ImageID
-	if imageSlug == "" {
-		imageSlug = "ubuntu-22-04-x64"
+	imageSlug, err := resolveImage(pc)
+	if err != nil {
+		return nil, err
+	}
+
+	size, region, err := resolveSelection(claim)
+	if err != nil {
+		return nil, err
 	}
 
 	req := &godo.DropletCreateRequest{
 		Name:       name,
-		Region:     pc.Spec.Region,
-		Size:       pc.Spec.Size,
+		Region:     region,
+		Size:       size,
 		Image:      godo.DropletCreateImage{Slug: imageSlug},
 		UserData:   userData,
 		Tags:       []string{ManagedTag},
@@ -180,9 +235,20 @@ func (c *CloudProvider) hydrate(
 	out.Status.ProviderID = providerIDFor(d.ID)
 	out.Status.ExitName = d.Name
 	out.Status.PublicIP = publicIPv4(d)
-	out.Status.ImageID = pc.Spec.ImageID
+	if img, err := resolveImage(pc); err == nil {
+		out.Status.ImageID = img
+	}
 	out.Status.FrpsVersion = claim.Spec.Frps.Version
-	if it := instanceTypeBySize(pc.Spec.Size); it != nil {
+	// Prefer the live droplet size (DO is the source of truth post-create);
+	// fall back to the scheduler-pinned requirement when Size is unset.
+	sizeSlug := ""
+	if d.Size != nil {
+		sizeSlug = d.Size.Slug
+	}
+	if sizeSlug == "" {
+		sizeSlug = firstRequirementValue(claim.Spec.Requirements, v1alpha1.RequirementInstanceType)
+	}
+	if it := instanceTypeBySize(sizeSlug); it != nil {
 		out.Status.Capacity = it.Capacity.DeepCopy()
 		out.Status.Allocatable = it.Allocatable()
 	} else {
@@ -253,6 +319,12 @@ func (c *CloudProvider) List(ctx context.Context) ([]*v1alpha1.ExitClaim, error)
 	return out, nil
 }
 
+// GetInstanceTypes returns the full provider catalog. Karpenter
+// equivalent: cloudprovider.GetInstanceTypes(nodePool) returns every
+// shape the cloud knows about; the scheduler narrows by NodePool
+// Requirements (instance-type, region, arch, capacity-type, ...).
+// The pool argument is unused — same as karpenter's AWS impl, which
+// returns the AWS-wide catalog regardless of pool.
 func (c *CloudProvider) GetInstanceTypes(
 	_ context.Context, _ *v1alpha1.ExitPool,
 ) ([]*cloudprovider.InstanceType, error) {
@@ -278,12 +350,22 @@ func (c *CloudProvider) IsDrifted(ctx context.Context, claim *v1alpha1.ExitClaim
 		}
 		return "", err
 	}
-	if d.Size != nil && d.Size.Slug != pc.Spec.Size {
-		return cloudprovider.DriftReason("SizeMismatch"), nil
+	// Drift compares the live droplet against what the scheduler pinned
+	// on this claim. Karpenter's equivalent: NodeClaim.Spec.Requirements
+	// is the source of truth post-launch; a NodeClass-only drift signal
+	// (image, vpc) is checked separately. Here ImageSelectorTerms drift
+	// is deferred to A3 (ProviderClass hash).
+	if size := firstRequirementValue(claim.Spec.Requirements, v1alpha1.RequirementInstanceType); size != "" {
+		if d.Size != nil && d.Size.Slug != size {
+			return cloudprovider.DriftReason("SizeMismatch"), nil
+		}
 	}
-	if d.Region != nil && d.Region.Slug != pc.Spec.Region {
-		return cloudprovider.DriftReason("RegionMismatch"), nil
+	if region := firstRequirementValue(claim.Spec.Requirements, v1alpha1.RequirementRegion); region != "" {
+		if d.Region != nil && d.Region.Slug != region {
+			return cloudprovider.DriftReason("RegionMismatch"), nil
+		}
 	}
+	_ = pc
 	return "", nil
 }
 

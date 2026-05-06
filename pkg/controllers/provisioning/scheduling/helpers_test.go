@@ -1,15 +1,59 @@
 package scheduling
 
 import (
+	"context"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/mtaku3/frp-operator/api/v1alpha1"
+	"github.com/mtaku3/frp-operator/pkg/cloudprovider"
 	"github.com/mtaku3/frp-operator/pkg/controllers/state"
 )
+
+// fakeCP is a minimal CloudProvider for scheduler unit tests. Returns
+// one InstanceType ("fake-1") with abundant capacity and a single $0
+// offering. Lets SelectInstanceType succeed for any pool that doesn't
+// pin contradictory requirements.
+type fakeCP struct{}
+
+func (fakeCP) Name() string { return "fake" }
+func (fakeCP) Create(_ context.Context, c *v1alpha1.ExitClaim) (*v1alpha1.ExitClaim, error) {
+	return c, nil
+}
+func (fakeCP) Delete(_ context.Context, _ *v1alpha1.ExitClaim) error { return nil }
+func (fakeCP) Get(_ context.Context, _ string) (*v1alpha1.ExitClaim, error) {
+	return &v1alpha1.ExitClaim{}, nil
+}
+func (fakeCP) List(_ context.Context) ([]*v1alpha1.ExitClaim, error) { return nil, nil }
+func (fakeCP) GetInstanceTypes(_ context.Context, _ *v1alpha1.ExitPool) ([]*cloudprovider.InstanceType, error) {
+	return []*cloudprovider.InstanceType{{
+		Name: "fake-1",
+		Requirements: []v1alpha1.NodeSelectorRequirementWithMinValues{
+			{Key: v1alpha1.RequirementInstanceType, Operator: v1alpha1.NodeSelectorOpIn, Values: []string{"fake-1"}},
+		},
+		Offerings: cloudprovider.Offerings{{Available: true, Price: 0}},
+		Capacity: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("8"),
+			corev1.ResourceMemory: resource.MustParse("16Gi"),
+		},
+	}}, nil
+}
+func (fakeCP) IsDrifted(_ context.Context, _ *v1alpha1.ExitClaim) (cloudprovider.DriftReason, error) {
+	return "", nil
+}
+func (fakeCP) RepairPolicies() []cloudprovider.RepairPolicy { return nil }
+func (fakeCP) GetSupportedProviderClasses() []client.Object { return nil }
+
+// fakeRegistry returns a Registry with FakeProviderClass → fakeCP.
+func fakeRegistry() *cloudprovider.Registry {
+	r := cloudprovider.NewRegistry()
+	_ = r.Register("FakeProviderClass", fakeCP{})
+	return r
+}
 
 func readyClaim() *v1alpha1.ExitClaim {
 	const name = "e1"

@@ -61,22 +61,43 @@ spec:
               defaultImage:
                 default: fatedier/frps:%s
                 description: |-
-                  DefaultImage is the frps binary version pulled in cloud-init,
-                  templated as "%s" -> version.
+                  DefaultImage is the frps binary download URL template used by
+                  cloud-init. DigitalOcean provisions plain VMs (cloud-init), NOT
+                  containers, so this MUST be a binary URL like
+                  "https://github.com/fatedier/frp/releases/download/%s/frp_%s_linux_amd64.tar.gz".
+                  The historic default value below is a container reference and is
+                  retained for CRD compatibility; cloud-init substitutes the URL
+                  template when this looks non-URL. The default fix is deferred to
+                  Phase 9 (requires CRD regeneration).
                 type: string
-              imageID:
-                default: ubuntu-22-04-x64
-                description: ImageID is the droplet base image; default ubuntu-22-04-x64.
-                type: string
+              imageSelectorTerms:
+                description: |-
+                  ImageSelectorTerms is the discovery set of acceptable droplet
+                  base images. Karpenter NodeClass equivalent: amiSelectorTerms.
+                  Provider-side resolution picks one image per claim from the matched
+                  set; with only Slug supported today the selection reduces to "first
+                  item". Future arch-aware claims will narrow by image arch.
+                items:
+                  description: |-
+                    ImageSelectorTerm matches one or more DO base images. Mirrors
+                    karpenter's AMISelectorTerm: a struct with multiple match modes so
+                    future selectors (alias, tags) can be added without a CRD bump.
+                    At least one of Slug or Alias must be set; an empty term is invalid.
+                  properties:
+                    alias:
+                      description: |-
+                        Alias is a moving-tag-style shorthand (e.g. ubuntu@22.04).
+                        Resolution is provider-side. Reserved for future use.
+                      type: string
+                    slug:
+                      description: Slug is the exact DO image slug (e.g. ubuntu-22-04-x64).
+                      type: string
+                  type: object
+                minItems: 1
+                type: array
               monitoring:
                 description: Monitoring enables DO monitoring agent.
                 type: boolean
-              region:
-                description: Region is the DO region slug (nyc3, sfo3, ...).
-                type: string
-              size:
-                description: Size is the droplet size slug (s-1vcpu-1gb, ...).
-                type: string
               sshKeyIDs:
                 description: SSHKeyIDs lists DO ssh key IDs to inject.
                 items:
@@ -87,8 +108,7 @@ spec:
                 type: string
             required:
             - apiTokenSecretRef
-            - region
-            - size
+            - imageSelectorTerms
             type: object
           status:
             properties:

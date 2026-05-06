@@ -1,0 +1,176 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: digitaloceanproviderclasses.frp.operator.io
+spec:
+  group: frp.operator.io
+  names:
+    kind: DigitalOceanProviderClass
+    listKind: DigitalOceanProviderClassList
+    plural: digitaloceanproviderclasses
+    shortNames:
+    - dopc
+    singular: digitaloceanproviderclass
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              apiTokenSecretRef:
+                description: APITokenSecretRef references the Secret holding a DO
+                  API token.
+                properties:
+                  key:
+                    type: string
+                  name:
+                    type: string
+                required:
+                - key
+                - name
+                type: object
+              defaultImage:
+                default: fatedier/frps:%s
+                description: |-
+                  DefaultImage is the frps binary download URL template used by
+                  cloud-init. DigitalOcean provisions plain VMs (cloud-init), NOT
+                  containers, so this MUST be a binary URL like
+                  "https://github.com/fatedier/frp/releases/download/%s/frp_%s_linux_amd64.tar.gz".
+                  The historic default value below is a container reference and is
+                  retained for CRD compatibility; cloud-init substitutes the URL
+                  template when this looks non-URL. The default fix is deferred to
+                  Phase 9 (requires CRD regeneration).
+                type: string
+              imageSelectorTerms:
+                description: |-
+                  ImageSelectorTerms is the discovery set of acceptable droplet
+                  base images. Karpenter NodeClass equivalent: amiSelectorTerms.
+                  Provider-side resolution picks one image per claim from the matched
+                  set; with only Slug supported today the selection reduces to "first
+                  item". Future arch-aware claims will narrow by image arch.
+                items:
+                  description: |-
+                    ImageSelectorTerm matches one or more DO base images. Mirrors
+                    karpenter's AMISelectorTerm: a struct with multiple match modes so
+                    future selectors (alias, tags) can be added without a CRD bump.
+                    At least one of Slug or Alias must be set; an empty term is invalid.
+                  properties:
+                    alias:
+                      description: |-
+                        Alias is a moving-tag-style shorthand (e.g. ubuntu@22.04).
+                        Resolution is provider-side. Reserved for future use.
+                      type: string
+                    slug:
+                      description: Slug is the exact DO image slug (e.g. ubuntu-22-04-x64).
+                      type: string
+                  type: object
+                minItems: 1
+                type: array
+              monitoring:
+                description: Monitoring enables DO monitoring agent.
+                type: boolean
+              sshKeyIDs:
+                description: SSHKeyIDs lists DO ssh key IDs to inject.
+                items:
+                  type: string
+                type: array
+              vpcUUID:
+                description: VPCUUID optionally pins the VPC.
+                type: string
+            required:
+            - apiTokenSecretRef
+            - imageSelectorTerms
+            type: object
+          status:
+            properties:
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

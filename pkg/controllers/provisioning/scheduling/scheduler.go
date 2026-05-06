@@ -129,13 +129,19 @@ func (s *Scheduler) Solve(ctx context.Context, tunnels []*v1alpha1.Tunnel) (Resu
 
 	results := Results{TunnelErrors: map[string]error{}}
 	for _, t := range tunnels {
-		if err := s.add(ctx, t, &results); err != nil {
+		// Karpenter idiom: try add, on failure ask Preferences.Relax to
+		// drop one preferred requirement and retry. Loop until success or
+		// Relax exhausts the preferred set. Today Relax always returns
+		// false (no preferred-requirement field on TunnelSpec yet) so the
+		// loop runs once; structure preserved for the future field.
+		for {
+			err := s.add(ctx, t, &results)
+			if err == nil {
+				break
+			}
 			if !s.Preferences.Relax(t) {
 				results.TunnelErrors[tunnelKey(t)] = err
-				continue
-			}
-			if err2 := s.add(ctx, t, &results); err2 != nil {
-				results.TunnelErrors[tunnelKey(t)] = err2
+				break
 			}
 		}
 	}
@@ -273,11 +279,10 @@ func weight(p *v1alpha1.ExitPool) int32 {
 }
 
 // poolLimitsExceeded reports whether the pool's running totals already
-// match or exceed any configured Limit. Reads via Pool.SnapshotResources.
-//
-// TODO(phase7): the Resources counter is populated by the
-// counter-controller in Phase 7. For Phase 4 this is zero-valued, so
-// limits never bind.
+// match or exceed any configured Limit. Reads via Pool.SnapshotResources,
+// which is mirrored from Pool.Status.Resources by state.Cluster.UpdatePool;
+// the counter-controller (pkg/controllers/exitpool/counter) is the source
+// of truth for that status field.
 func poolLimitsExceeded(pool *v1alpha1.ExitPool, c *state.Cluster) (bool, string) {
 	if pool == nil || c == nil {
 		return false, ""

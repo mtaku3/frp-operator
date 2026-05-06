@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -189,6 +188,3 @@ func (r *Controller) claimToPC(_ context.Context, obj client.Object) []reconcile
 	}
 	return []reconcile.Request{{NamespacedName: client.ObjectKey{Name: name}}}
 }
-
-// Ensure runtime.Object check at compile time.
-var _ runtime.Object = (*v1alpha1.ExitPool)(nil)

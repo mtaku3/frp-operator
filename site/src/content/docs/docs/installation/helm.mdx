@@ -5,47 +5,58 @@ sidebar:
   order: 2
 ---
 
-import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
-frp-operator provides Helm charts as a first-class installation method on Kubernetes. Two charts ship together: `frp-operator-crd` owns the CRD lifecycle, and `frp-operator` runs the controller. The CRD chart must be installed first.
+frp-operator provides Helm charts as a first-class method of installation on Kubernetes.
 
-## Installing with Helm
+Be sure to install the `frp-operator-crd` chart before `frp-operator`. The CRD chart manages the CRD lifecycle and must be reconciled first so that the operator chart can find the custom resource schemas.
 
-### Prerequisites
+## Prerequisites
 
-- Helm v3.8 or later (required for OCI registry support).
-- A running Kubernetes cluster with `kubectl` configured to target it.
+- [Install Helm version 3.8 or later](https://helm.sh/docs/intro/install/) (required for OCI registry support).
+- Install a supported version of Kubernetes.
 
-### Installing frp-operator with Helm
+## Installing frp-operator with Helm
 
-Both charts are published to the OCI registry at `ghcr.io/mtaku3/charts`. Versions are unified; install the same version for both charts.
+frp-operator is available as two OCI Helm charts hosted on the GitHub Container Registry.
 
-<Steps>
-1. Install the CRD chart first:
+**The OCI Helm charts are the source of truth and are published immediately upon release.** frp-operator only publishes via the OCI registry; there is no legacy HTTP Helm repository.
 
-   ```bash
-   helm install frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
-     --namespace frp-operator \
-     --create-namespace \
-     --version 0.0.1
-   ```
+The CRD chart must be installed first, followed by the operator chart. Both charts share the same version tag.
 
-2. Install the operator chart:
+### Installing from the OCI Registry
 
-   ```bash
-   helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
-     --namespace frp-operator \
-     --version 0.0.1
-   ```
-</Steps>
+Both charts are published to `ghcr.io/mtaku3/charts`. The latest frp-operator charts are available at the following locations:
 
-<Aside type="caution">
-  Always install `frp-operator-crd` before `frp-operator`. The operator chart includes a `crds/` fallback that only fires when the CRDs do not yet exist, but the canonical CRD lifecycle is managed by the CRD chart.
-</Aside>
+```
+oci://ghcr.io/mtaku3/charts/frp-operator-crd:0.0.1
+oci://ghcr.io/mtaku3/charts/frp-operator:0.0.1
+```
 
-### Verify the installation
+Install the CRD chart first:
 
-Check that the operator pod is running:
+```bash
+helm install frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+  --namespace frp-operator \
+  --create-namespace \
+  --version 0.0.1
+```
+
+Then install the operator chart:
+
+```bash
+helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --namespace frp-operator \
+  --version 0.0.1
+```
+
+### Installing from the Legacy Helm Repository
+
+frp-operator only publishes via the OCI registry; this section does not apply.
+
+### (Optional) Verify installation
+
+Once you have deployed frp-operator, you can verify the installation by checking that the operator pod is running:
 
 ```bash
 kubectl get pods -n frp-operator
@@ -53,36 +64,100 @@ kubectl get pods -n frp-operator
 
 You should see a pod named `frp-operator-*` in `Running` state.
 
-### Installation options
+## Installation options
 
-You can customise the installation by passing Helm values. For example, to enable debug logging and disable leader election (useful in single-replica test environments):
+A full list of available Helm values is in the [Helm values reference](/docs/reference/helm-values/).
+
+The example below shows how to tune the frp-operator installation by overwriting the default Helm values:
 
 ```bash
 helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
   --namespace frp-operator \
   --version 0.0.1 \
-  --set extraArgs[0]="--log-level=debug" \
-  --set extraArgs[1]="--leader-elect=false"
+  --set extraArgs[0]="--log-level=debug" \    # Example: enabling debug logging
+  --set extraArgs[1]="--leader-elect=false"   # Example: disabling leader election for single-replica test environments
 ```
 
-All available Helm values are documented in the [Helm values reference](/docs/reference/helm-values/). All available operator flags are documented in the [flags reference](/docs/reference/flags/).
+## Installing frp-operator as subchart
+
+If you have configured frp-operator as a subchart, all components of frp-operator will be installed into the namespace of the Helm release you are installing.
+
+There may be a situation where you want to specify the namespace to install frp-operator differently from the umbrella chart's namespace.
+
+This is a [known issue](https://github.com/helm/helm/issues/5358) with Helm and subcharts — you can't specify the namespace for the subchart directly. This capability is available in the frp-operator chart and can be set either in the values file or via `--set`.
+
+### Example usage
+
+Below is an example `Chart.yaml` with both frp-operator charts as subcharts:
+
+```yaml
+apiVersion: v2
+
+name: example_chart
+
+description: A Helm chart with frp-operator as subcharts
+
+type: application
+
+version: 0.1.0
+
+appVersion: "0.1.0"
+
+dependencies:
+  - name: frp-operator-crd
+    version: 0.0.1
+    repository: oci://ghcr.io/mtaku3/charts
+    alias: frp-operator-crd
+    condition: frp-operator-crd.enabled
+
+  - name: frp-operator
+    version: 0.0.1
+    repository: oci://ghcr.io/mtaku3/charts
+    alias: frp-operator
+    condition: frp-operator.enabled
+```
+
+You can override the namespace in two ways:
+
+1. In `values.yaml`:
+
+```yaml
+frp-operator-crd:
+  namespace: frp-system
+
+frp-operator:
+  namespace: frp-system
+```
+
+2. In the Helm command using `--set`:
+
+```bash
+helm install example example_chart \
+  --namespace example \
+  --create-namespace \
+  --set frp-operator-crd.namespace=frp-system \
+  --set frp-operator.namespace=frp-system
+```
+
+The above example will install frp-operator into the `frp-system` namespace.
 
 ## Output YAML
 
-If you need to inspect or version-control the rendered manifests without applying them, use `helm template`:
+Instead of directly installing frp-operator using Helm, static YAML manifests can be created using the [Helm template command](https://helm.sh/docs/helm/helm_template/). These static manifests can be tuned by providing flags to overwrite the default Helm values:
 
 ```bash
-helm template frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+helm template frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd:0.0.1 \
   --namespace frp-operator \
-  --version 0.0.1 > frp-operator-crd.yaml
+  > frp-operator-crd.yaml
 
-helm template frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+helm template frp-operator oci://ghcr.io/mtaku3/charts/frp-operator:0.0.1 \
   --namespace frp-operator \
-  --version 0.0.1 > frp-operator.yaml
+  # --set extraArgs[0]="--log-level=debug" \   # Example: enabling debug logging
+  > frp-operator.yaml
 ```
 
 <Aside type="note">
-  `helm template` does not output a `Namespace` resource. Create the namespace separately with `kubectl create namespace frp-operator` before applying the rendered manifests.
+  The `helm template` command will not output a `Namespace` resource and ignores the `--create-namespace` flag. You must ensure the namespace you are deploying the generated YAML to exists.
 </Aside>
 
 Apply them in order:
@@ -94,39 +169,65 @@ kubectl apply -f frp-operator.yaml
 
 ## Uninstalling
 
-See the [Uninstall guide](/docs/installation/uninstall/) for the correct removal order. Uninstalling in the wrong order can leave orphaned finalizers or CRDs.
+<Aside type="caution">
+  To uninstall frp-operator you should always use the same process for installing but in reverse. Deviating from the following process can cause issues and potentially broken states. Please ensure you follow the steps below when uninstalling to prevent this happening.
+</Aside>
+
+Before continuing, ensure that all frp-operator resources that have been created by users have been deleted. You can check for any existing resources with the following command:
+
+```bash
+kubectl get tunnels,exitpools,exitclaims,localdockerproviderclasses,digitaloceanproviderclasses --all-namespaces
+```
+
+Once all these resources have been deleted you are ready to uninstall frp-operator using the procedure determined by how you installed.
 
 ### Uninstalling with Helm
 
-<Aside type="caution">
-  Always uninstall `frp-operator` before `frp-operator-crd`. The controller must be given the opportunity to drain finalizers from custom resources before the CRD schemas are removed.
+Uninstalling frp-operator from a `helm` installation is a case of running the installation process, _in reverse_, using the delete command on both `kubectl` and `helm`.
+
+```bash
+$ helm uninstall frp-operator -n frp-operator
+
+release "frp-operator" uninstalled
+
+$ helm uninstall frp-operator-crd -n frp-operator
+
+These resources were kept due to the resource policy:
+
+[CustomResourceDefinition] exitpools.frp.operator.io
+[CustomResourceDefinition] exitclaims.frp.operator.io
+[CustomResourceDefinition] tunnels.frp.operator.io
+[CustomResourceDefinition] localdockerproviderclasses.frp.operator.io
+[CustomResourceDefinition] digitaloceanproviderclasses.frp.operator.io
+
+release "frp-operator-crd" uninstalled
+```
+
+As shown in the output, the `CustomResourceDefinition`s for `ExitPool`, `ExitClaim`, `Tunnel`, `LocalDockerProviderClass`, and `DigitalOceanProviderClass` are not removed by the Helm uninstall command. This is to prevent data loss, as removing the `CustomResourceDefinition` would also remove all instances of those resources.
+
+<Aside type="danger">
+  This will remove all `ExitPool`, `ExitClaim`, `Tunnel`, `LocalDockerProviderClass`, and `DigitalOceanProviderClass` resources from the cluster:
+
+  ```bash
+  kubectl delete crd \
+    exitpools.frp.operator.io \
+    exitclaims.frp.operator.io \
+    tunnels.frp.operator.io \
+    localdockerproviderclasses.frp.operator.io \
+    digitaloceanproviderclasses.frp.operator.io
+  ```
 </Aside>
 
-```bash
-helm uninstall frp-operator --namespace frp-operator
-helm uninstall frp-operator-crd --namespace frp-operator
-```
+### Namespace Stuck in Terminating State
 
-The CRD chart annotates CRDs with `helm.sh/resource-policy: keep`, so CRDs (and the custom resources inside them) survive `helm uninstall`. To fully remove the schemas:
+If the namespace has been marked for deletion without deleting the frp-operator installation first, the namespace may become stuck in a terminating state. This is typically due to custom resources still having finalizers set by the operator. To resolve this, ensure you have run the above commands correctly. If resources are stuck with finalizers, you can check them with:
 
 ```bash
-kubectl delete crd \
-  exitpools.frp.operator.io \
-  exitclaims.frp.operator.io \
-  tunnels.frp.operator.io \
-  localdockerproviderclasses.frp.operator.io \
-  digitaloceaproviderclasses.frp.operator.io
-```
-
-### Namespace stuck in Terminating state
-
-If the `frp-operator` namespace becomes stuck in `Terminating`, it is usually because a custom resource still has a finalizer. Ensure the operator pod finished running before removing the CRD chart, or manually patch the finalizers:
-
-```bash
-kubectl get tunnels -A -o name | xargs -I{} kubectl patch {} \
-  --type=merge -p '{"metadata":{"finalizers":[]}}' -n frp-operator
+kubectl get tunnels,exitpools,exitclaims --all-namespaces
 ```
 
 ## Using the Flux Helm Controller
 
-See the [Continuous Deployment and GitOps guide](/docs/installation/continuous-deployment-and-gitops/) for Flux and ArgoCD installation examples.
+The frp-operator Helm charts can be installed and upgraded by the Flux Helm Controller.
+
+Read more at [Continuous Deployment: Using the Flux Helm Controller](/docs/installation/continuous-deployment-and-gitops/).

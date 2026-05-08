@@ -7,60 +7,13 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-This page describes how to remove frp-operator from your cluster. Use the same method you used to install it, but in reverse order: operator chart first, CRD chart second.
+frp-operator supports running on Kubernetes. Select the method that was used for installing frp-operator to go to the relevant uninstall documentation.
 
-<Aside type="note">
-  If you want to preserve your `ExitPool`, `ExitClaim`, `Tunnel`, and provider class resources, do not delete the CRDs. The `frp-operator-crd` chart annotates CRDs with `helm.sh/resource-policy: keep`, so `helm uninstall` will not remove them. Only the manual `kubectl delete crd` step below removes the schemas and all associated objects.
-</Aside>
+- [helm](/docs/installation/helm/#uninstalling)
 
-## Uninstalling with Helm
-
-Uninstall the operator chart first. This gives the controller time to process finalizers on any resources that are being deleted:
+If you need to preserve frp-operator custom resources (`Tunnel`s, `ExitPool`s, etc.) that are not version controlled or backed up by other means, export them before proceeding:
 
 ```bash
-helm uninstall frp-operator --namespace frp-operator
+kubectl get tunnels,exitpools,exitclaims,localdockerproviderclasses,digitaloceanproviderclasses \
+  --all-namespaces -o yaml > frp-operator-backup.yaml
 ```
-
-Wait for the operator pod to terminate:
-
-```bash
-kubectl get pods -n frp-operator --watch
-```
-
-Then uninstall the CRD chart:
-
-```bash
-helm uninstall frp-operator-crd --namespace frp-operator
-```
-
-At this point the CRDs and all custom resources still exist in the cluster (due to `resource-policy: keep`). To fully remove them:
-
-```bash
-kubectl delete crd \
-  exitpools.frp.operator.io \
-  exitclaims.frp.operator.io \
-  tunnels.frp.operator.io \
-  localdockerproviderclasses.frp.operator.io \
-  digitaloceaproviderclasses.frp.operator.io
-```
-
-<Aside type="caution">
-  Deleting the CRDs removes all custom resources of those types cluster-wide. This is irreversible unless you have a backup. Export your resources before running the above command if you may need them later.
-</Aside>
-
-Finally, delete the namespace if it is no longer needed:
-
-```bash
-kubectl delete namespace frp-operator
-```
-
-## Uninstalling with kubectl (Output YAML path)
-
-If you installed using rendered manifests (via `helm template`), delete them in reverse order:
-
-```bash
-kubectl delete -f frp-operator.yaml
-kubectl delete -f frp-operator-crd.yaml
-```
-
-Then manually delete the CRDs if desired (see the command above).

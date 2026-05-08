@@ -5,24 +5,59 @@ sidebar:
   order: 3
 ---
 
-import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
-Learn how to automate the installation of frp-operator using GitOps tools such as Flux and ArgoCD.
+Learn how to automate the installation of frp-operator using tools like Flux.
 
 ## Introduction
 
-frp-operator ships as two Helm charts: `frp-operator-crd` and `frp-operator`. The CRD chart must be reconciled before the operator chart. Both Flux and ArgoCD support expressing this ordering constraint natively.
+You can use [the frp-operator Helm charts](/docs/installation/helm/) directly with tools like Flux, and you can [output YAML using helm template](/docs/installation/helm/#output-yaml) to generate customized frp-operator installation manifests, which can be piped into your preferred deployment tool.
+
+This page contains notes about how to install frp-operator with some of these tools.
+
+<Aside type="tip">
+  Please help improve this page by contributing notes or short tutorials about using frp-operator with common GitOps and continuous deployment tools.
+</Aside>
 
 ## Using the Flux Helm Controller
 
+The frp-operator Helm charts can be installed by the [Flux Helm Controller](https://fluxcd.io/flux/components/helm/).
+
+First create a [`HelmRepository` resource](https://fluxcd.io/flux/components/source/helmrepositories/), configured with the URL of the frp-operator OCI Helm registry. Then create two [`HelmRelease` resources](https://fluxcd.io/flux/components/helm/helmreleases/) — one for the CRD chart and one for the operator chart — with the operator release declaring a `dependsOn` the CRD release.
+
+Here is an example which installs version `0.0.1` of both charts, with the operator chart waiting for the CRD chart to reconcile first.
+
+<Aside type="caution">
+  This is a simple example which may not be suitable for production use. Always test upgrades in a non-production cluster first. When upgrading across breaking versions, upgrade `frp-operator-crd` before `frp-operator`.
+</Aside>
+
 ### Prerequisites
 
-- A running Kubernetes cluster with Flux installed (`flux install`).
-- The Flux CLI available locally.
+You'll need the [`flux` CLI](https://fluxcd.io/flux/cmd/) and a Kubernetes cluster with [Flux installed](https://fluxcd.io/flux/installation/).
+
+Here's how to quickly install Flux on a [Kind](https://kind.sigs.k8s.io/) cluster:
+
+```bash
+kind create cluster
+
+flux check --pre
+
+flux install
+
+flux check
+```
 
 ### Create a `HelmRepository` resource
 
-Because the charts are hosted on an OCI registry, the `HelmRepository` source must use `type: oci`:
+Because the charts are hosted on an OCI registry, the `HelmRepository` source must declare `type: oci`:
+
+```bash
+flux create source helm frp-operator \
+  --url oci://ghcr.io/mtaku3/charts \
+  --namespace flux-system
+```
+
+Or apply the manifest directly:
 
 ```yaml
 apiVersion: source.toolkit.fluxcd.io/v1beta2
@@ -38,7 +73,39 @@ spec:
 
 ### Create `HelmRelease` resources
 
-Create one `HelmRelease` for the CRD chart and one for the operator chart. The operator release uses `dependsOn` to ensure the CRD chart reconciles first.
+Put your Helm chart values in a `values.yaml` file. For the operator chart you can pass extra flags using the `extraArgs` value:
+
+```yaml
+# values.yaml (frp-operator)
+extraArgs: []
+```
+
+Create the CRD release:
+
+```bash
+flux create helmrelease frp-operator-crd \
+  --chart frp-operator-crd \
+  --source HelmRepository/frp-operator.flux-system \
+  --release-name frp-operator-crd \
+  --target-namespace frp-operator \
+  --create-target-namespace \
+  --chart-version 0.0.1
+```
+
+Create the operator release with `dependsOn` to ensure the CRD chart reconciles first:
+
+```bash
+flux create helmrelease frp-operator \
+  --chart frp-operator \
+  --source HelmRepository/frp-operator.flux-system \
+  --release-name frp-operator \
+  --target-namespace frp-operator \
+  --depends-on flux-system/frp-operator-crd \
+  --values values.yaml \
+  --chart-version 0.0.1
+```
+
+Or as manifests applied directly:
 
 ```yaml
 apiVersion: helm.toolkit.fluxcd.io/v2
@@ -70,6 +137,7 @@ spec:
   targetNamespace: frp-operator
   dependsOn:
     - name: frp-operator-crd
+      namespace: flux-system
   chart:
     spec:
       chart: frp-operator
@@ -80,93 +148,31 @@ spec:
         namespace: flux-system
 ```
 
-Apply the manifests and watch Flux reconcile them:
+### Updates and Upgrades
+
+When you want to upgrade to a new frp-operator release, update the `version` field in both `HelmRelease` resources and commit the change. Flux will detect the drift and reconcile. The `dependsOn` constraint ensures `frp-operator-crd` is reconciled before `frp-operator`.
 
 ```bash
-kubectl apply -f helmrepository.yaml
-kubectl apply -f helmreleases.yaml
-flux events --watch
+flux create helmrelease frp-operator-crd \
+  --chart frp-operator-crd \
+  --source HelmRepository/frp-operator.flux-system \
+  --release-name frp-operator-crd \
+  --target-namespace frp-operator \
+  --chart-version 0.0.2
 ```
-
-### Updates and upgrades
-
-To upgrade, bump the `version` field in both `HelmRelease` resources and commit the change. Flux will detect the drift and reconcile. Always upgrade `frp-operator-crd` first (its `HelmRelease` should have a lower `interval` or be reconciled manually first in a breaking upgrade).
 
 ### Troubleshooting
 
-```bash
-flux events --for HelmRelease/frp-operator-crd -n flux-system
-flux events --for HelmRelease/frp-operator -n flux-system
-flux logs --level=error --all-namespaces
-kubectl logs -n frp-operator -l app.kubernetes.io/name=frp-operator
-```
-
-## Using ArgoCD
-
-### Prerequisites
-
-- A running Kubernetes cluster with ArgoCD installed.
-
-### Create `Application` resources
-
-Use `argocd.argoproj.io/sync-wave` annotations to enforce install order. The CRD application runs in wave `-1` (before wave `0`).
-
-```yaml
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: frp-operator-crd
-  namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "-1"
-spec:
-  project: default
-  source:
-    repoURL: ghcr.io/mtaku3/charts
-    chart: frp-operator-crd
-    targetRevision: "0.0.1"
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: frp-operator
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: frp-operator
-  namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-spec:
-  project: default
-  source:
-    repoURL: ghcr.io/mtaku3/charts
-    chart: frp-operator
-    targetRevision: "0.0.1"
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: frp-operator
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-```
-
-<Aside type="note">
-  ArgoCD treats Helm CRD installs differently from regular resources. Because the CRD chart places CRDs in `templates/` (not `crds/`), ArgoCD will manage their lifecycle normally. If you set `Replace=true` in `syncOptions`, ArgoCD will replace CRDs on upgrade instead of patching them.
-</Aside>
-
-Apply both applications and trigger a sync:
+Check Flux events and logs for warnings and errors:
 
 ```bash
-kubectl apply -f argocd-apps.yaml
-argocd app sync frp-operator-crd
-argocd app sync frp-operator
+flux events
+
+flux logs
+```
+
+Check the frp-operator logs for warnings and errors:
+
+```bash
+kubectl logs -n frp-operator -l app.kubernetes.io/instance=frp-operator --prefix --all-containers
 ```

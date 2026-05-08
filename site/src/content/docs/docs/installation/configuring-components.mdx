@@ -7,11 +7,15 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-To configure frp-operator you use CLI flags or environment variables. Flags take precedence over environment variables. There is no separate configuration file — all settings are passed directly to the operator binary.
+To configure the frp-operator components, you can use CLI flags or environment variables. CLI flags take precedence over environment variables.
 
 ## CLI flags
 
-The complete list of flags is documented in the [flags reference](/docs/reference/flags/). When installing with Helm, pass flags via the `extraArgs` value:
+An overview of the available CLI flags for each component can be found on the following pages:
+
+- frp-operator controller: [controller CLI flags](/docs/reference/flags/)
+
+When using the Helm chart, the CLI flags can be specified in the `extraArgs` value:
 
 ```yaml
 # values.yaml
@@ -21,74 +25,35 @@ extraArgs:
   - --metrics-bind-address=:8080
 ```
 
-Apply with:
-
-```bash
-helm upgrade frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
-  --namespace frp-operator \
-  --reuse-values \
-  --values values.yaml
-```
-
-### Common flags
-
-| Flag | Environment variable | Default | Description |
-|------|---------------------|---------|-------------|
-| `--log-level` | `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, `error`. |
-| `--leader-elect` | `LEADER_ELECT` | `true` | Enable leader election for high availability. |
-| `--leader-election-id` | `LEADER_ELECTION_ID` | `frp-operator` | Name of the leader election lock. |
-| `--leader-election-namespace` | `LEADER_ELECTION_NAMESPACE` | install namespace | Namespace for the leader election lock. |
-| `--metrics-bind-address` | `METRICS_BIND_ADDRESS` | `:8080` | Address the metrics server listens on. |
-| `--health-probe-bind-address` | `HEALTH_PROBE_BIND_ADDRESS` | `:8081` | Address the health probe endpoint listens on. |
-| `--kube-client-qps` | `KUBE_CLIENT_QPS` | `20` | Sustained Kubernetes client QPS. |
-| `--kube-client-burst` | `KUBE_CLIENT_BURST` | `30` | Burst Kubernetes client QPS. |
-| `--disable-profiling` | `DISABLE_PROFILING` | `false` | Disable pprof endpoints. |
-| `--preference-policy` | `PREFERENCE_POLICY` | `Respect` | Scheduler preference policy: `Respect` or `Ignore`. |
-| `--min-values-policy` | `MIN_VALUES_POLICY` | `Strict` | Scheduler MinValues policy: `Strict` or `BestEffort`. |
-| `--registration-ttl` | `REGISTRATION_TTL` | `30s` | Time to wait for a fresh exit node to register. |
-| `--drift-ttl` | `DRIFT_TTL` | `5m` | Duration a drift must persist before disruption fires. |
-| `--disruption-poll-period` | `DISRUPTION_POLL_PERIOD` | `30s` | Disruption controller reconcile tick. |
-| `--batch-idle-duration` | `BATCH_IDLE_DURATION` | `500ms` | Idle window before a reconcile batch fires. |
-| `--batch-max-duration` | `BATCH_MAX_DURATION` | `2s` | Maximum time a batch may stay open. |
-| `--feature-gates` | `FEATURE_GATES` | `""` | Comma-separated `Name=bool` gate overrides. |
-
 <Aside type="note">
-  This table lists the most commonly used flags. See the [flags reference](/docs/reference/flags/) for the full list including defaults confirmed from source.
+  frp-operator does not have a webhook component or a cainjector component. Only the controller binary accepts flags.
 </Aside>
 
-## Environment variables
+## Configuration file
 
-Every flag has a corresponding environment variable (upper-snake-case, without the `--` prefix). For example `--log-level=debug` is equivalent to setting `LOG_LEVEL=debug` in the pod environment.
-
-To set environment variables via Helm, use the `env` value (a list of `name`/`value` pairs following the standard Kubernetes `envVar` schema):
-
-```yaml
-# values.yaml
-env:
-  - name: LOG_LEVEL
-    value: debug
-  - name: LEADER_ELECT
-    value: "true"
-```
-
-Flags passed via `extraArgs` override the corresponding environment variable.
+frp-operator does not support a `--config` file flag. All configuration is passed directly to the operator binary via CLI flags or environment variables. There is no equivalent to cert-manager's `ControllerConfiguration` or `WebhookConfiguration` API.
 
 ## Feature gates
 
-Feature gates allow you to enable or disable experimental operator behaviour. Pass them as a comma-separated list of `Name=bool` pairs:
+Feature gates can be used to enable or disable experimental features in frp-operator.
+
+There are 2 levels of feature gates (more details in [Kubernetes definition of feature stages](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/#feature-stages)):
+
+- **Alpha:** feature is not yet stable and might be removed or changed in the future. Alpha features are disabled by default and need to be explicitly enabled by the user (to test the feature).
+- **Beta:** feature is almost stable but might still change in the future. Beta features are enabled by default and can be disabled by the user (if any issues are encountered).
+
+The frp-operator controller has its own set of feature gates. They can be enabled or disabled using the `--feature-gates` flag. The available feature gates for the controller can be found in the [flags reference](/docs/reference/flags/).
+
+Pass feature gates as a comma-separated list of `Name=bool` pairs:
 
 ```bash
 --feature-gates=SomeFeature=true,AnotherFeature=false
 ```
 
-Or via the `FEATURE_GATES` environment variable:
+When using the Helm chart, specify them in `extraArgs`:
 
 ```yaml
-env:
-  - name: FEATURE_GATES
-    value: "SomeFeature=true"
+# values.yaml
+extraArgs:
+  - --feature-gates=SomeFeature=true,AnotherFeature=false
 ```
-
-<Aside type="note">
-  Feature gates that are alpha-level may be removed or changed in a future release. Beta-level gates are almost stable but may still change. Check the release notes before enabling any gate in production.
-</Aside>

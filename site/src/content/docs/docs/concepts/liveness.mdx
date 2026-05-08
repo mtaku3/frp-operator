@@ -1,0 +1,90 @@
+---
+title: Liveness
+description: How frp-operator continuously probes Ready ExitClaims and replaces unreachable exits before new tunnels are assigned to them.
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+An ExitClaim reaching `Ready=True` does not mean its frps process will remain healthy indefinitely. Network
+failures, OOM kills, and cloud-side issues can take an exit offline after it has already been provisioned and
+assigned tunnels. The liveness controller provides a continuous health check that detects these conditions and
+triggers replacement before the failure propagates to tunnel clients.
+
+## Two-phase health checking
+
+The lifecycle controller runs two distinct health checks depending on where the claim is in its lifecycle:
+
+### Pre-Ready: registration timeout
+
+After the cloud provider creates the VM (`Launched=True`), the controller waits for the frps process to register
+back with the operator (`Registered=True`). If registration does not complete within the **registration TTL**
+(default: **15 minutes**, `DefaultRegistrationTTL`), the claim is considered fatally stuck. The controller
+stamps `Disrupted=True` and deletes the claim. No replacement is emitted at this stage—the scheduler will
+provision a new claim the next time a tunnel needs placement.
+
+### Post-Ready: continuous admin API probe
+
+Once `Ready=True`, the controller probes the frps admin HTTP API on every reconcile pass. The probe endpoint is:
+
+```
+http://<status.publicIP>:<spec.frps.adminPort>/api/serverinfo
+```
+
+The `adminPort` defaults to `7400` when unset. The controller calls `GetServerInfo` on each probe. A successful
+response clears the failure counter (annotation `frp.operator.io/liveness-failures`) if it is present.
+
+## Failure counting and threshold
+
+Each failed probe increments the `frp.operator.io/liveness-failures` annotation on the ExitClaim. The counter
+persists in the API server so it survives operator restarts mid-sequence.
+
+The probe recurs at the **probe interval** (default: **30 seconds**, `DefaultLivenessProbeInterval`). When the
+consecutive failure count reaches the **failure threshold** (default: **3**, `DefaultLivenessFailureThreshold`),
+the controller promotes the probe error to a disruption signal:
+
+- `Ready` condition is flipped to `False` with reason `AdminAPIUnreachable`.
+- `Disrupted` condition is set to `True` with reason `AdminAPIUnreachable`.
+
+These two writes are a single status patch against the API server. After the patch, the claim is effectively
+cordoned—the scheduler will not bind new tunnels to it—and the disruption queue will detect the pre-cordoned
+claim and launch a replacement.
+
+<Aside type="note">
+  The default probe sequence is: probe fails at T=0, T=30s, T=60s → threshold reached at the third failure →
+  `Ready=False` + `Disrupted=True` stamped at approximately T=60s. With the replacement ready timeout of 5
+  minutes, the full failure-to-replacement cycle is typically under 7 minutes.
+</Aside>
+
+## Why cordon before launch
+
+A naive implementation would launch the replacement first and cordon the old exit only after the replacement is
+Ready. frp-operator reverses this order for two reasons:
+
+1. **Safety during the boot window** — provisioning a cloud VM can take several minutes. During that window,
+   the scheduler is still running its placement loop. Without a cordon, it might assign new tunnels to the
+   unhealthy exit, binding fresh work to an exit that is already known to be failing.
+
+2. **Restart consistency** — the `Disrupted=True` condition is written to the API server before any replacement
+   action is taken. If the operator restarts mid-replacement, it re-reads the condition on startup and continues
+   the replacement sequence without double-provisioning or missing the cordon.
+
+This is the same ordering that Karpenter uses: apply the disruption taint to the node before launching
+replacement NodeClaims.
+
+## Configuration
+
+The probe interval, failure threshold, and registration TTL are controller-level settings, not CRD fields. They
+are configured at operator startup time. The defaults are:
+
+| Setting | Default | Constant |
+|---------|---------|----------|
+| Probe interval | 30 s | `DefaultLivenessProbeInterval` |
+| Failure threshold | 3 | `DefaultLivenessFailureThreshold` |
+| Registration TTL | 15 min | `DefaultRegistrationTTL` |
+| Replacement ready timeout | 5 min | `DefaultReplacementReadyTimeout` |
+
+The `RequeueAfter` the liveness reconciler returns after each probe is exactly `ProbeInterval`, so the probe
+cadence is driven by the reconciler's requeue schedule rather than by watch events. Healthy claims generate no
+watch events (no status changes), making the timed requeue the only scheduling mechanism.

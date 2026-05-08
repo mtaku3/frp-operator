@@ -1,0 +1,135 @@
+---
+title: Scheduling
+description: How frp-operator selects or provisions an ExitClaim for each Tunnel—requirements filtering, cheapest-fit offering selection, and bin-packing.
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+When a new `Tunnel` appears in the cluster—or when a pool's static replica count demands additional exits—the
+operator's scheduler runs a placement pass over all pending tunnels. The goal is to assign each tunnel to an exit
+that can satisfy its requirements and port needs, provisioning new exits only when existing capacity is
+insufficient.
+
+## Trigger
+
+The scheduler is triggered by the provisioner controller whenever unscheduled tunnels are detected. Tunnels are
+processed in a single batched `Solve` call so that the scheduler can pack multiple tunnels onto one new ExitClaim
+rather than minting a separate claim per tunnel.
+
+## Stage 1: try existing Ready exits
+
+For each tunnel, the scheduler first attempts to fit it onto an already-Ready ExitClaim. An existing exit is
+eligible if:
+
+- It is not marked for deletion (`DeletionTimestamp` is nil).
+- It does not carry `Disrupted=True` — claims cordoned for replacement are excluded from scheduling to prevent
+  new work from landing on an exit that is about to be torn down.
+- Its requirements (instance type, region, capacity type) are compatible with the tunnel's `spec.requirements`.
+- It has enough remaining `allocatable` capacity to satisfy the tunnel's `spec.resources.requests` (bandwidth,
+  monthly traffic, etc.).
+- It has at least one free public port slot in its `allowPorts` range for each requested tunnel port.
+
+The scheduler picks the first eligible existing exit. Among a group of exits that all fit, no explicit ordering
+is applied at this stage—the existing-exit list is ordered by how they appear in the cluster state snapshot.
+
+## Stage 2: try in-flight (not-yet-Ready) claims
+
+If no Ready exit fits, the scheduler checks claims that have already been provisioned but have not yet reached
+`Ready=True`. These *inflight* claims are rehydrated from the API server on every `Solve` call so that a claim
+created in a previous scheduling batch is visible even before the VM finishes booting.
+
+Inflight claims are sorted by current load (fewest allocated resources first) before the fit check. This
+bin-packs new tunnels onto the least-loaded pending exit rather than spreading them thin.
+
+<Aside type="note">
+  Without inflight rehydration, a second scheduling pass running before the first pass's claim reached Ready
+  would mint a duplicate claim for the same pool. Rehydration is the mechanism that prevents this (issues #7 and #8
+  in the operator's tracker).
+</Aside>
+
+## Stage 3: provision a new ExitClaim
+
+If neither existing nor inflight capacity fits, the scheduler selects a new instance type from the provider's
+catalog and creates a fresh ExitClaim.
+
+### Pool ordering by weight
+
+When a tunnel's requirements are compatible with more than one ExitPool, the scheduler evaluates pools in
+descending `spec.weight` order. A pool with `weight: 100` is tried before one with `weight: 10`. Pools without
+an explicit weight default to zero. `sortPoolsByWeight` performs a stable sort so pools of equal weight retain
+their declaration order.
+
+### Requirements filtering
+
+The scheduler intersects three requirement sets:
+
+1. **Pool template requirements** — declared in `spec.template.spec.requirements` on the ExitPool.
+2. **Tunnel requirements** — declared in `spec.requirements` on the Tunnel.
+3. **Instance type requirements** — inherent properties of each offering in the cloud provider's catalog
+   (e.g. `node.kubernetes.io/instance-type=s-1vcpu-1gb`, `topology.kubernetes.io/region=nyc1`).
+
+All three must be mutually compatible (`Compatible` returns nil) for an instance type to be a candidate. The
+`NodeSelectorRequirementWithMinValues` type supports the standard operators: `In`, `NotIn`, `Exists`,
+`DoesNotExist`, `Gt`, and `Lt`.
+
+The optional `minValues` field on a requirement forces the scheduler to consider at least N distinct values for
+that key when evaluating offerings. This ensures diversity in multi-valued constraints.
+
+### Offering selection and cheapest-fit
+
+Each instance type in the catalog exposes a set of *offerings*—one per region it is available in. Each offering
+carries a price (hourly), an availability flag, and a requirements list (instance type slug + region). An
+offering is eligible if:
+
+- `Available` is true.
+- Its requirements are compatible with the pool template requirements.
+- Its requirements are compatible with the tunnel requirements.
+
+Among all eligible `(instanceType, offering)` pairs, the scheduler picks the one with the lowest offering price.
+This is the *cheapest-fit* strategy: always provision the smallest VM that satisfies the constraints, rather than
+the most powerful one available.
+
+For DigitalOcean, the static catalog looks like this:
+
+| Size | vCPU | Memory | Bandwidth | Price/hr |
+|------|------|--------|-----------|----------|
+| `s-1vcpu-1gb` | 1 | 1 Gi | 1000 Mbps | $0.00744 |
+| `s-2vcpu-2gb` | 2 | 2 Gi | 2000 Mbps | $0.01786 |
+| `s-2vcpu-4gb` | 2 | 4 Gi | 4000 Mbps | $0.02976 |
+
+Each size is offered in all supported regions at the same price, so the scheduler's cheapest-fit decision is
+primarily driven by the size dimension.
+
+### Resource fit check
+
+Before accepting a candidate, the scheduler verifies that the instance type's `Allocatable()` (capacity minus
+per-exit overhead) is at least as large as the sum of the tunnel's `spec.resources.requests`. This prevents
+placing a high-bandwidth tunnel onto an undersized exit.
+
+### Creating the ExitClaim
+
+Once an instance type and offering are selected, the scheduler calls `NewClaimFromPool` to build an ExitClaim
+from the pool template. The chosen instance type and offering requirements are pinned onto
+`spec.requirements`—this is the same narrowing that Karpenter does to `NodeClaim.Spec.Requirements`—so the cloud
+provider's `Create` implementation does not need to re-run selection logic.
+
+The new claim is added to the inflight list immediately, so subsequent tunnels in the same batch can bin-pack
+onto it without waiting for the VM to boot.
+
+### Pool limits
+
+Before creating a new claim, the scheduler checks `spec.limits` on the pool. The limit is an extensible
+`ResourceList`; recognized keys include `frp.operator.io/exits` (count of ExitClaims), `frp.operator.io/bandwidthMbps`,
+and `frp.operator.io/monthlyTrafficGB`. If the pool's current running totals meet or exceed any configured limit,
+no new claim is minted for that pool and the scheduler moves on to the next one.
+
+## Scheduling result
+
+`Solve` returns a `Results` struct with two fields:
+
+- `Bindings` — a list of `(tunnelKey, exitClaimName, assignedPorts)` tuples. The provisioner writes these back
+  to each Tunnel's status.
+- `NewClaims` — a list of `InflightClaim` objects for exits that need to be created. The provisioner submits
+  these to the API server, which triggers the lifecycle controller's launch phase.

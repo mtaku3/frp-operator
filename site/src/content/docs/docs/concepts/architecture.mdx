@@ -1,0 +1,178 @@
+---
+title: Architecture
+description: The four CRDs—Tunnel, ExitPool, ExitClaim, ProviderClass—and how they relate in the frp-operator model.
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+frp-operator is built around four custom resource types that map cleanly onto two personas: application developers who
+need tunnels, and cluster operators who control infrastructure policy.
+
+## The four CRDs
+
+### Tunnel
+
+`Tunnel` is a namespaced resource created by application developers. It describes a set of ports that should be
+exposed publicly through an frps exit:
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata:
+  name: my-service
+  namespace: default
+spec:
+  ports:
+    - servicePort: 8080
+      protocol: TCP
+  requirements:
+    - key: topology.kubernetes.io/region
+      operator: In
+      values: ["nyc1"]
+```
+
+The `spec.ports` list declares the in-cluster service ports to forward. Each port may request a specific public port
+(`publicPort`) or leave it at zero, in which case the scheduler assigns a free slot from the exit's `allowPorts`
+range. The optional `spec.requirements` field constrains which exits are eligible to host the tunnel—the scheduler
+intersects these with pool template requirements before making a placement decision.
+
+A Tunnel also carries optional `spec.resources.requests` (bandwidth, traffic quota) that serve as binpacking inputs.
+The `spec.exitClaimRef` field bypasses the scheduler entirely and hard-pins the tunnel to a named ExitClaim, which
+is useful for debugging but not recommended in production.
+
+After scheduling completes, `status.assignedExit`, `status.assignedIP`, and `status.assignedPorts` are populated.
+
+### ExitPool
+
+`ExitPool` is a cluster-scoped resource created by cluster operators. It defines the policy for a class of exits:
+what provider to use, what hardware requirements to enforce, how many exits can exist at once, and how aggressively
+to reclaim idle or outdated ones.
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: do-nyc
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-prod
+      requirements:
+        - key: topology.kubernetes.io/region
+          operator: In
+          values: ["nyc1", "nyc3"]
+      frps:
+        version: "v0.61.1"
+        bindPort: 7000
+        adminPort: 7400
+        allowPorts: ["1024-65535"]
+        auth:
+          method: token
+      expireAfter: 168h
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 5m
+    budgets:
+      - nodes: "10%"
+  limits:
+    frp.operator.io/exits: "10"
+  weight: 50
+```
+
+`spec.template` is the blueprint for every `ExitClaim` the operator creates from this pool. `spec.disruption`
+controls when and how the operator reclaims or replaces exits. `spec.limits` caps total resource consumption.
+`spec.weight` biases the scheduler toward this pool when multiple pools could satisfy a tunnel's requirements
+(higher weight wins).
+
+The optional `spec.replicas` field enables static-mode (alpha): the operator maintains exactly that number of
+ExitClaims regardless of demand, analogous to a Deployment's replica count.
+
+### ExitClaim
+
+`ExitClaim` is a cluster-scoped resource that the operator creates automatically—one per provisioned VM. Users
+do not create ExitClaims directly. Each claim records:
+
+- `spec.providerClassRef` — which provider to use (copied from the pool template).
+- `spec.requirements` — the pinned instance type and region chosen by the scheduler.
+- `spec.frps` — the frps configuration to deploy.
+- `status.providerID` — the cloud-provider identifier (e.g. `do://<droplet-id>`).
+- `status.publicIP` — the public IP address assigned by the provider.
+- `status.capacity` / `status.allocatable` — estimated resource totals reported at provision time.
+- `status.conditions` — lifecycle conditions: `Launched`, `Registered`, `Initialized`, `Ready`, and disruption
+  signals (`Disrupted`, `Empty`, `Drifted`, `Expired`, `Consolidatable`).
+
+The controller knows where tunnel allocations live through each Tunnel's `status.assignedExit` field—the
+ExitClaim's status has no `Allocations` map. The in-memory `state.Cluster` object aggregates per-exit allocations
+from all Tunnel statuses.
+
+### ProviderClass
+
+ProviderClass is not a single CRD—each cloud provider defines its own kind, registered in the
+`frp.operator.io` API group. The ExitPool template references a ProviderClass by `group`, `kind`, and `name`.
+Currently two providers are shipping:
+
+| Kind | Short name | What it provisions |
+|------|------------|--------------------|
+| `DigitalOceanProviderClass` | `dopc` | DigitalOcean Droplets via cloud-init |
+| `LocalDockerProviderClass` | — | Docker containers (local testing) |
+
+A `DigitalOceanProviderClass` holds the API token secret reference, image selector terms (droplet base images),
+an optional VPC UUID, and SSH key IDs:
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: DigitalOceanProviderClass
+metadata:
+  name: do-prod
+spec:
+  apiTokenSecretRef:
+    name: do-api-token
+    key: token
+  imageSelectorTerms:
+    - slug: ubuntu-22-04-x64
+  vpcUUID: "abc123"
+```
+
+## Lifecycle flow
+
+The sequence below traces a tunnel from creation to a public IP being available:
+
+1. A cluster operator creates an `ExitPool` referencing a `ProviderClass`.
+2. An application developer creates a `Tunnel` declaring the ports they need.
+3. The operator's scheduler runs. It first attempts to bin-pack the tunnel onto an existing Ready ExitClaim with
+   enough remaining capacity and free port slots. If no existing claim fits, the scheduler selects the cheapest
+   valid instance type from the provider's catalog and creates a new ExitClaim derived from the pool template.
+4. The provider (e.g. DigitalOcean) provisions the VM. The lifecycle controller polls until frps registers,
+   setting `Launched → Registered → Initialized → Ready` conditions in sequence.
+5. Once `Ready=True`, `status.publicIP` is available. The operator writes back the tunnel's
+   `status.assignedExit`, `status.assignedIP`, and `status.assignedPorts`.
+
+From that point forward, the [Liveness](/docs/concepts/liveness/) controller monitors the frps admin API on each
+ExitClaim, and the [Disruption](/docs/concepts/disruption/) controller evaluates each claim for replacement.
+
+## Karpenter conceptual mapping
+
+frp-operator's model is a direct adaptation of Karpenter's. The table below cross-references the two for readers
+familiar with Karpenter:
+
+| frp-operator | Karpenter |
+|---|---|
+| `ExitPool` | `NodePool` |
+| `ExitClaim` | `NodeClaim` |
+| `DigitalOceanProviderClass` | `EC2NodeClass` |
+| `Tunnel` | Pod (rough analogy) |
+
+The analogy is intentional but imperfect: a Tunnel is not a workload runtime—it only carries scheduling
+requirements and port declarations. Where Karpenter packs Pods onto Nodes by CPU and memory, frp-operator packs
+Tunnels onto ExitClaims by bandwidth, traffic quota, and port slots.
+
+<Aside type="note">
+  ExitPool and ExitClaim are cluster-scoped. Tunnels are namespaced. ProviderClass resources are cluster-scoped.
+  No cross-namespace RBAC is needed for the operator itself, but cluster-admin access is required to create pools
+  and provider classes.
+</Aside>

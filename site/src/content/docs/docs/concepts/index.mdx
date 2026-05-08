@@ -1,0 +1,32 @@
+---
+title: Introduction
+description: A high-level overview of how frp-operator models, provisions, and manages frps tunnels.
+sidebar:
+  order: 1
+---
+
+frp-operator is a Kubernetes operator that manages the full lifecycle of [frp](https://github.com/fatedier/frp)
+server (`frps`) instances on cloud infrastructure. Instead of asking users to manually provision VMs and configure
+`frps`, the operator watches `Tunnel` resources created by application teams, provisions the cloud exits needed to
+serve them, and continuously reconciles the running state against the desired state declared in pool and provider
+configuration.
+
+The operator borrows its design vocabulary from [Karpenter](https://karpenter.sh): a cluster-scoped pool resource
+defines the template and policy for a class of exits; the operator's scheduler allocates tunnels onto ready exits
+or provisions new ones when existing capacity is insufficient; and a disruption controller continuously evaluates
+running exits against a set of replacement conditions—emptiness, hash drift, expiration, and underutilization—
+replacing any that no longer satisfy the pool's declared intent.
+
+## What's in this section
+
+The following pages describe the mechanisms and design decisions behind each major subsystem. They are intended for
+operators and platform engineers who want to understand *why* the system behaves the way it does, not just *how* to
+configure it.
+
+| Page | What it covers |
+|------|----------------|
+| [Architecture](/docs/concepts/architecture/) | The four CRDs and how they relate to each other. Lifecycle flow from Tunnel creation to public IP. |
+| [Scheduling](/docs/concepts/scheduling/) | How the scheduler selects or provisions an ExitClaim for each Tunnel. Offerings, requirements filtering, cheapest-fit, and bin-packing. |
+| [Disruption](/docs/concepts/disruption/) | The five disruption methods—Empty, Drifted, Expired, SingleNodeConsolidation, MultiNodeConsolidation—and the order in which they fire. Disruption budgets. |
+| [Liveness](/docs/concepts/liveness/) | The continuous post-Ready health probe. Failure counting, threshold, and cordon-before-replace flow. |
+| [Hash drift](/docs/concepts/hash-drift/) | Two-level hash drift detection. Pool template hash vs. ProviderClass hash. Why separate hashes. |

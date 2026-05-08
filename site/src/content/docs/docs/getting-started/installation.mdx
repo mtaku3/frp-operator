@@ -17,15 +17,24 @@ frp-operator ships as two Helm charts: `frp-operator-crd` (CRDs only, full Helm 
 
 <Steps>
 
-1. **Install the CRD chart**
+1. **Set configurable parameters**
+
+   Two parameters drive the install: target namespace and chart version. Export them once and the rest of the steps reuse the values.
+
+   ```bash
+   export FRP_NAMESPACE=frp-operator-system   # any namespace; created if missing
+   export FRP_VERSION=0.0.1                   # chart + operator image version
+   ```
+
+2. **Install the CRD chart**
 
    The CRD chart registers the five CRDs (`ExitPool`, `ExitClaim`, `Tunnel`, `LocalDockerProviderClass`, `DigitalOceanProviderClass`). It must be installed before the operator chart.
 
    ```bash
    helm upgrade --install frp-operator-crd \
      oci://ghcr.io/mtaku3/charts/frp-operator-crd \
-     --version 0.0.1 \
-     --namespace frp-operator-system \
+     --version "$FRP_VERSION" \
+     --namespace "$FRP_NAMESPACE" \
      --create-namespace \
      --wait
    ```
@@ -36,20 +45,20 @@ frp-operator ships as two Helm charts: `frp-operator-crd` (CRDs only, full Helm 
    kubectl get crds | grep frp.operator.io
    ```
 
-2. **Install the operator chart**
+3. **Install the operator chart**
 
    ```bash
    helm upgrade --install frp-operator \
      oci://ghcr.io/mtaku3/charts/frp-operator \
-     --version 0.0.1 \
-     --namespace frp-operator-system \
+     --version "$FRP_VERSION" \
+     --namespace "$FRP_NAMESPACE" \
      --wait
    ```
 
-3. **Verify the operator pod is running**
+4. **Verify the operator pod is running**
 
    ```bash
-   kubectl -n frp-operator-system get pods
+   kubectl -n "$FRP_NAMESPACE" get pods
    ```
 
    Expect one `frp-operator-*` pod in `Running` state:
@@ -59,10 +68,10 @@ frp-operator ships as two Helm charts: `frp-operator-crd` (CRDs only, full Helm 
    frp-operator-7d9f8b6b5d-x4p2n   1/1     Running   0          30s
    ```
 
-4. **Confirm leader election**
+5. **Confirm leader election**
 
    ```bash
-   kubectl -n frp-operator-system get lease
+   kubectl -n "$FRP_NAMESPACE" get lease
    ```
 
    A `frp-operator` lease should appear, indicating the controller acquired leadership.

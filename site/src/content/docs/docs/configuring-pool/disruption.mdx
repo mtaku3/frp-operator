@@ -1,0 +1,97 @@
+---
+title: Disruption
+description: Control how frp-operator consolidates, rotates, and rate-limits disruption of exits in a pool.
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Disruption settings govern when the operator is allowed to terminate and replace exit nodes — whether to reclaim idle capacity, rotate aged exits, or respond to drift.
+
+## Consolidation policy
+
+`spec.disruption.consolidationPolicy` selects the trigger condition for consolidation:
+
+| Value | Behavior |
+|---|---|
+| `WhenEmpty` | Terminate an exit only when it has no active frpc tunnels. |
+| `WhenEmptyOrUnderutilized` | Terminate an exit when it is empty **or** when all its active tunnels could fit on another exit in the pool (bin-packing). |
+
+If `consolidationPolicy` is omitted the operator defaults to `WhenEmpty`.
+
+## Consolidate-after window
+
+`spec.disruption.consolidateAfter` is a duration string (e.g. `"30m"`, `"2h"`) that sets the idle window an exit must remain in the consolidatable state before the operator acts on it. This prevents churn when traffic is bursty.
+
+```yaml
+disruption:
+  consolidationPolicy: WhenEmptyOrUnderutilized
+  consolidateAfter: 30m
+```
+
+## Per-claim expiry
+
+`spec.template.spec.expireAfter` is a duration set on the **claim template**, not on `spec.disruption`. It forces periodic rotation of each exit regardless of load: once an `ExitClaim` is older than this duration it enters the `Expired` disruption state and is replaced.
+
+```yaml
+template:
+  spec:
+    expireAfter: 168h   # rotate every 7 days
+```
+
+<Aside type="note">
+`expireAfter` uses the same duration format as `consolidateAfter`. The `"168h"` example above equals one week. Fractional hours are accepted (e.g. `"0.5h"`), but `"7d"` is **not** valid — express days as hours.
+</Aside>
+
+## Disruption budgets
+
+`spec.disruption.budgets` is a list of `DisruptionBudget` entries that cap how many exits the operator may disrupt concurrently. The most restrictive matching budget wins.
+
+Each budget has:
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `nodes` | string | yes | Maximum concurrent disruptions. Either an absolute count (`"5"`) or a percentage of the pool's exits (`"10%"`). |
+| `schedule` | string | no | Cron expression (UTC) for the **start** of the active window, e.g. `"0 9 * * 1-5"`. |
+| `duration` | string | no | Length of the active window, e.g. `"8h"`. Required when `schedule` is set. |
+| `reasons` | list of strings | no | Limit the budget to specific disruption reasons. Valid values: `Empty`, `Drifted`, `Expired`, `Underutilized`. If omitted the budget applies to all reasons. |
+
+A budget is **active** when `schedule` and `duration` are both set and the current time falls within the window. Budgets without a schedule are always active.
+
+## Example
+
+The following pool:
+- consolidates underutilized exits after 30 minutes of idle time,
+- rotates each exit weekly via `expireAfter`,
+- allows at most 1 exit to be disrupted at a time during business hours (Mon–Fri 09:00–17:00 UTC), and
+- allows up to 2 exits to be disrupted at any time outside of that window.
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: do-prod
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-prod
+      frps:
+        version: "v0.68.1"
+        allowPorts:
+          - "1024-65535"
+        auth:
+          method: token
+      expireAfter: 168h
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 30m
+    budgets:
+      - nodes: "1"
+        schedule: "0 9 * * 1-5"
+        duration: 8h
+      - nodes: "2"
+```

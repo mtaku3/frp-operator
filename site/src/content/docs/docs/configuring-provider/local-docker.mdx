@@ -1,0 +1,52 @@
+---
+title: LocalDockerProviderClass
+description: Run frps exits as Docker containers on the host running your local cluster.
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`LocalDockerProviderClass` provisions frps exits as Docker containers on the host running the Kubernetes cluster. It is intended for development and testing with [`kind`](https://kind.sigs.k8s.io/) or [`minikube`](https://minikube.sigs.k8s.io/). It is **not** suitable for production.
+
+Each `ExitClaim` becomes a Docker container attached to a chosen Docker network and configured with an `frps.toml` written to a host-mounted directory.
+
+<Aside type="caution">
+The host directory referenced by `configHostMountPath` must exist and be world-writable on every cluster node. On `kind`, this is the host machine itself. The default path is `/tmp/frp-operator-shared`.
+</Aside>
+
+## Example
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: LocalDockerProviderClass
+metadata:
+  name: dev
+spec:
+  network: kind
+  configHostMountPath: /tmp/frp-operator-shared
+  imagePullPolicy: IfNotPresent
+  defaultImage: "fatedier/frps:%s"
+```
+
+## Fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `network` | string | `kind` | Docker network name. Exit containers attach here so the cluster can reach them. |
+| `configHostMountPath` | string | `/tmp/frp-operator-shared` | Host directory bind-mounted into each frps container so the operator can write `frps.toml`. Must be world-writable on every cluster node. |
+| `imagePullPolicy` | string (`Always` \| `IfNotPresent` \| `Never`) | `IfNotPresent` | Whether the Docker daemon should always re-pull the frps image. |
+| `skipHostPortPublishing` | bool | `false` | When `true`, skip `-p hostPort:containerPort` flags. Useful for kind e2e setups where multiple exits would otherwise collide on host ports. |
+| `defaultImage` | string | `fatedier/frps:%s` | Container image template. The `%s` placeholder is replaced with the frps version at launch. |
+
+## Status
+
+The status block exposes a single `Ready` condition reflecting whether the operator can reach the local Docker daemon and resolve the configured network.
+
+```yaml
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: ProviderHealthy
+```

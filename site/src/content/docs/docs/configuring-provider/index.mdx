@@ -1,0 +1,32 @@
+---
+title: Configuring Provider
+description: How to configure a cloud provider so the operator can provision frps exits on it.
+sidebar:
+  order: 1
+---
+
+A `ProviderClass` tells frp-operator how to talk to a cloud provider — credentials, base images, network identifiers, and any provider-specific defaults. Each cloud provider has its own kind. An `ExitPool` references a `ProviderClass` by name and kind; the operator uses the referenced class whenever it provisions, configures, or tears down exits on that provider.
+
+ProviderClasses are cluster-scoped resources. You typically create one per (provider, environment) pair — for example, one `DigitalOceanProviderClass` for production droplets and one for staging.
+
+The following kinds are available today:
+
+- [LocalDockerProviderClass](/docs/configuring-provider/local-docker/) — runs frps as a Docker container on the host running the cluster. Intended for local development with `kind` or `minikube`; not for production.
+- [DigitalOceanProviderClass](/docs/configuring-provider/digitalocean/) — provisions Droplets via the DigitalOcean API.
+
+Once a `ProviderClass` is in place, reference it from an `ExitPool`'s template:
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: example
+spec:
+  template:
+    spec:
+      providerRef:
+        kind: DigitalOceanProviderClass
+        name: do-prod
+```
+
+See the [CRD reference](/docs/reference/crds/) for the full `ExitPool` schema.

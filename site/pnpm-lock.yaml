@@ -20,6 +20,9 @@ importers:
       tailwindcss:
         specifier: ^3.4.0
         version: 3.4.19(yaml@2.8.4)
+      unist-util-visit:
+        specifier: ^5.0.0
+        version: 5.1.0
     devDependencies:
       '@types/node':
         specifier: ^20.0.0

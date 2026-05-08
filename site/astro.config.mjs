@@ -1,11 +1,17 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import tailwind from '@astrojs/tailwind';
+import rehypeBaseUrl from './rehype-base-url.mjs';
+
+const BASE = '/frp-operator/';
 
 export default defineConfig({
   site: 'https://mtaku3.github.io',
-  base: '/frp-operator/',
+  base: BASE,
   trailingSlash: 'always',
+  markdown: {
+    rehypePlugins: [[rehypeBaseUrl, { base: BASE }]],
+  },
   integrations: [
     tailwind({ applyBaseStyles: false }),
     starlight({

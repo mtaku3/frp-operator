@@ -15,10 +15,7 @@ export default defineConfig({
         './src/styles/starlight-overrides.css',
       ],
       sidebar: [
-        { label: 'Getting started', collapsed: false, autogenerate: { directory: 'docs/getting-started', collapsed: false } },
-        { label: 'Guides',          collapsed: true,  autogenerate: { directory: 'docs/guides',          collapsed: true } },
-        { label: 'Concepts',        collapsed: true,  autogenerate: { directory: 'docs/concepts',        collapsed: true } },
-        { label: 'Reference',       collapsed: true,  autogenerate: { directory: 'docs/reference',       collapsed: true } },
+        { label: 'Reference', collapsed: true, autogenerate: { directory: 'docs/reference', collapsed: true } },
       ],
       social: { github: 'https://github.com/mtaku3/frp-operator' },
     }),

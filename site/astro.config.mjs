@@ -4,7 +4,8 @@ import tailwind from '@astrojs/tailwind';
 
 export default defineConfig({
   site: 'https://mtaku3.github.io',
-  base: '/frp-operator',
+  base: '/frp-operator/',
+  trailingSlash: 'always',
   integrations: [
     tailwind({ applyBaseStyles: false }),
     starlight({

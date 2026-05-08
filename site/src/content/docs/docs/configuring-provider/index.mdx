@@ -1,20 +1,17 @@
 ---
 title: Introduction
-description: How to configure a cloud provider so the operator can provision frps exits on it.
+description: What a ProviderClass is and which providers are supported.
 sidebar:
   order: 1
 ---
 
-A `ProviderClass` tells frp-operator how to talk to a cloud provider — credentials, base images, network identifiers, and any provider-specific defaults. Each cloud provider has its own kind. An `ExitPool` references a `ProviderClass` by name and kind; the operator uses the referenced class whenever it provisions, configures, or tears down exits on that provider.
+## What is a ProviderClass?
 
-ProviderClasses are cluster-scoped resources. You typically create one per (provider, environment) pair — for example, one `DigitalOceanProviderClass` for production droplets and one for staging.
+A `ProviderClass` is a cluster-scoped resource that tells frp-operator how to talk to a single cloud provider — credentials, base images, network identifiers, and any provider-specific defaults. Each cloud provider has its own kind (`LocalDockerProviderClass`, `DigitalOceanProviderClass`, …).
 
-The following kinds are available today:
+An `ExitPool` references a `ProviderClass` by name and kind. Whenever the operator provisions, configures, or tears down an exit on that pool, it loads the referenced class and uses it for the API calls.
 
-- [LocalDockerProviderClass](/docs/configuring-provider/local-docker/) — runs frps as a Docker container on the host running the cluster. Intended for local development with `kind` or `minikube`; not for production.
-- [DigitalOceanProviderClass](/docs/configuring-provider/digitalocean/) — provisions Droplets via the DigitalOcean API.
-
-Once a `ProviderClass` is in place, reference it from an `ExitPool`'s template:
+You typically create one `ProviderClass` per (provider, environment) pair — for example, one `DigitalOceanProviderClass` for production droplets and another for staging.
 
 ```yaml
 apiVersion: frp.operator.io/v1alpha1
@@ -29,4 +26,7 @@ spec:
         name: do-prod
 ```
 
-See the [CRD reference](/docs/reference/crds/) for the full `ExitPool` schema.
+## Available providers
+
+- [Local Docker](/docs/configuring-provider/local-docker/) — runs frps as a Docker container on the host running the cluster. Intended for local development with `kind` or `minikube`. Not for production.
+- [DigitalOcean](/docs/configuring-provider/digitalocean/) — provisions Droplets via the DigitalOcean API.

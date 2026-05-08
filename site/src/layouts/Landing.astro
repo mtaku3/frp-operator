@@ -12,21 +12,23 @@ interface Props {
 
 const {
   title = 'frp-operator — public IP for every workload',
-  description = 'Karpenter-shaped Kubernetes operator that provisions cheap cloud frps exits and bin-packs your tunnels onto them.',
+  description = 'Kubernetes operator that provisions cheap cloud frps exits and bin-packs your tunnels onto them.',
 } = Astro.props;
+const BASE = import.meta.env.BASE_URL;
+const SITE = Astro.site?.toString().replace(/\/$/, '') ?? 'https://mtaku3.github.io';
 ---
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href={`${BASE}favicon.svg`} />
   <title>{title}</title>
   <meta name="description" content={description} />
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://frp-operator.vercel.app" />
+  <meta property="og:url" content={`${SITE}${BASE}`} />
 </head>
 <body>
   <Nav />

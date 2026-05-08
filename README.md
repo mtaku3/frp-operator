@@ -41,19 +41,20 @@ See `charts/frp-operator/values.yaml` for the full surface.
 
 ## Docs site
 
-Full documentation lives at [frp-operator.vercel.app](https://frp-operator.vercel.app).
+Full documentation lives at [mtaku3.github.io/frp-operator](https://mtaku3.github.io/frp-operator/).
 
 The site is an Astro Starlight project under `site/`. Reference pages
-(Helm values, operator flags, ADRs, conformance) are generated from code
-via `make site-gen` and committed to git so Vercel builds without a Go
-toolchain. Deploy is handled by Vercel's GitHub integration on push to
-`main`; PRs get unique preview URLs automatically.
+(Helm values, operator flags, ADRs) are generated from code via
+`make site-gen` and committed to git. Deployed via GitHub Pages on push
+to `main` (workflow: `.github/workflows/pages.yml`).
+
+One-time repo setup: Settings → Pages → Source = `GitHub Actions`.
 
 Local dev:
 
 ```sh
 make site-gen
-cd site && pnpm install && pnpm dev   # http://localhost:4321
+cd site && pnpm install && pnpm dev   # http://localhost:4321/frp-operator/
 ```
 
 ## Getting Started

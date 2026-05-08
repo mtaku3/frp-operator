@@ -1,15 +1,16 @@
 ---
+const BASE = import.meta.env.BASE_URL;
 ---
 <nav class="nav">
   <div class="wrap nav-row">
-    <a href="/" class="brand"><span class="brand-mark">f</span>frp-operator</a>
+    <a href={BASE} class="brand"><span class="brand-mark">f</span>frp-operator</a>
     <div class="nav-links">
-      <a href="/docs/">Docs</a>
-      <a href="/docs/guides/allow-ports/">Guides</a>
-      <a href="/docs/reference/">Reference</a>
+      <a href={`${BASE}docs/`}>Docs</a>
+      <a href={`${BASE}docs/guides/allow-ports/`}>Guides</a>
+      <a href={`${BASE}docs/reference/`}>Reference</a>
       <a href="https://github.com/mtaku3/frp-operator">GitHub</a>
     </div>
-    <a href="/docs/getting-started/install-kind/" class="nav-cta">Get started</a>
+    <a href={`${BASE}docs/getting-started/install-kind/`} class="nav-cta">Get started</a>
   </div>
 </nav>
 

@@ -3,7 +3,8 @@ import starlight from '@astrojs/starlight';
 import tailwind from '@astrojs/tailwind';
 
 export default defineConfig({
-  site: 'https://frp-operator.vercel.app',
+  site: 'https://mtaku3.github.io',
+  base: '/frp-operator',
   integrations: [
     tailwind({ applyBaseStyles: false }),
     starlight({

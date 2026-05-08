@@ -14,7 +14,7 @@ const {
   title = 'frp-operator — public IP for every workload',
   description = 'Kubernetes operator that provisions cheap cloud frps exits and bin-packs your tunnels onto them.',
 } = Astro.props;
-const BASE = import.meta.env.BASE_URL;
+const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const SITE = Astro.site?.toString().replace(/\/$/, '') ?? 'https://mtaku3.github.io';
 ---
 <!doctype html>

@@ -5,4 +5,93 @@ description: Bump replicas + leaderElection.enabled for high availability.
 
 import { Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full recipe lands in a follow-up.</Aside>
+**Goal:** Run three frp-operator replicas so the controller survives a pod restart or node failure without an outage window.
+
+## How leader election works
+
+frp-operator uses the controller-runtime leader election mechanism, which creates a Kubernetes `Lease` object. Only the pod that holds the lease actively reconciles; all other pods wait. When the active pod disappears, the remaining pods race to acquire the lease (within the Kubernetes lease timeout, typically a few seconds) and one becomes the new leader.
+
+The lease name is `frp-operator.frp.operator.io` by default and lives in the operator namespace (configurable via `leaderElection.leaseNamespace`).
+
+Leader election is **enabled by default** (`leaderElection.enabled: true`). You only need to bump `replicas` to get HA.
+
+## Apply
+
+```bash
+helm upgrade frp-operator \
+  oci://ghcr.io/mtaku3/charts/frp-operator \
+  --namespace frp-operator-system \
+  --reuse-values \
+  --set replicas=3
+```
+
+Or with a values file:
+
+```yaml
+replicas: 3
+
+leaderElection:
+  enabled: true
+  leaseNamespace: ""   # defaults to frp-operator-system
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+```
+
+## Verify
+
+```bash
+kubectl -n frp-operator-system get pods
+```
+
+```
+NAME                             READY   STATUS    RESTARTS   AGE
+frp-operator-7d9f8b6b5d-abc12    1/1     Running   0          5m
+frp-operator-7d9f8b6b5d-def34    1/1     Running   0          5m
+frp-operator-7d9f8b6b5d-ghi56    1/1     Running   0          5m
+```
+
+Check which pod holds the lease:
+
+```bash
+kubectl -n frp-operator-system get lease frp-operator.frp.operator.io \
+  -o jsonpath='{.spec.holderIdentity}'
+```
+
+Simulate a leader failure:
+
+```bash
+# Delete the leader pod
+LEADER_POD=$(kubectl -n frp-operator-system get lease frp-operator.frp.operator.io \
+  -o jsonpath='{.spec.holderIdentity}' | cut -d'_' -f1)
+kubectl -n frp-operator-system delete pod "$LEADER_POD"
+
+# Watch the new leader take over
+kubectl -n frp-operator-system get lease frp-operator.frp.operator.io -w
+```
+
+The lease should transfer within seconds.
+
+## Notes / gotchas
+
+- **Do not set `leaderElection.enabled=false` with `replicas > 1`.** Without leader election, all replicas will reconcile simultaneously, leading to duplicate ExitClaim creations and race conditions on status patches.
+- Non-leader replicas consume minimal CPU and memory — they watch the Kubernetes API but do not reconcile. The resource requests in `values.yaml` (`10m` CPU, `64Mi` memory) apply per replica.
+- The `PodDisruptionBudget` with `minAvailable: 1` prevents cluster autoscaler or `kubectl drain` from evicting all replicas simultaneously. Enable it alongside multi-replica.
+- Leader election uses the `coordination.k8s.io/leases` RBAC verb on the lease object. The chart's `role-leader-election.yaml` template grants this automatically.
+
+<Aside type="tip">
+For the highest availability, spread replicas across nodes using `topologySpreadConstraints`:
+
+```yaml
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: frp-operator
+```
+
+Add this to your `values.yaml` to ensure no two replicas land on the same node.
+</Aside>

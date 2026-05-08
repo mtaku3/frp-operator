@@ -5,4 +5,78 @@ description: Default-deny ingress + allow only from prometheusNamespace.
 
 import { Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full recipe lands in a follow-up.</Aside>
+**Goal:** Lock down ingress to the frp-operator pod so that only Prometheus can reach the metrics endpoint on port 8443. All other inbound connections are denied.
+
+## How the NetworkPolicy works
+
+When `networkPolicy.enabled=true`, the chart creates a `NetworkPolicy` with:
+
+- `policyTypes: [Ingress]` — restricts all incoming traffic to the operator pod
+- An optional `ingress` rule that allows TCP port 8443 **only** from pods in the `prometheusNamespace`
+
+If `prometheusNamespace` is empty, the NetworkPolicy denies **all** ingress (including metrics). You must set `prometheusNamespace` to allow scraping.
+
+The rendered policy selects pods by the chart's selector labels and matches the Prometheus namespace by `kubernetes.io/metadata.name`:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frp-operator
+  namespace: frp-operator-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: frp-operator
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+    ports:
+    - port: 8443
+      protocol: TCP
+```
+
+## Apply
+
+```bash
+helm upgrade frp-operator \
+  oci://ghcr.io/mtaku3/charts/frp-operator \
+  --namespace frp-operator-system \
+  --reuse-values \
+  --set networkPolicy.enabled=true \
+  --set networkPolicy.prometheusNamespace=monitoring
+```
+
+Replace `monitoring` with the namespace where your Prometheus pods run.
+
+## Verify
+
+```bash
+kubectl -n frp-operator-system get networkpolicy frp-operator -o yaml
+```
+
+Confirm the ingress rule's `namespaceSelector` matches your Prometheus namespace.
+
+Test that a pod **outside** the Prometheus namespace cannot reach the metrics port:
+
+```bash
+kubectl run test-curl --image=curlimages/curl --rm -it --restart=Never \
+  -- curl -sk https://frp-operator.frp-operator-system.svc:8443/metrics
+```
+
+This should time out or be refused. A pod **inside** the `monitoring` namespace should succeed.
+
+## Notes / gotchas
+
+- The `kubernetes.io/metadata.name` label is automatically added to all namespaces in Kubernetes 1.21+. If your cluster is older, label the namespace manually: `kubectl label namespace monitoring kubernetes.io/metadata.name=monitoring`.
+- The NetworkPolicy only restricts **ingress** (inbound) traffic. The operator's egress (outbound) to the Kubernetes API server and cloud provider APIs is not restricted. Add an egress policy separately if needed.
+- If `prometheusNamespace` is set but the Prometheus namespace label doesn't match, scraping will silently fail. Always verify with the `test-curl` check above.
+- The operator's health probes (`/healthz` on port 8081, `/readyz` on port 8081) are served on a separate port from metrics. The NetworkPolicy only restricts port 8443, so liveness/readiness probes are unaffected.
+
+<Aside type="tip">
+If you need to allow scraping from multiple namespaces, the chart's single `prometheusNamespace` field is insufficient. In that case, set `networkPolicy.enabled=false` and apply a custom `NetworkPolicy` manually.
+</Aside>

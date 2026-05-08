@@ -5,4 +5,92 @@ description: Combine drift expiration with disruption budgets to roll exits week
 
 import { Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full recipe lands in a follow-up.</Aside>
+**Goal:** Automatically replace all exits in a pool on a rolling weekly schedule, limiting the blast radius with disruption budgets.
+
+## How expiration works
+
+Setting `spec.template.spec.expireAfter` on an ExitPool stamps the same `expireAfter` duration onto every `ExitClaim` created from the pool. The Expiration disruption method checks each claim's `creationTimestamp + expireAfter`. When that instant is in the past, the claim is marked `Expired=True` and the disruption controller replaces it with a fresh claim.
+
+Expiration is **forceful** — it bypasses disruption budgets. To throttle the replacement rate, pair `expireAfter` with a cron-based `DisruptionBudget`.
+
+## Apply: 7-day rolling rotation with a budget
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: rotating-pool
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-provider
+      expireAfter: 168h   # 7 days
+      requirements:
+        - key: topology.kubernetes.io/region
+          operator: In
+          values: ["nyc3"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: ["s-1vcpu-1gb"]
+      frps:
+        version: "v0.61.1"
+        bindPort: 7000
+        adminPort: 7400
+        allowPorts: ["1024-65535"]
+        auth:
+          method: token
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 5m
+    budgets:
+      # During the weekend maintenance window, allow up to 2 exits to be
+      # replaced concurrently. Outside the window, allow 0 (blocks expiration).
+      - nodes: "2"
+        schedule: "0 2 * * 6"   # Saturday 02:00 UTC
+        duration: 4h
+        reasons:
+          - Expired
+      # Outside the window: block all expiration-driven disruption.
+      - nodes: "0"
+        reasons:
+          - Expired
+```
+
+<Aside type="caution">
+The last budget in the list is the catch-all. Because budgets are evaluated in order and the first match wins, placing `nodes: "0"` last blocks expiration outside the maintenance window.
+</Aside>
+
+## How the rotation plays out
+
+1. Claims are created as Tunnels bind to the pool. Each claim gets `expireAfter: 168h` stamped on its spec.
+2. After 7 days the claim's `creationTimestamp + 168h` passes. The Expiration method flags it.
+3. The disruption controller checks the budget. If outside the maintenance window (budget `nodes: "0"`), the disruption is deferred.
+4. During the Saturday 02:00–06:00 UTC window, up to 2 expired claims are replaced concurrently. The replacement claim is created before the old claim is deleted, so Tunnels experience a brief rebind period rather than an outage.
+5. The cycle repeats the following week.
+
+## Verify
+
+```bash
+# Check claim ages
+kubectl get exitclaim -o custom-columns=\
+  NAME:.metadata.name,\
+  CREATED:.metadata.creationTimestamp,\
+  EXPIRES:.spec.expireAfter
+
+# Watch disruption events
+kubectl get events --field-selector reason=Expired -w
+```
+
+## Notes / gotchas
+
+- `expireAfter` is a Go duration string: `168h`, `7d` is **not** valid — use hours.
+- Expiration is forceful but the disruption controller still checks the budget for the `Expired` reason. Setting a budget with `nodes: "0"` for `Expired` effectively pauses expiration.
+- If the pool has `limits.frp.operator.io/exits` set, the replacement claim counts toward the limit. Ensure the limit is not so tight that the replacement cannot be created before the old claim is deleted.
+- Tunnels on an expiring claim are rebinding during the replacement window. Traffic is interrupted for the duration of the new claim reaching `Ready` (typically 60–120 seconds for a DO Droplet).
+
+<Aside type="tip">
+For security-driven rotation (e.g. rotate frps auth tokens), combine `expireAfter` with a new token `SecretKeyRef` — the hash drift from the new token reference triggers Drift-based replacement independently of the expiry schedule.
+</Aside>

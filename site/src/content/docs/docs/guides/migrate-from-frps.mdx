@@ -3,6 +3,175 @@ title: Migrate from raw frps
 description: Move existing frps configurations into ExitPool + Tunnel resources.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full recipe lands in a follow-up.</Aside>
+**Goal:** Replace a manually managed `frps.toml` server and hand-written `frpc.toml` client configurations with `ExitPool` and `Tunnel` CRs managed by frp-operator.
+
+## Mapping frps.toml to ExitPool
+
+Most `frps.toml` settings map directly to `ExitPool.spec.template.spec.frps`:
+
+| frps.toml field | ExitPool field | Notes |
+|---|---|---|
+| `bindPort` | `spec.template.spec.frps.bindPort` | Default 7000 |
+| `kcpBindPort` | `spec.template.spec.frps.kcpBindPort` | Optional |
+| `quicBindPort` | `spec.template.spec.frps.quicBindPort` | Optional |
+| `vhostHTTPPort` | `spec.template.spec.frps.vhostHTTPPort` | Optional |
+| `vhostHTTPSPort` | `spec.template.spec.frps.vhostHTTPSPort` | Optional |
+| `adminPort` | `spec.template.spec.frps.adminPort` | Default 7400 |
+| `allowPorts` | `spec.template.spec.frps.allowPorts` | Same syntax: `"80"`, `"1024-65535"` |
+| `auth.method` | `spec.template.spec.frps.auth.method` | Only `token` supported |
+| `auth.token` | `spec.template.spec.frps.auth.tokenSecretRef` | Store token in a Secret |
+| `tls.force` | `spec.template.spec.frps.tls.force` | Optional |
+| `tls.certFile` | `spec.template.spec.frps.tls.certSecret` | Reference a Secret key |
+| `tls.keyFile` | `spec.template.spec.frps.tls.keySecret` | Reference a Secret key |
+| `tls.trustedCaFile` | `spec.template.spec.frps.tls.caSecret` | Reference a Secret key |
+
+<Aside type="caution">
+`frps.toml` fields for `maxPoolCount`, `heartbeatTimeout`, and HTTP dashboard are not directly mapped — the operator manages frps instances internally and does not expose these levers.
+</Aside>
+
+## Example mapping
+
+<Tabs>
+<TabItem label="frps.toml (before)">
+
+```toml
+bindPort = 7000
+kcpBindPort = 7001
+adminPort = 7400
+adminUser = "admin"
+adminPassword = "secret"
+
+[auth]
+method = "token"
+token = "my-shared-secret"
+
+allowPorts = [
+  { start = 1024, end = 65535 }
+]
+```
+
+</TabItem>
+<TabItem label="ExitPool (after)">
+
+First, store the token in a Secret:
+
+```bash
+kubectl create secret generic frps-token \
+  --namespace frp-operator-system \
+  --from-literal=token=my-shared-secret
+```
+
+Then create the ExitPool:
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: migrated-pool
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-provider
+      requirements:
+        - key: topology.kubernetes.io/region
+          operator: In
+          values: ["nyc3"]
+      frps:
+        version: "v0.61.1"
+        bindPort: 7000
+        kcpBindPort: 7001
+        adminPort: 7400
+        allowPorts:
+          - "1024-65535"
+        auth:
+          method: token
+          tokenSecretRef:
+            name: frps-token
+            key: token
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 5m
+```
+
+</TabItem>
+</Tabs>
+
+## Mapping frpc proxies to Tunnel CRs
+
+Each frpc proxy stanza (TCP or UDP) becomes a `Tunnel` CR. The frpc client is no longer needed — the operator manages frpc inside the cluster.
+
+| frpc.toml field | Tunnel field | Notes |
+|---|---|---|
+| `remotePort` | `spec.ports[].publicPort` | `0` for auto-assign |
+| `localPort` | `spec.ports[].servicePort` | In-cluster Service port |
+| `type` | `spec.ports[].protocol` | `TCP` or `UDP` |
+| `name` | `spec.ports[].name` | Optional label |
+
+<Tabs>
+<TabItem label="frpc.toml (before)">
+
+```toml
+[[proxies]]
+name = "web"
+type = "tcp"
+localIP = "10.0.0.5"
+localPort = 80
+remotePort = 8080
+
+[[proxies]]
+name = "ssh"
+type = "tcp"
+localIP = "10.0.0.5"
+localPort = 22
+remotePort = 2222
+```
+
+</TabItem>
+<TabItem label="Tunnel (after)">
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata:
+  name: web-ssh-tunnel
+  namespace: default
+spec:
+  ports:
+    - name: web
+      servicePort: 80
+      publicPort: 8080
+      protocol: TCP
+    - name: ssh
+      servicePort: 22
+      publicPort: 2222
+      protocol: TCP
+```
+
+</TabItem>
+</Tabs>
+
+<Aside type="tip">
+The `localIP` in frpc becomes irrelevant — the Tunnel is associated with a Kubernetes Service by name/namespace. The operator's frpc sidecar resolves the Service DNS name inside the cluster.
+</Aside>
+
+## Migration procedure
+
+1. **Inventory existing frps servers** — note `bindPort`, `adminPort`, `allowPorts`, and `auth.token` for each.
+2. **Store tokens in Secrets** — `kubectl create secret generic frps-token --from-literal=token=...`
+3. **Create ProviderClasses** — one `DigitalOceanProviderClass` per provider account or one `LocalDockerProviderClass` for local testing.
+4. **Create ExitPools** — one per frps server group, using the mapped fields above.
+5. **Create Tunnel CRs** — one per frpc proxy stanza. Start with `publicPort: 0` (auto-assign) to let the operator manage port allocation.
+6. **Wait for Tunnels to reach Ready** — `kubectl get tunnel -w`
+7. **Update DNS / load balancer** — point DNS to `status.assignedIP:status.assignedPorts[0]` from each Tunnel.
+8. **Decommission old frps servers** — once traffic is confirmed flowing through the operator-managed exits.
+
+## Notes / gotchas
+
+- The operator generates a fresh frps auth token if `tokenSecretRef` is omitted. If you need to reuse an existing token (to avoid updating frpc configs during cutover), always specify `tokenSecretRef`.
+- Multiple Tunnel ports on the same CR share one ExitClaim (one frps instance). This matches the frpc proxy grouping where a single frpc client connection carries multiple proxies.
+- UDP proxies are supported (`protocol: UDP`). KCP and QUIC transport modes require setting `kcpBindPort` or `quicBindPort` on the ExitPool.

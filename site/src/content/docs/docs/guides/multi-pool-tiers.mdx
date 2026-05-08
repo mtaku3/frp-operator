@@ -5,4 +5,160 @@ description: Run two ExitPools with different ProviderClasses and label selector
 
 import { Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full recipe lands in a follow-up.</Aside>
+**Goal:** Route high-priority Tunnels to premium exits (gold tier) and low-priority Tunnels to cheaper exits (silver tier) using two ExitPools with different requirements.
+
+## How tier routing works
+
+The scheduler matches a Tunnel to an ExitPool by intersecting the Tunnel's `spec.requirements` with each pool's `spec.template.spec.requirements`. A Tunnel is only placed on a pool where its requirements are compatible.
+
+Label your pools with distinguishing requirements (e.g. a custom `frp.operator.io/tier` label) and add matching requirements to Tunnels. The pool weight (`spec.weight`) breaks ties when a Tunnel is eligible for multiple pools.
+
+## Apply: two pools
+
+**Gold pool** — premium DO region, larger instance type:
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: gold-pool
+spec:
+  weight: 100
+  template:
+    metadata:
+      labels:
+        frp.operator.io/tier: gold
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-provider
+      requirements:
+        - key: topology.kubernetes.io/region
+          operator: In
+          values: ["nyc3"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: ["s-2vcpu-4gb", "s-4vcpu-8gb"]
+        - key: frp.operator.io/tier
+          operator: In
+          values: ["gold"]
+      frps:
+        version: "v0.61.1"
+        bindPort: 7000
+        adminPort: 7400
+        allowPorts: ["80", "443", "1024-65535"]
+        auth:
+          method: token
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 5m
+  limits:
+    frp.operator.io/exits: "10"
+```
+
+**Silver pool** — cheap DO region, smallest instance type:
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: silver-pool
+spec:
+  weight: 10
+  template:
+    metadata:
+      labels:
+        frp.operator.io/tier: silver
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-provider
+      requirements:
+        - key: topology.kubernetes.io/region
+          operator: In
+          values: ["sgp1", "blr1"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: ["s-1vcpu-1gb"]
+        - key: frp.operator.io/tier
+          operator: In
+          values: ["silver"]
+      frps:
+        version: "v0.61.1"
+        bindPort: 7000
+        adminPort: 7400
+        allowPorts: ["1024-65535"]
+        auth:
+          method: token
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 10m
+  limits:
+    frp.operator.io/exits: "50"
+```
+
+## Apply: tiered Tunnels
+
+**Gold Tunnel** — adds `frp.operator.io/tier: gold` requirement:
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata:
+  name: premium-api-tunnel
+  namespace: production
+spec:
+  requirements:
+    - key: frp.operator.io/tier
+      operator: In
+      values: ["gold"]
+  ports:
+    - name: https
+      servicePort: 443
+      publicPort: 443
+      protocol: TCP
+```
+
+**Silver Tunnel** — no tier requirement, will match any pool; weight favors gold if both match:
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata:
+  name: dev-tunnel
+  namespace: staging
+spec:
+  requirements:
+    - key: frp.operator.io/tier
+      operator: In
+      values: ["silver"]
+  ports:
+    - name: http
+      servicePort: 8080
+      publicPort: 0
+      protocol: TCP
+```
+
+## Verify
+
+```bash
+kubectl get tunnel -A
+```
+
+```
+NAMESPACE    NAME                PHASE   EXIT                  IP              AGE
+production   premium-api-tunnel  Ready   gold-pool-abc123     198.51.100.5    2m
+staging      dev-tunnel          Ready   silver-pool-xyz789   203.0.113.10    90s
+```
+
+## Notes / gotchas
+
+- The `frp.operator.io/tier` requirement key is a convention — you can use any label key that doesn't conflict with Kubernetes well-known labels.
+- Pool `weight` is a tiebreaker when a Tunnel matches multiple pools. Higher weight wins. In the example, a Tunnel with no `tier` requirement would land on the gold pool (weight 100) over the silver pool (weight 10).
+- Each pool manages its own ExitClaims independently. A gold Tunnel will never be placed on a silver pool's claim and vice versa, because the requirement check fails at scheduling time.
+
+<Aside type="tip">
+For a mixed-provider setup (e.g. DO for gold, AWS for silver), create a separate ProviderClass for each provider and reference them from their respective pools. The scheduler is provider-agnostic.
+</Aside>

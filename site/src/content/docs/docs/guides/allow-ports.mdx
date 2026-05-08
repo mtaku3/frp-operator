@@ -5,4 +5,90 @@ description: Use ExitPool allowPorts to limit which ports the operator hands out
 
 import { Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full recipe lands in a follow-up.</Aside>
+**Goal:** Restrict which public port numbers the frps daemon may hand out to Tunnels, preventing accidental exposure on privileged or reserved ports.
+
+## How allowPorts works
+
+`spec.template.spec.frps.allowPorts` is a list of port specifications passed directly to the frps daemon configuration. The scheduler uses this list to bin-pack port allocations — it only assigns a port to a Tunnel if the port falls within an `allowPorts` entry.
+
+Each entry is a string in one of two formats:
+
+| Format | Example | Meaning |
+|---|---|---|
+| Single port | `"80"` | Exactly port 80 |
+| Range | `"1024-2000"` | Ports 1024 through 2000 inclusive |
+
+`spec.template.spec.frps.reservedPorts` subtracts specific ports from the available set (frps internal/admin ports are subtracted automatically by the operator).
+
+## Apply
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: restricted-pool
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-nyc3
+      frps:
+        version: "v0.61.1"
+        bindPort: 7000
+        adminPort: 7400
+        allowPorts:
+          - "80"
+          - "443"
+          - "8080-8090"
+          - "1024-65535"
+        reservedPorts:
+          - 7000    # frps bind port — auto-excluded but explicit here for clarity
+          - 7400    # frps admin port
+        auth:
+          method: token
+      requirements:
+        - key: topology.kubernetes.io/region
+          operator: In
+          values: ["nyc3"]
+```
+
+## Verify
+
+Create a Tunnel requesting a specific port:
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata:
+  name: web-tunnel
+  namespace: default
+spec:
+  ports:
+    - name: http
+      servicePort: 80
+      publicPort: 80   # request a specific port
+      protocol: TCP
+```
+
+If port 80 is in `allowPorts`, the Tunnel binds. If not, the Tunnel will get condition `Ready=False` with reason `PortReservationFailed`.
+
+To use auto-assignment (let the operator pick any available port from `allowPorts`), set `publicPort: 0`.
+
+## Verify the assignment
+
+```bash
+kubectl get tunnel web-tunnel -o jsonpath='{.status.assignedPorts}'
+```
+
+## Notes / gotchas
+
+- `reservedPorts` is **additive**: frps internal ports (`bindPort`, `adminPort`) are always excluded by the operator regardless of whether they appear in `reservedPorts`.
+- Setting `allowPorts: []` (empty) is valid YAML but means no port can be assigned. All Tunnels against this pool will fail scheduling with `PortReservationFailed`.
+- `allowPorts` is stamped on the `ExitClaim` at creation time from the pool template. Changing `allowPorts` on a pool causes existing claims to **drift** and be replaced. See [Hash drift](../concepts/hash-drift) for the replacement mechanism.
+- Privileged ports (below 1024) require the frps process to run as root or with `CAP_NET_BIND_SERVICE`. The `localdocker` provider runs frps as the default container user; check the image's capabilities if you need ports below 1024.
+
+<Aside type="tip">
+For a multi-tenant setup where different teams need different port ranges, use separate ExitPools — one per port range — rather than a single pool with a wide range.
+</Aside>

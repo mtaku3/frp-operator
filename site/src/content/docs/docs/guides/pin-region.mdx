@@ -5,4 +5,152 @@ description: Use ExitPool requirements to anchor exits to a topology.kubernetes.
 
 import { Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full recipe lands in a follow-up.</Aside>
+**Goal:** Ensure all exits in a pool provision in specific geographic regions to minimize latency or satisfy data-residency requirements.
+
+## How region pinning works
+
+Region pinning uses `spec.template.spec.requirements` on the `ExitPool`. Each requirement is a `NodeSelectorRequirement` with a `key`, `operator`, and `values`. The scheduler intersects the pool requirements with the cloud provider's instance-type offerings to find matching (instance-type, region) pairs.
+
+The standard key for region is `topology.kubernetes.io/region`. The scheduler pins the chosen region onto the `ExitClaim.Spec.Requirements` before calling the cloud provider's `Create`, so the provider creates the VM in exactly that region.
+
+## Single-region pool
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: us-east-pool
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-provider
+      requirements:
+        - key: topology.kubernetes.io/region
+          operator: In
+          values: ["nyc3"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: ["s-1vcpu-1gb", "s-2vcpu-2gb"]
+      frps:
+        version: "v0.61.1"
+        bindPort: 7000
+        adminPort: 7400
+        allowPorts:
+          - "1024-65535"
+        auth:
+          method: token
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 10m
+```
+
+All ExitClaims from this pool will be Droplets in `nyc3`.
+
+## Multi-region pool (any of several regions)
+
+To allow the scheduler to pick the cheapest available region across multiple options, list all acceptable regions in a single `In` requirement:
+
+```yaml
+requirements:
+  - key: topology.kubernetes.io/region
+    operator: In
+    values: ["nyc3", "ams3", "sgp1"]
+  - key: node.kubernetes.io/instance-type
+    operator: In
+    values: ["s-1vcpu-1gb"]
+```
+
+The scheduler selects the cheapest offering across the combined set. If `nyc3/s-1vcpu-1gb` is $6/month and `sgp1/s-1vcpu-1gb` is $6/month, either may be chosen — the order of `values` does not imply preference.
+
+## Multiple single-region pools
+
+For strict per-region isolation (e.g. GDPR: EU traffic must stay in EU), create one ExitPool per region:
+
+```yaml
+---
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: eu-pool
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-provider
+      requirements:
+        - key: topology.kubernetes.io/region
+          operator: In
+          values: ["ams3", "fra1"]
+      frps:
+        version: "v0.61.1"
+        bindPort: 7000
+        adminPort: 7400
+        allowPorts: ["1024-65535"]
+        auth:
+          method: token
+---
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: us-pool
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-provider
+      requirements:
+        - key: topology.kubernetes.io/region
+          operator: In
+          values: ["nyc3", "sfo3"]
+      frps:
+        version: "v0.61.1"
+        bindPort: 7000
+        adminPort: 7400
+        allowPorts: ["1024-65535"]
+        auth:
+          method: token
+```
+
+Tunnels that need EU placement add a matching requirement to direct the scheduler to the correct pool:
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata:
+  name: eu-service-tunnel
+  namespace: default
+spec:
+  requirements:
+    - key: topology.kubernetes.io/region
+      operator: In
+      values: ["ams3", "fra1"]
+  ports:
+    - servicePort: 443
+      publicPort: 0
+      protocol: TCP
+```
+
+## Verify
+
+```bash
+kubectl get exitclaim -o wide
+```
+
+The `PublicIP` column shows the assigned IP. Cross-reference with your cloud provider's console to verify the region.
+
+## Notes / gotchas
+
+- If no pool satisfies the Tunnel's requirements, the Tunnel enters phase `Allocating` with condition `Ready=False` and reason `NoMatchingPool`.
+- Region requirements on a Tunnel must be a **subset** of at least one pool's region requirements. A Tunnel requesting `nyc3` cannot be placed on a pool that only allows `ams3`.
+- Changing the region requirement on an `ExitPool` causes existing claims to drift and be replaced. The replacement claim will be provisioned in the new region. See [Hash drift](../concepts/hash-drift).
+
+<Aside type="tip">
+Use separate pools for separate regions rather than a single wide pool when you need to set different `limits` per region (e.g. cap DigitalOcean spend in `sgp1` independently from `nyc3`).
+</Aside>

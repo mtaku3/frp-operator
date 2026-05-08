@@ -1,67 +1,13 @@
 ---
-title: Installation
-description: Learn about the ways you can install frp-operator and how to choose between them.
+title: Introduction
+description: How to install frp-operator.
 sidebar:
   order: 1
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+frp-operator is installed with [Helm](https://helm.sh/). Two OCI charts are published — one for the CRDs and one for the controller — so schema upgrades can be managed independently from controller upgrades.
 
-Learn about the various ways you can install frp-operator and how to choose between them.
+You can install the charts directly with the `helm` CLI, or drive them through a GitOps tool such as [Flux](https://fluxcd.io/) or [Argo CD](https://argo-cd.readthedocs.io/).
 
-## Getting started
-
-> You want to quickly get frp-operator running in a cluster.
-
-The recommended installation path is Helm. frp-operator ships two OCI Helm charts — one for CRDs and one for the operator — so that you can manage schema upgrades independently from controller upgrades.
-
-import { Steps } from '@astrojs/starlight/components';
-
-<Steps>
-1. Install the CRD chart first:
-
-   ```bash
-   helm install frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
-     --version 0.0.1 \
-     --namespace frp-operator \
-     --create-namespace
-   ```
-
-2. Install the operator chart:
-
-   ```bash
-   helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
-     --version 0.0.1 \
-     --namespace frp-operator
-   ```
-</Steps>
-
-Read the full [Helm installation guide](/docs/installation/helm/) for details on customization and upgrade paths.
-
-## Continuous deployment
-
-> You want to automate frp-operator installation using GitOps tooling.
-
-You can drive the frp-operator Helm charts directly from Flux or any other GitOps tool that supports OCI Helm sources.
-
-Read [Continuous Deployment and GitOps](/docs/installation/continuous-deployment-and-gitops/) for Flux examples.
-
-## Configuring the operator
-
-> You want to tune log levels, leader election, feature gates, or resource addresses.
-
-The frp-operator controller accepts CLI flags and corresponding environment variables. When installed with Helm, these are exposed through the chart's `extraArgs`, `extraEnv`, `logLevel`, and `leaderElection` values.
-
-Read [Configuring Components](/docs/installation/configuring-components/) for a full walkthrough.
-
-## Upgrading
-
-> You have frp-operator installed and want to move to a newer release.
-
-Read [Upgrading frp-operator](/docs/installation/upgrade/).
-
-## Uninstalling
-
-> You want to remove frp-operator from your cluster.
-
-Read the [Uninstall guide](/docs/installation/uninstall/). Make sure to delete all Tunnel, ExitPool, and ExitClaim resources before uninstalling so that provider resources are properly cleaned up.
+- [Install with Helm](/docs/installation/helm/)
+- [Continuous Deployment and GitOps](/docs/installation/continuous-deployment-and-gitops/)

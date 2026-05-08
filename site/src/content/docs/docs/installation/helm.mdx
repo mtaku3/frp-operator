@@ -16,10 +16,6 @@ frp-operator ships as **two charts** that must be installed in order:
 1. `frp-operator-crd` — installs the five CRDs. CRDs carry `helm.sh/resource-policy: keep` so they survive a `helm uninstall` and protect your data.
 2. `frp-operator` — installs the controller. Its bundled `crds/` directory acts as a fallback and only provisions CRDs when they do not already exist, so running both charts together is safe.
 
-<Aside type="caution">
-Never install `frp-operator` as a subchart of another Helm release. frp-operator manages cluster-scoped CRDs and must be installed as a top-level release.
-</Aside>
-
 ### Prerequisites
 
 - [Helm v3.8 or later](https://helm.sh/docs/intro/install/) (required for OCI registry support).
@@ -140,9 +136,3 @@ kubectl delete crd \
 <Aside type="danger">
 Deleting the CRDs will immediately destroy all Tunnel, ExitPool, ExitClaim, and ProviderClass objects in the cluster. Ensure provider resources have been cleaned up by the operator before running this command.
 </Aside>
-
-## Using the Flux Helm Controller
-
-The frp-operator Helm charts can be installed and upgraded by the Flux Helm Controller.
-
-Read [Continuous Deployment and GitOps](/docs/installation/continuous-deployment-and-gitops/) for full Flux examples.

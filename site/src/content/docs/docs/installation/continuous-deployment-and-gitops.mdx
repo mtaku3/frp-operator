@@ -19,19 +19,7 @@ The frp-operator charts can be installed and upgraded by the Flux Helm Controlle
 
 ### Prerequisites
 
-You'll need the `flux` CLI and a Kubernetes cluster with Flux installed.
-
-Here's how to quickly install Flux on a Kind cluster:
-
-```bash
-kind create cluster
-
-flux check --pre
-
-flux install
-
-flux check
-```
+You'll need the [`flux` CLI](https://fluxcd.io/flux/installation/) and a Kubernetes cluster with Flux installed. See the [Flux installation guide](https://fluxcd.io/flux/installation/) for full instructions.
 
 ### Create an OCI `HelmRepository` source for the CRD chart
 

@@ -3,6 +3,184 @@ title: Your first DigitalOcean exit
 description: Configure DigitalOceanProviderClass with an API token and provision a real exit.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full walkthrough lands in a follow-up.</Aside>
+Provision a real cloud VM on DigitalOcean as an frps exit node. The operator uses cloud-init to download the frps binary and configure it — no custom image is required.
+
+## Prerequisites
+
+- frp-operator installed (see [Install on kind](./install-kind) or [Install for production](./install-production))
+- A [DigitalOcean account](https://www.digitalocean.com/) with a personal access token
+- Optionally: an SSH key added to your DO account for debugging access
+
+<Aside type="tip">
+The cheapest eligible Droplet size for a single frp tunnel is `s-1vcpu-1gb` (~$6/month in `nyc3`). The scheduler always picks the cheapest fitting size, so you only pay for what you use.
+</Aside>
+
+## Steps
+
+<Steps>
+
+1. **Store your DigitalOcean API token in a Secret**
+
+   ```bash
+   kubectl create secret generic do-api-token \
+     --namespace frp-operator-system \
+     --from-literal=token=<YOUR_DO_API_TOKEN>
+   ```
+
+2. **Apply a DigitalOceanProviderClass**
+
+   The `DigitalOceanProviderClass` tells the operator which DO image to use and how to authenticate. `imageSelectorTerms` matches the droplet base image by slug.
+
+   ```yaml
+   # do-provider.yaml
+   apiVersion: frp.operator.io/v1alpha1
+   kind: DigitalOceanProviderClass
+   metadata:
+     name: do-nyc3
+   spec:
+     apiTokenSecretRef:
+       name: do-api-token
+       key: token
+     imageSelectorTerms:
+       - slug: ubuntu-22-04-x64
+     monitoring: true
+     # Optional: pin to a specific VPC
+     # vpcUUID: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+     # Optional: inject your SSH public key for debugging
+     # sshKeyIDs: ["12345678"]
+   ```
+
+   ```bash
+   kubectl apply -f do-provider.yaml
+   ```
+
+3. **Apply an ExitPool targeting nyc3**
+
+   Use `topology.kubernetes.io/region` to pin the pool to a specific region, and `node.kubernetes.io/instance-type` to constrain the droplet size. The scheduler picks the cheapest fitting size from the provided list.
+
+   ```yaml
+   # exit-pool-do.yaml
+   apiVersion: frp.operator.io/v1alpha1
+   kind: ExitPool
+   metadata:
+     name: do-nyc3-pool
+   spec:
+     template:
+       spec:
+         providerClassRef:
+           group: frp.operator.io
+           kind: DigitalOceanProviderClass
+           name: do-nyc3
+         requirements:
+           - key: topology.kubernetes.io/region
+             operator: In
+             values: ["nyc3"]
+           - key: node.kubernetes.io/instance-type
+             operator: In
+             values: ["s-1vcpu-1gb", "s-1vcpu-2gb"]
+         frps:
+           version: "v0.61.1"
+           bindPort: 7000
+           adminPort: 7400
+           allowPorts:
+             - "1024-65535"
+           auth:
+             method: token
+     disruption:
+       consolidationPolicy: WhenEmpty
+       consolidateAfter: 10m
+     limits:
+       frp.operator.io/exits: "3"
+   ```
+
+   ```bash
+   kubectl apply -f exit-pool-do.yaml
+   ```
+
+4. **Apply a Tunnel**
+
+   ```yaml
+   # tunnel-do.yaml
+   apiVersion: frp.operator.io/v1alpha1
+   kind: Tunnel
+   metadata:
+     name: my-service-tunnel
+     namespace: default
+   spec:
+     ports:
+       - name: http
+         servicePort: 80
+         publicPort: 0
+         protocol: TCP
+   ```
+
+   ```bash
+   kubectl apply -f tunnel-do.yaml
+   ```
+
+5. **Watch the Tunnel reach Ready**
+
+   Droplet provisioning takes 60–120 seconds. Watch the tunnel and the ExitClaim:
+
+   ```bash
+   kubectl get tunnel my-service-tunnel -w
+   kubectl get exitclaim -w
+   ```
+
+   The ExitClaim conditions progress:
+
+   ```
+   Launched=True     # Droplet created in DO
+   Registered=True   # frps admin API responded
+   Initialized=True  # frps config written and reloaded
+   Ready=True        # Tunnel can now bind
+   ```
+
+   Once the Tunnel reaches `Ready`, check the assigned public IP and port:
+
+   ```bash
+   kubectl get tunnel my-service-tunnel \
+     -o jsonpath='{.status.assignedIP}:{.status.assignedPorts[0]}'
+   ```
+
+   Traffic sent to `<assignedIP>:<assignedPort>` is forwarded by frp to the Service's port 80 inside the cluster.
+
+</Steps>
+
+## What the operator did
+
+1. The scheduler selected the cheapest fitting Droplet size (`s-1vcpu-1gb` in `nyc3`) from the DigitalOcean instance-type catalog.
+2. It created an `ExitClaim` with `providerClassRef` pointing at `do-nyc3` and the pinned requirements (region, instance-type).
+3. The lifecycle controller called the DO API to create a Droplet with a cloud-init script that downloads the frps binary and starts it on boot.
+4. Once the frps admin API at `<droplet-IP>:7400` responded, the claim moved to `Ready=True`.
+5. The provisioner bound the Tunnel to the claim, auto-assigning a public port from the `allowPorts` range.
+
+## Cost awareness
+
+The scheduler always selects the **cheapest** fitting instance type when multiple sizes are specified. In the example above, `s-1vcpu-1gb` is cheaper than `s-1vcpu-2gb`, so it is chosen first. The scheduler only moves up to a larger size if the smaller size cannot fit the requested resources.
+
+Adding a limit caps the total number of exits:
+
+```yaml
+limits:
+  frp.operator.io/exits: "3"   # never more than 3 Droplets
+```
+
+## Cleanup
+
+```bash
+kubectl delete tunnel my-service-tunnel
+kubectl delete exitpool do-nyc3-pool
+kubectl delete digitaloceaproviderclass do-nyc3
+kubectl delete secret do-api-token -n frp-operator-system
+```
+
+The operator will delete the Droplet from DigitalOcean after the `consolidateAfter` window expires.
+
+## Next steps
+
+- [Pin tunnels to a specific region](../guides/pin-region)
+- [Cap monthly traffic](../guides/cap-monthly-traffic)
+- [Rotate exits on a schedule](../guides/rotate-exits)

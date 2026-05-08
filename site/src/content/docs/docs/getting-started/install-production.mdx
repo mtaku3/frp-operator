@@ -3,6 +3,162 @@ title: Install on a production cluster
 description: Helm install with metrics, NetworkPolicy, and PodDisruptionBudget enabled.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full walkthrough lands in a follow-up.</Aside>
+A production install enables metrics scraping, restricts ingress with a `NetworkPolicy`, and protects the controller with a `PodDisruptionBudget`. This page shows the full `--set` flags and a reference `values.yaml` overlay.
+
+## Prerequisites
+
+- Helm v3.14+
+- A working Kubernetes cluster (v1.28+)
+- (Optional) Prometheus Operator for `ServiceMonitor` support
+
+## Steps
+
+<Steps>
+
+1. **Install the CRD chart**
+
+   The CRD chart must be installed first and upgraded independently from the operator. See [Upgrade CRDs](../guides/upgrade-crds) for the lifecycle rationale.
+
+   ```bash
+   helm upgrade --install frp-operator-crd \
+     oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+     --version 0.0.1 \
+     --namespace frp-operator-system \
+     --create-namespace \
+     --wait
+   ```
+
+2. **Install the operator chart with production settings**
+
+   <Tabs>
+   <TabItem label="--set flags">
+
+   ```bash
+   helm upgrade --install frp-operator \
+     oci://ghcr.io/mtaku3/charts/frp-operator \
+     --version 0.0.1 \
+     --namespace frp-operator-system \
+     --set replicas=2 \
+     --set leaderElection.enabled=true \
+     --set metrics.service.enabled=true \
+     --set metrics.service.port=8443 \
+     --set metrics.serviceMonitor.enabled=true \
+     --set metrics.serviceMonitor.interval=30s \
+     --set networkPolicy.enabled=true \
+     --set networkPolicy.prometheusNamespace=monitoring \
+     --set podDisruptionBudget.enabled=true \
+     --set podDisruptionBudget.minAvailable=1 \
+     --wait
+   ```
+
+   </TabItem>
+   <TabItem label="values.yaml overlay">
+
+   Save as `prod-values.yaml` and pass with `-f prod-values.yaml`:
+
+   ```yaml
+   replicas: 2
+
+   leaderElection:
+     enabled: true
+     leaseNamespace: ""   # defaults to release namespace
+
+   logLevel: info
+
+   resources:
+     requests:
+       cpu: 50m
+       memory: 128Mi
+     limits:
+       cpu: 500m
+       memory: 256Mi
+
+   metrics:
+     service:
+       enabled: true
+       port: 8443
+       type: ClusterIP
+     serviceMonitor:
+       enabled: true
+       interval: 30s
+       scrapeTimeout: 10s
+       additionalLabels:
+         release: prometheus   # match your Prometheus Operator label selector
+
+   networkPolicy:
+     enabled: true
+     prometheusNamespace: monitoring   # namespace where Prometheus scrapes from
+
+   podDisruptionBudget:
+     enabled: true
+     minAvailable: 1
+   ```
+
+   ```bash
+   helm upgrade --install frp-operator \
+     oci://ghcr.io/mtaku3/charts/frp-operator \
+     --version 0.0.1 \
+     --namespace frp-operator-system \
+     -f prod-values.yaml \
+     --wait
+   ```
+
+   </TabItem>
+   </Tabs>
+
+3. **Verify the deployment**
+
+   ```bash
+   kubectl -n frp-operator-system get pods
+   kubectl -n frp-operator-system get pdb
+   kubectl -n frp-operator-system get networkpolicy
+   ```
+
+   With two replicas and leader election, only one pod actively reconciles at a time. The other pod holds a hot standby — it acquires the lease within seconds if the active pod disappears.
+
+</Steps>
+
+## Key values reference
+
+| Value | Default | Production recommendation |
+|---|---|---|
+| `replicas` | `1` | `2` or `3` for HA |
+| `leaderElection.enabled` | `true` | Keep `true` — required with `replicas > 1` |
+| `logLevel` | `info` | `info` in production; `debug` only for troubleshooting |
+| `metrics.service.enabled` | `false` | `true` to expose `/metrics` |
+| `metrics.serviceMonitor.enabled` | `false` | `true` if Prometheus Operator is installed |
+| `networkPolicy.enabled` | `false` | `true` to default-deny ingress to the controller |
+| `networkPolicy.prometheusNamespace` | `""` | Set to your Prometheus namespace so scraping still works |
+| `podDisruptionBudget.enabled` | `false` | `true` to prevent eviction during node drain |
+| `podDisruptionBudget.minAvailable` | `1` | `1` ensures at least one replica is always up |
+
+<Aside type="tip">
+The full `values.yaml` surface is documented in [Helm values reference](../reference/helm-values).
+</Aside>
+
+## Security context
+
+The chart ships with a hardened security context by default:
+
+```yaml
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+```
+
+These defaults satisfy the Kubernetes [Restricted pod security standard](https://kubernetes.io/docs/concepts/security/pod-security-standards/). No overrides are needed unless your cluster uses a custom admission policy.
+
+## Next steps
+
+- [Enable Prometheus scraping](../guides/prometheus-scrape) — full guide including a rendered ServiceMonitor.
+- [Enable NetworkPolicy](../guides/metrics-networkpolicy) — restrict ingress to only the Prometheus namespace.
+- [HA with multiple replicas](../guides/multi-replica-leader) — leader election details.

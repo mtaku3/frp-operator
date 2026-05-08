@@ -1,22 +1,109 @@
 ---
 title: Install on kind
-description: Spin up a local kind cluster and install both Helm charts.
+description: Spin up a local kind cluster and install both Helm charts to get frp-operator running in minutes.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full walkthrough lands in a follow-up.</Aside>
+Install frp-operator on a local [kind](https://kind.sigs.k8s.io/) cluster using the two Helm charts: `frp-operator-crd` (the CRDs) and `frp-operator` (the controller).
 
-Quick reference for now:
+<Aside type="tip">
+kind is ideal for development and testing. For a production-grade install, see [Install for production](./install-production).
+</Aside>
 
-```bash
-helm upgrade --install frp-operator-crd \
-  oci://ghcr.io/mtaku3/charts/frp-operator-crd \
-  --version 0.0.1 \
-  --namespace frp-operator-system --create-namespace
+## Prerequisites
 
-helm upgrade --install frp-operator \
-  oci://ghcr.io/mtaku3/charts/frp-operator \
-  --version 0.0.1 \
-  --namespace frp-operator-system
-```
+- [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) v0.20+
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) v1.28+
+- [Helm](https://helm.sh/docs/intro/install/) v3.14+
+- Docker running locally
+
+## Steps
+
+<Steps>
+
+1. **Create a kind cluster**
+
+   ```bash
+   kind create cluster --name frp-operator
+   ```
+
+   Verify the cluster is up:
+
+   ```bash
+   kubectl cluster-info --context kind-frp-operator
+   ```
+
+2. **Install the CRD chart**
+
+   The CRD chart must always be installed before the operator chart. It registers the five CRDs (`ExitPool`, `ExitClaim`, `Tunnel`, `LocalDockerProviderClass`, `DigitalOceanProviderClass`) without installing the controller.
+
+   ```bash
+   helm upgrade --install frp-operator-crd \
+     oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+     --version 0.0.1 \
+     --namespace frp-operator-system \
+     --create-namespace \
+     --wait
+   ```
+
+   Verify the CRDs exist:
+
+   ```bash
+   kubectl get crds | grep frp.operator.io
+   ```
+
+   Expected output (five CRDs):
+
+   ```
+   digitaloceaproviderclasses.frp.operator.io   ...
+   exitclaims.frp.operator.io                   ...
+   exitpools.frp.operator.io                    ...
+   localdockerproviderclasses.frp.operator.io   ...
+   tunnels.frp.operator.io                      ...
+   ```
+
+3. **Install the operator chart**
+
+   ```bash
+   helm upgrade --install frp-operator \
+     oci://ghcr.io/mtaku3/charts/frp-operator \
+     --version 0.0.1 \
+     --namespace frp-operator-system \
+     --wait
+   ```
+
+4. **Verify the operator is running**
+
+   ```bash
+   kubectl -n frp-operator-system get pods
+   ```
+
+   You should see one `frp-operator-*` pod in `Running` state:
+
+   ```
+   NAME                            READY   STATUS    RESTARTS   AGE
+   frp-operator-7d9f8b6b5d-x4p2n   1/1     Running   0          30s
+   ```
+
+   Check the leader-election lease was acquired:
+
+   ```bash
+   kubectl -n frp-operator-system get lease
+   ```
+
+</Steps>
+
+## What was installed
+
+| Resource | Description |
+|---|---|
+| `frp-operator-system` namespace | All operator resources live here |
+| Five CRDs | `exitpools`, `exitclaims`, `tunnels`, `localdockerproviderclasses`, `digitaloceaproviderclasses` |
+| Deployment `frp-operator` | The controller manager (1 replica) |
+| ClusterRole + bindings | RBAC for the controller to manage ExitClaims, Tunnels, Secrets |
+| ServiceAccount | Identity for the controller pod |
+
+## Next step
+
+Now that the operator is running, follow [Your first tunnel](./first-tunnel) to provision a local frps exit and expose a Kubernetes Service.

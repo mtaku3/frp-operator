@@ -34,3 +34,11 @@ go.work.sum
 .kind-kubeconfig.yaml
 .claude/
 /manager
+
+# Site (Astro)
+site/node_modules/
+site/.astro/
+site/dist/
+
+# Brainstorming server scratch
+.superpowers/

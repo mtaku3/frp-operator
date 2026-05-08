@@ -1,0 +1,14 @@
+---
+title: Helm values
+description: Generated reference for the frp-operator chart's values.yaml.
+---
+
+# {{ template "chart.name" . }} values
+
+{{ template "chart.description" . }}
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+{{- range .Values }}
+| `{{ .Key }}` | {{ .Type }} | `{{ .Default }}` | {{ .Description }} |
+{{- end }}

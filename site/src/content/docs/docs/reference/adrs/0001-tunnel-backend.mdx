@@ -1,0 +1,155 @@
+---
+title: "ADR 0001: Tunnel backend selection"
+description: "Architecture decision record."
+---
+
+
+**Status:** Accepted — 2026-04-23
+
+## Context
+
+The operator provisions cloud VPSs as tunnel exit nodes that expose in-cluster
+services on public TCP ports (inlets-operator-style L4 port-forward).
+Requirements:
+
+1. Dynamic add/remove of tunnels on a live server without restart, driven by
+   the K8s reconcile loop.
+2. 1:N tunnels per VPS (multi-tenant).
+3. No custom kernel dependency on the VPS.
+4. Clients may also be set up manually outside the operator to expose
+   non-Kubernetes services.
+
+## Decision
+
+Use **FRP** (`fatedier/frp`) as the tunnel backend.
+
+## Alternatives considered
+
+| Backend | Rejected because |
+|---|---|
+| WireGuard | L3 VPN, not port-forward — mismatched semantics; requires kernel module on VPS; would need a DNAT layer to expose per-tenant ports. |
+| Chisel | No server-side admin API; tunnels are client-initiated only, so the operator cannot mutate state on a running server. |
+| rathole | Config-file driven; adding a tunnel requires rewriting server TOML + reload. Best raw throughput but loses the no-restart property. |
+| bore | Fixed 15000–19999 port range, no auth model beyond a shared secret, ~12 s reconnect time. Too rigid for multi-tenant use. |
+
+## Benchmark results
+
+Docker Compose, single host, 2026-04. Full inputs and raw output in `bench/`.
+
+### Throughput — iperf3, Mbps
+
+| Backend | S1 single-stream | S2 8 parallel streams |
+|---|--:|--:|
+| baseline (no tunnel) | 24,711 | 25,476 |
+| rathole | 3,124 | **3,652** |
+| bore | 3,118 | 3,065 |
+| **frp** | 2,735 | 3,168 |
+| chisel | 2,455 | 2,608 |
+| wireguard¹ | 1,323 | 1,298 |
+
+¹ Likely userspace `wireguard-go` in this test environment; kernel mode would
+be 5–10× higher.
+
+### HTTP — wrk, small body / 100 KB body
+
+| Backend | small rps | 100 KB rps | 100 KB latency |
+|---|--:|--:|--:|
+| baseline | 41,716 | 19,610 | 2.9 ms |
+| wireguard | 14,714 | 1,055 | 60 ms |
+| chisel | 14,192 | 1,552 | 41 ms |
+| **frp** | 11,575 | **2,420** | 26 ms |
+| rathole | 3,796 | 1,961 | 33 ms |
+| bore | 2,631 | 1,886 | 34 ms |
+
+### Idle memory growth — S5, server RSS delta from 1→50 peers
+
+| Backend | per-peer RSS |
+|---|--:|
+| wireguard | ~0.2 KiB |
+| bore | ~19 KiB |
+| rathole | ~50 KiB |
+| chisel | ~112 KiB |
+| **frp** | ~122 KiB |
+
+### Dynamic-add disruption — S7, bitrate dip when a second tunnel joins mid-flow
+
+| Backend | dip% |
+|---|--:|
+| rathole | 12.3% |
+| chisel | 14.5% |
+| wireguard | 15.2% |
+| bore | 15.6% |
+| **frp** | 16.4% |
+
+### Reconnect time — S9, seconds to recover after server restart
+
+| Backend | seconds |
+|---|--:|
+| **frp** | **0.40** |
+| rathole | 0.65 |
+| wireguard | 0.66 |
+| chisel | 0.88 |
+| bore | 11.99 |
+
+## Rationale
+
+- FRP has a REST admin API (`/api/config`, reload) that maps onto a reconcile
+  loop. Of the benchmarked backends, only FRP and WireGuard support true
+  dynamic add, and WireGuard's L3 semantics don't fit the usecase.
+- L4/L7 proxy semantics (`tcp`, `udp`, `http`, `https`, `stcp`) match the
+  "expose service on port X" model.
+- Per-client tokens support multi-tenant auth out of the box.
+- Benchmarks: mid-pack throughput (2.7–3.2 Gbps, within ~15% of the leader),
+  best HTTP-large-body rps among tunnel backends, fastest reconnect (0.4 s).
+- Weak spots are acceptable: highest per-peer memory (~122 KiB) and highest
+  add-disruption dip (16%), but both stay within operator-scale budgets.
+- Standalone `frpc` is trivial to run outside Kubernetes, preserving the
+  manual-client use case.
+
+## Consequences
+
+### Port reservation on each VPS
+
+- **`bindPort`** (default 7000, TCP) — control channel; every `frpc` connects
+  here.
+- **`webServer.port`** (default 7500, TCP) — admin REST API. Operator-only;
+  bind to a private interface and firewall off from the public.
+- **`allowPorts`** range (operator-configured, e.g. 20000–29999, TCP) — the
+  tenant pool. The operator allocates a free port from this range per tunnel
+  and writes it into the client's proxy config.
+- **`vhostHTTPPort` / `vhostHTTPSPort`** (default 80/443, TCP) — optional, only
+  if name-based HTTP multiplexing is enabled.
+- **`kcpBindPort` / `quicBindPort`** (UDP) — optional, only if those
+  transports are enabled.
+
+### Memory footprint
+
+Baseline `frps` idle is ~4.5 MB RSS, plus ~122 KiB per idle tunnel. Active
+traffic adds a few tens of KB of buffer per live TCP connection (tunable via
+`transport.poolCount`). Projected idle RSS:
+
+| Tunnels | Idle RSS (est.) |
+|---|--:|
+| 10 | ~6 MB |
+| 100 | ~17 MB |
+| 1,000 | ~127 MB |
+| 5,000 | ~620 MB |
+
+The practical per-VPS density limit is port-range exhaustion or CPU at
+line-rate traffic, not `frps` RAM.
+
+### Operational
+
+- The operator owns `frps` lifecycle on each VPS and mutates its config via
+  the admin API.
+- Coupled to FRP's protocol evolution; upstream version pins are managed in
+  the operator.
+- **Version pinning:** Currently pinned to v0.68.1 (latest stable as of 2026-04).
+  Bumped from v0.65.0 during Phase 2 implementation for performance and
+  stability improvements.
+
+## References
+
+- `bench/` — scenarios, compose files, and raw results (S1/S2/S3/S5/S7/S9,
+  5 backends, 2026-04).
+- FRP upstream: https://github.com/fatedier/frp

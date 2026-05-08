@@ -39,6 +39,24 @@ Common toggles:
 
 See `charts/frp-operator/values.yaml` for the full surface.
 
+## Docs site
+
+Full documentation lives at [mtaku3.github.io/frp-operator](https://mtaku3.github.io/frp-operator/).
+
+The site is an Astro Starlight project under `site/`. Reference pages
+(Helm values, operator flags, ADRs) are generated from code via
+`make site-gen` and committed to git. Deployed via GitHub Pages on push
+to `main` (workflow: `.github/workflows/pages.yml`).
+
+One-time repo setup: Settings → Pages → Source = `GitHub Actions`.
+
+Local dev:
+
+```sh
+make site-gen
+cd site && pnpm install && pnpm dev   # http://localhost:4321/frp-operator/
+```
+
 ## Getting Started
 
 ### Prerequisites

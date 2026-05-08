@@ -1,0 +1,32 @@
+---
+---
+<section class="install" id="install">
+  <div class="wrap">
+    <div class="section-label">Install</div>
+    <h2 class="section-title">Install via Helm.</h2>
+    <p class="section-sub">Two charts: CRDs first, then the operator. Pulls from GHCR's OCI registry.</p>
+    <div class="install-card"><pre><code><span class="prompt">$</span> <span class="cmd">helm upgrade --install frp-operator-crd \</span>
+      <span class="string">oci://ghcr.io/mtaku3/charts/frp-operator-crd</span> \
+      <span class="flag">--version</span> <span class="string">0.0.1</span> \
+      <span class="flag">--namespace</span> <span class="string">frp-operator-system</span> <span class="flag">--create-namespace</span>
+
+<span class="prompt">$</span> <span class="cmd">helm upgrade --install frp-operator \</span>
+      <span class="string">oci://ghcr.io/mtaku3/charts/frp-operator</span> \
+      <span class="flag">--version</span> <span class="string">0.0.1</span> \
+      <span class="flag">--namespace</span> <span class="string">frp-operator-system</span>
+
+<span class="comment"># Operator running. Apply your first ExitPool next.</span></code></pre></div>
+  </div>
+</section>
+
+<style>
+  .install { padding: 96px 0; }
+  .install-card { background: var(--code-bg); color: var(--code-ink); border-radius: var(--r-lg); padding: 28px 32px; max-width: 720px; margin: 0 auto; box-shadow: var(--shadow-lg); font-family: var(--font-mono); font-size: 14px; line-height: 1.7; overflow-x: auto; }
+  .install-card pre { margin: 0; }
+  .install-card code { font-family: inherit; background: transparent; color: inherit; padding: 0; }
+  .prompt  { color: var(--code-stone); }
+  .cmd     { color: var(--code-ink); }
+  .flag    { color: var(--code-amber); }
+  .string  { color: var(--code-lime); }
+  .comment { color: var(--code-stone); font-style: italic; }
+</style>

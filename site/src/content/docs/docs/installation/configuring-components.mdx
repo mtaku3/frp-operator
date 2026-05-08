@@ -86,20 +86,28 @@ The health probe server listens on `:8081` by default and can be changed with `-
 
 ## Feature gates
 
-Feature gates enable or disable experimental controller behaviour. They are set with the `--feature-gates` flag as a comma-separated list of `Name=bool` pairs:
+Feature gates enable or disable experimental controller behaviour. They are set with the `--feature-gates` flag as a comma-separated list of `Name=bool` pairs. All gates default to `false`.
+
+| Gate | Default | Description |
+|---|---|---|
+| `StaticReplicas` | `false` | Bypass the dynamic scheduler and treat `ExitPool.Spec.Replicas` as a fixed target. |
+| `ExitRepair` | `false` | Auto-replace exits whose admin-API liveness probe fails for the configured threshold. |
+| `InterruptionHandling` | `false` | React to provider-level instance interruption signals (e.g. spot reclaim). |
+| `ConsolidationDryRun` | `false` | Run the consolidation simulator without acting on the result; useful for safe verification. |
+| `MultiPoolBinpacking` | `false` | Allow a single Tunnel to bin-pack across exits from more than one ExitPool. |
+
+Example:
 
 ```bash
---feature-gates=MyExperimentalFeature=true
+--feature-gates=ExitRepair=true,ConsolidationDryRun=true
 ```
 
 When using Helm, pass this through `extraArgs`:
 
 ```yaml
 extraArgs:
-  - --feature-gates=MyExperimentalFeature=true
+  - --feature-gates=ExitRepair=true,ConsolidationDryRun=true
 ```
-
-See the [flags reference](/docs/reference/flags/) for the complete list of available feature gates.
 
 ## Scheduler tuning
 

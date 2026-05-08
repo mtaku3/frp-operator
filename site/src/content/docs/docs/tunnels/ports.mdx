@@ -1,0 +1,82 @@
+---
+title: Ports
+description: Configure which ports a Tunnel exposes and how they map to your in-cluster Service.
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## `spec.ports[]`
+
+`spec.ports` is a required list with at least one entry. Each entry describes a single port mapping between the public internet and an in-cluster Kubernetes Service port.
+
+### Fields
+
+#### `name`
+
+A free-form string identifier for this port entry.
+
+`name` is optional when the Tunnel has exactly one port. When there are two or more ports, `name` is required on every entry so that `status.assignedPorts` indexing remains stable across updates.
+
+#### `publicPort`
+
+A pointer to an `int32`. Controls which port number is reserved on the exit node.
+
+- **Omitted or `0`** (default) — the operator auto-assigns a free port from the pool's `allowPorts` range. The chosen number appears in `status.assignedPorts` once the Tunnel reaches `Ready`.
+- **Non-zero** — the operator requests that exact port. The scheduler will only select an exit whose pool lists the port in `allowPorts` *and* where the port is not already taken by another Tunnel.
+
+#### `servicePort`
+
+Required `int32`. The port number on the in-cluster Kubernetes Service that frpc forwards inbound traffic to.
+
+#### `protocol`
+
+`TCP` (default) or `UDP`. Validated at admission; no other values are accepted.
+
+## Examples
+
+### Auto-assigned port
+
+Let the operator pick a free port from the pool's `allowPorts` range.
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata:
+  name: my-app-tunnel
+  namespace: default
+spec:
+  ports:
+    - name: http
+      servicePort: 8080
+      protocol: TCP
+```
+
+After the Tunnel reaches `Ready`, read the assigned port:
+
+```bash
+kubectl get tunnel my-app-tunnel -o jsonpath='{.status.assignedPorts[0]}'
+```
+
+### Fixed public port
+
+Request port 443 explicitly. The scheduler will reject exits whose pool does not include 443 in `allowPorts`.
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata:
+  name: tls-tunnel
+  namespace: default
+spec:
+  ports:
+    - name: https
+      publicPort: 443
+      servicePort: 8443
+      protocol: TCP
+```
+
+<Aside type="caution">
+Requesting a fixed `publicPort` reduces the number of exits the scheduler can choose from. If no exit has that port available, the Tunnel stays in `Allocating` indefinitely.
+</Aside>

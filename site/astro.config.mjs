@@ -24,6 +24,7 @@ export default defineConfig({
         { label: 'Installation',         collapsed: false, autogenerate: { directory: 'docs/installation' } },
         { label: 'Configuring Provider', collapsed: false, autogenerate: { directory: 'docs/configuring-provider' } },
         { label: 'Configuring Pool',     collapsed: false, autogenerate: { directory: 'docs/configuring-pool' } },
+        { label: 'Tunnels',              collapsed: false, autogenerate: { directory: 'docs/tunnels' } },
         { label: 'Reference',            collapsed: true,  autogenerate: { directory: 'docs/reference', collapsed: true } },
       ],
       social: { github: 'https://github.com/mtaku3/frp-operator' },

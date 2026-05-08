@@ -1,0 +1,69 @@
+---
+title: Status
+description: Understand the lifecycle phases and status fields written back to a Tunnel by the operator.
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## `status.phase`
+
+`phase` is a coarse summary of the Tunnel's current lifecycle state. It is derived from the observed conditions and updated by the operator on every reconcile loop.
+
+| Phase | Meaning |
+|---|---|
+| *(empty)* `Pending` | The Tunnel has been accepted but the scheduler has not yet started selecting an exit. |
+| `Allocating` | The scheduler is searching for a suitable ExitClaim. No exit is assigned yet. |
+| `Provisioning` | An ExitClaim has been assigned but the exit node is not yet ready (still being provisioned or starting up). |
+| `Ready` | The exit is running, frpc is connected, and traffic is flowing. `assignedIP` and `assignedPorts` are populated. |
+| `Failed` | The operator encountered an unrecoverable error. Inspect `status.conditions` for details. |
+
+## `status.assignedExit`
+
+The `name` of the `ExitClaim` this Tunnel is bound to. This field is empty while the Tunnel is in `Pending` phase and is set as soon as the scheduler selects an exit (phase moves to `Allocating` or later).
+
+## `status.assignedIP`
+
+The public IP address of the assigned exit node. This field is empty until the exit reaches `Ready`. Once set, it does not change unless the Tunnel is rescheduled.
+
+## `status.assignedPorts`
+
+A list of resolved `int32` public port numbers, in the same order as `spec.ports`. For entries where `spec.ports[].publicPort` was `0` (auto-assign), the operator fills in the chosen port number here. For entries with a fixed `publicPort`, the same value is echoed back.
+
+`assignedPorts` is populated when the Tunnel reaches `Ready`.
+
+## `status.conditions`
+
+A standard list of `metav1.Condition` entries. The operator emits a `Ready` condition whose `status` reflects the current phase:
+
+- `True` — the Tunnel is in `Ready` phase.
+- `False` — the Tunnel is in any other phase. The `reason` and `message` fields explain why.
+
+<Aside type="note">
+Inspect conditions with `kubectl get tunnel <name> -o jsonpath='{.status.conditions}'` or `kubectl describe tunnel <name>` for human-readable output.
+</Aside>
+
+## Reading Tunnel status at a glance
+
+The `kubectl get tunnels` command prints the four most useful columns:
+
+```bash
+kubectl get tunnels -n default
+```
+
+```
+NAME              PHASE   EXIT                   IP              AGE
+my-app-tunnel     Ready   my-exit-claim          203.0.113.42    5m
+tls-tunnel        Allocating                                     10s
+broken-tunnel     Failed  broken-exit-claim                      2m
+```
+
+Columns:
+
+| Column | Source |
+|---|---|
+| `PHASE` | `status.phase` |
+| `EXIT` | `status.assignedExit` |
+| `IP` | `status.assignedIP` |
+| `AGE` | `metadata.creationTimestamp` |

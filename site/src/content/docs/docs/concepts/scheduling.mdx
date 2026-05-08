@@ -3,6 +3,84 @@ title: "Scheduling: offerings, requirements, cheapest-fit"
 description: How the scheduler picks the cheapest fitting instance type per ExitClaim.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+The frp-operator scheduler is responsible for two decisions each time a `Tunnel` needs placement:
 
-<Aside type="caution">Stub page — full explanation lands in a follow-up.</Aside>
+1. **Bin-pack onto an existing `ExitClaim`** — if any Ready claim has sufficient port and resource capacity, bind the Tunnel to it. No new VM is provisioned.
+2. **Select the cheapest new instance type** — if no existing claim can fit the Tunnel, pick the cheapest (instance-type, region) offering that satisfies the pool and Tunnel requirements, then create a new `ExitClaim`.
+
+## Offerings
+
+A cloud provider exposes a catalog of `InstanceType` objects. Each `InstanceType` has:
+
+- `Requirements` — label key/value requirements that define its identity (e.g. `node.kubernetes.io/instance-type=s-1vcpu-1gb`, `topology.kubernetes.io/region=nyc3`)
+- `Offerings` — a list of `{Price, Requirements, Available}` tuples. An offering is typically one region × capacity-type combination.
+- `Allocatable()` — the resource capacity available for Tunnels (CPU, memory, bandwidth)
+
+The scheduler intersects pool requirements, Tunnel requirements, and the catalog to find the valid offerings, then sorts by price ascending and picks the first (cheapest) one.
+
+## Requirements compatibility
+
+Requirements are evaluated as a conjunction (AND). Every requirement in the pool and Tunnel must be compatible with the offering's requirements. The compatibility check uses standard Kubernetes `NodeSelectorOperator` semantics:
+
+| Operator | Meaning |
+|---|---|
+| `In` | Offering's value for the key must be in the list |
+| `NotIn` | Offering's value for the key must not be in the list |
+| `Exists` | Offering must have a value for the key |
+| `DoesNotExist` | Offering must not have a value for the key |
+| `Gt` | Offering's numeric value for the key must be greater than |
+| `Lt` | Offering's numeric value for the key must be less than |
+
+Pool requirements constrain the set of offerings available to the pool. Tunnel requirements further narrow within that set. A Tunnel is unschedulable if no offering satisfies both.
+
+## Bin-packing onto existing claims
+
+Before creating a new claim, the scheduler checks every Ready `ExitClaim` in the cluster state:
+
+1. The claim must be Ready (`Ready=True` condition)
+2. The claim must not be marked for disruption (`Disrupted=True` means skip)
+3. The claim's requirements must be compatible with the Tunnel's requirements
+4. The claim must have sufficient allocatable resources for the Tunnel's `spec.resources.requests`
+5. The claim's `frps.allowPorts` (minus already-used ports) must be able to satisfy the Tunnel's port requests
+
+If multiple claims can fit the Tunnel, the scheduler picks one and records a `Binding`. The Tunnel is then promoted to `Provisioning` (or immediately to `Ready` if the claim is already `Ready`).
+
+## Cheapest-fit for new claims
+
+When no existing claim can fit the Tunnel, the scheduler runs `SelectInstanceType`:
+
+```
+for each InstanceType in the provider catalog:
+  1. Check: pool requirements compatible with IT.Requirements?  → skip if not
+  2. Check: Tunnel requirements compatible with IT.Requirements? → skip if not
+  3. Check: IT.Allocatable() ≥ Tunnel.Resources.Requests?       → skip if not
+  4. Find cheapest offering in IT.Offerings compatible with pool + Tunnel reqs
+  5. Record as candidate
+
+Sort candidates by Offering.Price ascending
+Pick candidates[0]
+```
+
+The chosen `InstanceType` and `Offering` are used to stamp the new `ExitClaim.Spec.Requirements` via `PinChosen` — locking in the exact (region, instance-type) so the cloud provider creates the VM in exactly the right place.
+
+## Batching
+
+The provisioner batches Tunnel events before running a scheduling cycle. Batch windows are configurable:
+
+- `--batch-idle-duration` (default 1s) — wait this long after the last event before firing
+- `--batch-max-duration` (default 10s) — fire unconditionally after this interval even if events keep arriving
+
+Batching is important for multi-Tunnel workloads: if 10 Tunnels arrive at once, the scheduler can bin-pack all 10 into a single new claim rather than creating 10 separate VMs.
+
+## Port bin-packing
+
+In addition to resource fit, the scheduler tracks port usage per claim. Each Tunnel's `spec.ports` declares the public ports it needs (or `0` for auto-assign). The scheduler resolves auto-assign ports from the claim's `allowPorts` range, excluding already-used ports. If no valid port assignment exists for a Tunnel, the claim is considered full for that Tunnel.
+
+## Trade-offs
+
+| Approach | Pro | Con |
+|---|---|---|
+| Bin-pack first | Fewer VMs, lower cost | May delay new claims if existing claims are underutilized |
+| New claim | Fresh isolation | Higher cost, slower (VM boot time) |
+
+The scheduler always tries bin-packing first. A new claim is only provisioned when no existing claim can fit the Tunnel.

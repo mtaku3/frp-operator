@@ -5,4 +5,136 @@ description: Drift, emptiness, expiration, single-node + multi-node consolidatio
 
 import { Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full explanation lands in a follow-up.</Aside>
+The disruption controller runs on a configurable tick (`--disruption-poll-period`, default 10s) and evaluates every Ready `ExitClaim`. When a claim should be replaced or removed, the controller emits a **disruption command** that deletes the claim (and optionally creates a replacement).
+
+Disruption methods are evaluated in **priority order**. The controller stops after the first method that emits a command for a given tick:
+
+1. Emptiness
+2. Drift
+3. Expiration
+4. MultiNodeConsolidation
+5. SingleNodeConsolidation
+
+## Disruption budgets
+
+Before executing a command, the controller checks the pool's `spec.disruption.budgets`. A budget limits concurrent disruptions:
+
+```yaml
+disruption:
+  budgets:
+    - nodes: "20%"   # percentage of pool exits
+    - nodes: "2"     # absolute count
+      schedule: "0 2 * * 6"   # cron schedule
+      duration: 4h
+      reasons:
+        - Expired     # only apply to expiration-driven disruptions
+```
+
+`nodes` is either an absolute count or a percentage of the pool's current exit count. During a cron window, the window's budget applies; outside the window, the budget is `0` for the listed reasons (blocking disruption).
+
+**Exception:** Expiration is forceful — it bypasses budgets by default unless you explicitly add a budget with `reasons: [Expired]`.
+
+## Method details
+
+### Emptiness
+
+Removes a claim that has had no bound Tunnels for at least `spec.disruption.consolidateAfter` (default 5 minutes).
+
+- Fires when: claim is Ready, no Tunnels are bound, `LastBindingChange` is older than `consolidateAfter`
+- Action: delete claim, no replacement
+- Forceful: no (respects budgets)
+
+```yaml
+disruption:
+  consolidationPolicy: WhenEmpty
+  consolidateAfter: 10m
+```
+
+### Drift
+
+Replaces a claim whose pool template hash or ProviderClass hash no longer matches the pool's current hash. This fires when you change `spec.template.spec.frps`, `spec.template.spec.requirements`, or any field in the referenced `ProviderClass`.
+
+- Fires when: `ExitClaim` annotation `frp.operator.io/pool-hash` ≠ pool annotation `frp.operator.io/pool-hash`, OR `frp.operator.io/providerclass-hash` ≠ pool annotation `frp.operator.io/providerclass-hash`
+- Action: create replacement claim, then delete old claim
+- Forceful: no (respects budgets)
+
+See [Hash drift](./hash-drift) for a detailed explanation of the two-level hashing scheme.
+
+### Expiration
+
+Replaces a claim whose age exceeds `spec.template.spec.expireAfter`.
+
+- Fires when: `claim.CreationTimestamp + claim.Spec.ExpireAfter ≤ now()`
+- Action: create replacement claim, then delete old claim
+- Forceful: **yes** — bypasses budgets unless a budget explicitly lists `reasons: [Expired]`
+
+```yaml
+template:
+  spec:
+    expireAfter: 168h   # 7 days
+```
+
+### MultiNodeConsolidation
+
+Tries to drain **pairs** of claims by re-packing their Tunnels onto other existing claims. Requires `consolidationPolicy: WhenEmptyOrUnderutilized`.
+
+- Fires when: two claims' Tunnels can all be re-packed onto the remaining claims (or a single cheaper replacement)
+- Action: delete both claims (no replacement if re-pack succeeds, one cheaper replacement if cheaper-instance-type replacement is feasible)
+- Forceful: no
+
+This is a v1 implementation that checks adjacent pairs only, not arbitrary subsets.
+
+### SingleNodeConsolidation
+
+Tries to drain **one** claim at a time by moving its Tunnels to other existing claims. Requires `consolidationPolicy: WhenEmptyOrUnderutilized`.
+
+- Fires when: one claim's Tunnels can all be re-packed onto the remaining claims
+- Action: delete the claim, no replacement
+- Forceful: no
+
+```yaml
+disruption:
+  consolidationPolicy: WhenEmptyOrUnderutilized
+  consolidateAfter: 5m
+```
+
+## Disruption annotation
+
+To protect a specific claim from disruption (e.g. during a manual debug session), annotate it:
+
+```bash
+kubectl annotate exitclaim <name> frp.operator.io/do-not-disrupt=true
+```
+
+Remove the annotation to re-enable disruption.
+
+## Order of operations
+
+```
+Disruption tick fires
+  │
+  ├─ Collect candidates (Ready claims, not marked for deletion)
+  │
+  ├─ Evaluate Emptiness    → commands?  YES → execute, stop
+  │
+  ├─ Evaluate Drift        → commands?  YES → execute, stop
+  │
+  ├─ Evaluate Expiration   → commands?  YES → execute (forceful, ignore budgets)
+  │
+  ├─ Evaluate MultiNode    → commands?  YES → execute, stop
+  │
+  └─ Evaluate SingleNode   → commands?  YES → execute, stop
+```
+
+<Aside type="tip">
+If you want consolidation but not expiration-driven churn, use `consolidationPolicy: WhenEmptyOrUnderutilized` and do not set `expireAfter`.
+</Aside>
+
+## Trade-offs
+
+| Method | Best for | Downside |
+|---|---|---|
+| Emptiness | Reclaiming idle exits | Does not consolidate partially-loaded exits |
+| Drift | Keeping exits up to date with config changes | Causes rebinding downtime when template changes |
+| Expiration | Rotating exits on a schedule | Forceful — can disrupt outside maintenance windows unless budgeted |
+| Consolidation | Reducing VM count and cost | Only fires when `WhenEmptyOrUnderutilized` is set; requires spare capacity |

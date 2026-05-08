@@ -1,0 +1,28 @@
+---
+title: Installation
+description: Learn about the ways you can install frp-operator and how to choose between them.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Learn about the ways you can install frp-operator and how to choose between them.
+
+## Helm (recommended)
+
+<Aside type="note">
+  Use this method if you want full control over configuration, or if you are running frp-operator in a production cluster.
+</Aside>
+
+frp-operator ships two Helm charts: `frp-operator-crd` (manages CRD lifecycle) and `frp-operator` (the controller). Install both from the OCI registry on GitHub Container Registry.
+
+See the [Helm installation guide](/docs/installation/helm/) for step-by-step instructions.
+
+## Continuous deployment and GitOps
+
+<Aside type="note">
+  Use this method if you manage your cluster with a GitOps tool such as Flux or ArgoCD and want to automate frp-operator upgrades.
+</Aside>
+
+The Helm charts can be consumed directly by Flux `HelmRelease` resources or ArgoCD `Application` resources. Both tools understand the two-chart split and the required install order.
+
+See the [Continuous Deployment and GitOps guide](/docs/installation/continuous-deployment-and-gitops/) for details.

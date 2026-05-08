@@ -1,0 +1,65 @@
+---
+title: Upgrade
+description: How to upgrade frp-operator to a newer version.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page describes how to upgrade frp-operator. Always read the release notes for your target version before upgrading, as there may be breaking changes or version-specific instructions.
+
+<Aside type="caution">
+  Before upgrading, back up all frp-operator custom resources (`ExitPool`, `ExitClaim`, `Tunnel`, `LocalDockerProviderClass`, `DigitalOceanProviderClass`) in case an issue occurs during the upgrade.
+</Aside>
+
+## Upgrading with Helm
+
+Upgrade the CRD chart first, then the operator chart. This order ensures new CRD schemas are available before the operator starts using them.
+
+### CRDs managed by the CRD chart
+
+<Aside type="note">
+  You can find your release names using `helm list -n frp-operator`.
+</Aside>
+
+```bash
+helm upgrade frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+  --namespace frp-operator \
+  --version <new-version> \
+  --reuse-values
+```
+
+Then upgrade the operator:
+
+```bash
+helm upgrade frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --namespace frp-operator \
+  --version <new-version> \
+  --reuse-values
+```
+
+The `--reuse-values` flag carries your existing Helm values forward. If the new version adds required values or changes defaults in a breaking way, the release notes will call this out explicitly — use `--reset-then-reuse-values` in that case to merge your overrides on top of the new defaults:
+
+```bash
+helm upgrade frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --namespace frp-operator \
+  --version <new-version> \
+  --reset-then-reuse-values
+```
+
+### CRDs managed separately (Output YAML path)
+
+If you are managing CRDs outside of Helm (for example via the `helm template` output described in the [Helm installation guide](/docs/installation/helm/#output-yaml)), apply the new CRD manifests before upgrading the operator:
+
+```bash
+helm template frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+  --namespace frp-operator \
+  --version <new-version> | kubectl apply -f -
+```
+
+Then re-render and apply the operator manifests.
+
+## Reinstalling frp-operator
+
+In some cases (for example, recovering from a corrupt Helm release state) you may need to fully uninstall and reinstall rather than upgrade in place.
+
+See the [Reinstall guide](/docs/installation/reinstall/) for instructions and important caveats about data preservation.

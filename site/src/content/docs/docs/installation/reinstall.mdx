@@ -1,0 +1,64 @@
+---
+title: Reinstall
+description: How to fully uninstall and reinstall frp-operator while preserving custom resources.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+In some cases you may need to do a full uninstall and reinstall of frp-operator rather than an in-place upgrade — for example, when recovering from a corrupt Helm release or when jumping across multiple major versions where incremental upgrade paths are not supported.
+
+A reinstall involves removing both Helm releases and then re-installing from scratch. The main risk is data loss: if you also delete the CRDs (and therefore the custom resources inside them), you will lose any `ExitPool`, `ExitClaim`, `Tunnel`, `LocalDockerProviderClass`, and `DigitalOceanProviderClass` objects that are not stored elsewhere.
+
+## Things to look out for
+
+Before uninstalling, review the following:
+
+- **Finalizers.** The operator sets finalizers on resources it manages. If the operator pod is removed before finalizers are cleared, resources will be stuck in `Terminating`. Ensure the operator pod is running and healthy when you run `helm uninstall frp-operator`, so it can process deletion events.
+
+- **In-progress operations.** If any `Tunnel` or `ExitClaim` is mid-reconcile when the operator is removed, it may be left in an inconsistent state. Verify that all resources are in a stable condition (`Ready` or `Bound`) before proceeding.
+
+- **CRD preservation.** The `frp-operator-crd` chart annotates all CRDs with `helm.sh/resource-policy: keep`. This means `helm uninstall frp-operator-crd` will **not** delete the CRD objects or any custom resources stored inside them. Your data is preserved by default. Only a manual `kubectl delete crd ...` will remove it.
+
+## Reinstall procedure
+
+<Aside type="caution">
+  Back up your custom resources before proceeding. Export them with `kubectl get exitpools,exitclaims,tunnels,localdockerproviderclasses,digitaloceaproviderclasses -A -o yaml > backup.yaml`.
+</Aside>
+
+1. Uninstall the operator chart (the controller will drain finalizers as resources are deleted):
+
+   ```bash
+   helm uninstall frp-operator --namespace frp-operator
+   ```
+
+2. Confirm no frp-operator pods remain:
+
+   ```bash
+   kubectl get pods -n frp-operator
+   ```
+
+3. Uninstall the CRD chart (CRDs and custom resources are preserved due to `resource-policy: keep`):
+
+   ```bash
+   helm uninstall frp-operator-crd --namespace frp-operator
+   ```
+
+4. Reinstall the CRD chart:
+
+   ```bash
+   helm install frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+     --namespace frp-operator \
+     --version <target-version>
+   ```
+
+5. Reinstall the operator chart:
+
+   ```bash
+   helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+     --namespace frp-operator \
+     --version <target-version>
+   ```
+
+<Aside type="note">
+  If you need to reinstall from scratch and intentionally remove all custom resources, delete the CRDs manually after step 2 (before step 4). See the [Uninstall guide](/docs/installation/uninstall/) for the `kubectl delete crd` command.
+</Aside>

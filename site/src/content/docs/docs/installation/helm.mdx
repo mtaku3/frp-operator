@@ -1,0 +1,130 @@
+---
+title: Helm
+description: Install frp-operator using the Helm package manager.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+frp-operator provides Helm charts as a first-class installation method on Kubernetes. Two charts ship together: `frp-operator-crd` owns the CRD lifecycle, and `frp-operator` runs the controller. The CRD chart must be installed first.
+
+## Installing with Helm
+
+### Prerequisites
+
+- Helm v3.8 or later (required for OCI registry support).
+- A running Kubernetes cluster with `kubectl` configured to target it.
+
+### Installing frp-operator with Helm
+
+Both charts are published to the OCI registry at `ghcr.io/mtaku3/charts`. Versions are unified; install the same version for both charts.
+
+<Steps>
+1. Install the CRD chart first:
+
+   ```bash
+   helm install frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+     --namespace frp-operator \
+     --create-namespace \
+     --version 0.0.1
+   ```
+
+2. Install the operator chart:
+
+   ```bash
+   helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+     --namespace frp-operator \
+     --version 0.0.1
+   ```
+</Steps>
+
+<Aside type="caution">
+  Always install `frp-operator-crd` before `frp-operator`. The operator chart includes a `crds/` fallback that only fires when the CRDs do not yet exist, but the canonical CRD lifecycle is managed by the CRD chart.
+</Aside>
+
+### Verify the installation
+
+Check that the operator pod is running:
+
+```bash
+kubectl get pods -n frp-operator
+```
+
+You should see a pod named `frp-operator-*` in `Running` state.
+
+### Installation options
+
+You can customise the installation by passing Helm values. For example, to enable debug logging and disable leader election (useful in single-replica test environments):
+
+```bash
+helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --namespace frp-operator \
+  --version 0.0.1 \
+  --set extraArgs[0]="--log-level=debug" \
+  --set extraArgs[1]="--leader-elect=false"
+```
+
+All available Helm values are documented in the [Helm values reference](/docs/reference/helm-values/). All available operator flags are documented in the [flags reference](/docs/reference/flags/).
+
+## Output YAML
+
+If you need to inspect or version-control the rendered manifests without applying them, use `helm template`:
+
+```bash
+helm template frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+  --namespace frp-operator \
+  --version 0.0.1 > frp-operator-crd.yaml
+
+helm template frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --namespace frp-operator \
+  --version 0.0.1 > frp-operator.yaml
+```
+
+<Aside type="note">
+  `helm template` does not output a `Namespace` resource. Create the namespace separately with `kubectl create namespace frp-operator` before applying the rendered manifests.
+</Aside>
+
+Apply them in order:
+
+```bash
+kubectl apply -f frp-operator-crd.yaml
+kubectl apply -f frp-operator.yaml
+```
+
+## Uninstalling
+
+See the [Uninstall guide](/docs/installation/uninstall/) for the correct removal order. Uninstalling in the wrong order can leave orphaned finalizers or CRDs.
+
+### Uninstalling with Helm
+
+<Aside type="caution">
+  Always uninstall `frp-operator` before `frp-operator-crd`. The controller must be given the opportunity to drain finalizers from custom resources before the CRD schemas are removed.
+</Aside>
+
+```bash
+helm uninstall frp-operator --namespace frp-operator
+helm uninstall frp-operator-crd --namespace frp-operator
+```
+
+The CRD chart annotates CRDs with `helm.sh/resource-policy: keep`, so CRDs (and the custom resources inside them) survive `helm uninstall`. To fully remove the schemas:
+
+```bash
+kubectl delete crd \
+  exitpools.frp.operator.io \
+  exitclaims.frp.operator.io \
+  tunnels.frp.operator.io \
+  localdockerproviderclasses.frp.operator.io \
+  digitaloceaproviderclasses.frp.operator.io
+```
+
+### Namespace stuck in Terminating state
+
+If the `frp-operator` namespace becomes stuck in `Terminating`, it is usually because a custom resource still has a finalizer. Ensure the operator pod finished running before removing the CRD chart, or manually patch the finalizers:
+
+```bash
+kubectl get tunnels -A -o name | xargs -I{} kubectl patch {} \
+  --type=merge -p '{"metadata":{"finalizers":[]}}' -n frp-operator
+```
+
+## Using the Flux Helm Controller
+
+See the [Continuous Deployment and GitOps guide](/docs/installation/continuous-deployment-and-gitops/) for Flux and ArgoCD installation examples.

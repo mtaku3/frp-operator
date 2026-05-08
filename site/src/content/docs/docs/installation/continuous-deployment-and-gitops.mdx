@@ -1,0 +1,170 @@
+---
+title: Continuous Deployment and GitOps
+description: Automate the installation of frp-operator using Flux or ArgoCD.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Learn how to automate the installation of frp-operator using GitOps tools such as Flux and ArgoCD.
+
+## Introduction
+
+frp-operator ships as two Helm charts: `frp-operator-crd` and `frp-operator`. The CRD chart must be reconciled before the operator chart. Both Flux and ArgoCD support expressing this ordering constraint natively.
+
+## Using the Flux Helm Controller
+
+### Prerequisites
+
+- A running Kubernetes cluster with Flux installed (`flux install`).
+- The Flux CLI available locally.
+
+### Create a `HelmRepository` resource
+
+Because the charts are hosted on an OCI registry, the `HelmRepository` source must use `type: oci`:
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: frp-operator
+  namespace: flux-system
+spec:
+  type: oci
+  url: oci://ghcr.io/mtaku3/charts
+  interval: 12h
+```
+
+### Create `HelmRelease` resources
+
+Create one `HelmRelease` for the CRD chart and one for the operator chart. The operator release uses `dependsOn` to ensure the CRD chart reconciles first.
+
+```yaml
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: frp-operator-crd
+  namespace: flux-system
+spec:
+  interval: 1h
+  targetNamespace: frp-operator
+  install:
+    createNamespace: true
+  chart:
+    spec:
+      chart: frp-operator-crd
+      version: "0.0.1"
+      sourceRef:
+        kind: HelmRepository
+        name: frp-operator
+        namespace: flux-system
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: frp-operator
+  namespace: flux-system
+spec:
+  interval: 1h
+  targetNamespace: frp-operator
+  dependsOn:
+    - name: frp-operator-crd
+  chart:
+    spec:
+      chart: frp-operator
+      version: "0.0.1"
+      sourceRef:
+        kind: HelmRepository
+        name: frp-operator
+        namespace: flux-system
+```
+
+Apply the manifests and watch Flux reconcile them:
+
+```bash
+kubectl apply -f helmrepository.yaml
+kubectl apply -f helmreleases.yaml
+flux events --watch
+```
+
+### Updates and upgrades
+
+To upgrade, bump the `version` field in both `HelmRelease` resources and commit the change. Flux will detect the drift and reconcile. Always upgrade `frp-operator-crd` first (its `HelmRelease` should have a lower `interval` or be reconciled manually first in a breaking upgrade).
+
+### Troubleshooting
+
+```bash
+flux events --for HelmRelease/frp-operator-crd -n flux-system
+flux events --for HelmRelease/frp-operator -n flux-system
+flux logs --level=error --all-namespaces
+kubectl logs -n frp-operator -l app.kubernetes.io/name=frp-operator
+```
+
+## Using ArgoCD
+
+### Prerequisites
+
+- A running Kubernetes cluster with ArgoCD installed.
+
+### Create `Application` resources
+
+Use `argocd.argoproj.io/sync-wave` annotations to enforce install order. The CRD application runs in wave `-1` (before wave `0`).
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: frp-operator-crd
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/mtaku3/charts
+    chart: frp-operator-crd
+    targetRevision: "0.0.1"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: frp-operator
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: frp-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/mtaku3/charts
+    chart: frp-operator
+    targetRevision: "0.0.1"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: frp-operator
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+```
+
+<Aside type="note">
+  ArgoCD treats Helm CRD installs differently from regular resources. Because the CRD chart places CRDs in `templates/` (not `crds/`), ArgoCD will manage their lifecycle normally. If you set `Replace=true` in `syncOptions`, ArgoCD will replace CRDs on upgrade instead of patching them.
+</Aside>
+
+Apply both applications and trigger a sync:
+
+```bash
+kubectl apply -f argocd-apps.yaml
+argocd app sync frp-operator-crd
+argocd app sync frp-operator
+```

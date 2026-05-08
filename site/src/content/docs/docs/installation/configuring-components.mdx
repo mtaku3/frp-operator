@@ -1,59 +1,128 @@
 ---
 title: Configuring Components
-description: Configure the frp-operator controller using CLI flags or environment variables.
+description: Configure the frp-operator controller using CLI flags, environment variables, and Helm values.
 sidebar:
   order: 4
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-To configure the frp-operator components, you can use CLI flags or environment variables. CLI flags take precedence over environment variables.
+To configure the frp-operator controller, you can use CLI flags or their corresponding environment variables. When installed with Helm, most settings are also exposed as chart values.
 
 ## CLI flags
 
-An overview of the available CLI flags for each component can be found on the following pages:
+An overview of all available CLI flags is in the [flags reference](/docs/reference/flags/).
 
-- frp-operator controller: [controller CLI flags](/docs/reference/flags/)
+When using the Helm chart, CLI flags can be passed via the `extraArgs` value:
 
-When using the Helm chart, the CLI flags can be specified in the `extraArgs` value:
-
-```yaml
-# values.yaml
-extraArgs:
-  - --log-level=debug
-  - --leader-elect=true
-  - --metrics-bind-address=:8080
+```bash
+helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --version 0.0.1 \
+  --namespace frp-operator \
+  --set-json 'extraArgs=["--log-level=debug","--disable-profiling=true"]'
 ```
 
-<Aside type="note">
-  frp-operator does not have a webhook component or a cainjector component. Only the controller binary accepts flags.
-</Aside>
+Or in a `values.yaml` file:
 
-## Configuration file
+```yaml
+extraArgs:
+  - --log-level=debug
+  - --disable-profiling=true
+```
 
-frp-operator does not support a `--config` file flag. All configuration is passed directly to the operator binary via CLI flags or environment variables. There is no equivalent to cert-manager's `ControllerConfiguration` or `WebhookConfiguration` API.
+## Environment variables
+
+Every flag has a corresponding environment variable. Environment variables are applied before flags, so flags always take precedence. Pass environment variables via the `extraEnv` chart value:
+
+```yaml
+extraEnv:
+  - name: LOG_LEVEL
+    value: debug
+  - name: LEADER_ELECT
+    value: "true"
+```
+
+## Common settings
+
+### Log level
+
+Controls the verbosity of the controller logs. Accepted values are `debug`, `info`, `warn`, and `error`. The default is `info`.
+
+```bash
+helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --version 0.0.1 \
+  --namespace frp-operator \
+  --set logLevel=debug
+```
+
+### Leader election
+
+Leader election ensures that only one controller replica is active at a time. It is enabled by default when the Helm chart sets `leaderElection.enabled: true`.
+
+```yaml
+leaderElection:
+  enabled: true
+  leaseNamespace: ""   # defaults to the release namespace
+```
+
+The underlying flags are `--leader-elect` and `--leader-election-namespace`.
+
+### Metrics
+
+The controller exposes a Prometheus-compatible metrics endpoint. It is disabled by default. Enable it and expose a `Service` via:
+
+```yaml
+metrics:
+  service:
+    enabled: true
+    annotations: {}
+```
+
+The bind address defaults to `:8080` and can be overridden with `--metrics-bind-address`.
+
+### Health probes
+
+The health probe server listens on `:8081` by default and can be changed with `--health-probe-bind-address`.
 
 ## Feature gates
 
-Feature gates can be used to enable or disable experimental features in frp-operator.
-
-There are 2 levels of feature gates (more details in [Kubernetes definition of feature stages](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/#feature-stages)):
-
-- **Alpha:** feature is not yet stable and might be removed or changed in the future. Alpha features are disabled by default and need to be explicitly enabled by the user (to test the feature).
-- **Beta:** feature is almost stable but might still change in the future. Beta features are enabled by default and can be disabled by the user (if any issues are encountered).
-
-The frp-operator controller has its own set of feature gates. They can be enabled or disabled using the `--feature-gates` flag. The available feature gates for the controller can be found in the [flags reference](/docs/reference/flags/).
-
-Pass feature gates as a comma-separated list of `Name=bool` pairs:
+Feature gates enable or disable experimental controller behaviour. They are set with the `--feature-gates` flag as a comma-separated list of `Name=bool` pairs:
 
 ```bash
---feature-gates=SomeFeature=true,AnotherFeature=false
+--feature-gates=MyExperimentalFeature=true
 ```
 
-When using the Helm chart, specify them in `extraArgs`:
+When using Helm, pass this through `extraArgs`:
 
 ```yaml
-# values.yaml
 extraArgs:
-  - --feature-gates=SomeFeature=true,AnotherFeature=false
+  - --feature-gates=MyExperimentalFeature=true
 ```
+
+See the [flags reference](/docs/reference/flags/) for the complete list of available feature gates.
+
+## Scheduler tuning
+
+The operator's exit scheduler is tunable for environments with specific placement requirements.
+
+| Flag | Description |
+|---|---|
+| `--preference-policy` | How node preferences are handled: `Respect` or `Ignore`. |
+| `--min-values-policy` | Policy for minimum scheduling values: `Strict` or `BestEffort`. |
+| `--batch-idle-duration` | Idle window before a scheduling batch fires. |
+| `--batch-max-duration` | Maximum time a scheduling batch stays open. |
+| `--registration-ttl` | How long to wait for a fresh exit to register before treating it as failed. |
+| `--drift-ttl` | How long a placement drift must persist before disruption fires. |
+| `--disruption-poll-period` | How often the disruption controller checks for drift. |
+
+## Kubernetes client tuning
+
+For large clusters with many Tunnel or ExitPool objects, you may need to increase client-side rate limits:
+
+```yaml
+extraArgs:
+  - --kube-client-qps=50
+  - --kube-client-burst=100
+```
+
+The full Helm values reference is available at [/docs/reference/helm-values/](/docs/reference/helm-values/).

@@ -10,6 +10,12 @@ import { theme, font } from '../theme';
  * respectively, measured from the left edge of the full 1920px canvas.
  * The arrow zone itself is left-positioned at `zoneLeft` (default 0).
  * If sourceX / targetX are omitted the arrow draws straight vertically at xOffset.
+ *
+ * Arrow geometry:
+ *   - Line runs from (x1, yBottom) up to (x2, yArrowBase).
+ *   - Arrowhead polygon tip sits at exactly (x2, yTop=0).
+ *   - The SVG uses overflow:visible so the arrowhead at y=0 protrudes into
+ *     the ExitColumn zone above, visually landing on the port chip.
  */
 interface TrafficArrowProps {
   startFrame: number;
@@ -54,20 +60,24 @@ export const TrafficArrow: React.FC<TrafficArrowProps> = ({
 
   // SVG dimensions — full container width, fixed height
   const svgW = zoneWidth;
-  const svgH = 200;
+  const svgH = 160;
 
   // X coords: if precise positions supplied, use them (relative to zone); else use xOffset
   const x1 = sourceX !== undefined ? sourceX - zoneLeft : svgW / 2 + xOffset;
   const x2 = targetX !== undefined ? targetX - zoneLeft : svgW / 2 + xOffset;
 
-  // Arrow goes from BOTTOM (y = svgH - 10) up to TOP (y = 10)
-  // Arrowhead points UP (toward exit VM)
-  const yBottom = svgH - 10; // source (service)
-  const yTop = 10;           // target (exit VM port)
+  // Arrowhead tip at y=0 (top of zone — aligns with port chip bottom edge).
+  // Arrowhead base (polygon base) sits 16px below the tip.
+  const arrowTipY  = 0;    // tip of arrowhead — protrudes to top of zone
+  const arrowBaseY = 16;   // base of arrowhead triangle
+  const yBottom    = svgH; // line source at very bottom of zone
 
-  // Label position at midpoint
+  // Line ends at arrowhead base so dashes don't overlap the polygon fill
+  const lineEndY = arrowBaseY;
+
+  // Label position at midpoint of the line segment
   const labelX = (x1 + x2) / 2;
-  const labelY = svgH / 2;
+  const labelY = (yBottom + lineEndY) / 2;
 
   return (
     <div
@@ -87,21 +97,21 @@ export const TrafficArrow: React.FC<TrafficArrowProps> = ({
         viewBox={`0 0 ${svgW} ${svgH}`}
         style={{ overflow: 'visible' }}
       >
-        {/* Diagonal or straight line from bottom-source to top-target */}
+        {/* Diagonal or straight line from bottom-source to arrowhead base */}
         <line
           x1={x1}
           y1={yBottom}
           x2={x2}
-          y2={yTop + 14}
+          y2={lineEndY}
           stroke={color}
           strokeWidth="3"
           strokeDasharray="12,8"
           strokeDashoffset={dashOffset}
           strokeLinecap="round"
         />
-        {/* Arrowhead pointing UP */}
+        {/* Arrowhead pointing UP — tip exactly at arrowTipY=0 */}
         <polygon
-          points={`${x2 - 8},${yTop + 14} ${x2 + 8},${yTop + 14} ${x2},${yTop}`}
+          points={`${x2 - 9},${arrowBaseY} ${x2 + 9},${arrowBaseY} ${x2},${arrowTipY}`}
           fill={color}
         />
         {/* Port label — at midpoint */}

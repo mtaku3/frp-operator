@@ -7,21 +7,33 @@
  *
  * Layout: PUBLIC INTERNET (top) → arrow zone → LAN/Kubernetes (bottom)
  * Arrow direction: BOTTOM (service) → TOP (exit VM port)
+ *
+ * Single node + single VM, both centered.
+ *
+ * Arrow geometry (1920×1080, 100px side padding → content 1720px):
+ *   ClusterColumn inner zone: padding 24px each side.
+ *   Single node-1 (280px) centered in 1720px dashed zone:
+ *     node-1 left = 100 + 24 + (1672-280)/2 = 820
+ *     service-80 block: node padding=18, minWidth=210, center = 820+18+105 = 943
+ *     Approx: SVC_80_X ≈ 943
+ *
+ *   Single exit VM (280px) centered in 1720px zone:
+ *     VM left = 100 + 24 + (1672-280)/2 = 820
+ *     VM inner width = 280-48 = 232px
+ *     1 chip :80 (~44px) centered: chip center = 820+24+94+22 = 960
+ *     Approx: PORT_80_X ≈ 960
  */
 import React from 'react';
 import {
   AbsoluteFill,
-  Sequence,
   useCurrentFrame,
   interpolate,
   Easing,
 } from 'remotion';
 import { theme, font } from '../theme';
 import { ClusterColumn } from '../components/ClusterColumn';
-import { OperatorBox } from '../components/OperatorBox';
 import { ExitColumn } from '../components/ExitColumn';
 import { TrafficArrow } from '../components/TrafficArrow';
-import { Caption } from '../components/Caption';
 
 const YAMLBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
   <div
@@ -49,15 +61,18 @@ const YAMLBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
 );
 
 /**
- * Arrow geometry constants (approximate canvas-space px, 1920×1080).
- * Content area: 100px side padding → 1720px wide.
- * Cluster zone inner: 1672px; two nodes each ~826px wide.
- *   node-1 left=124; node-1 center=537
- * service-80 on node-1: left=142, center=247
- * Single exit VM center: ~960; port :80 chip center: ~925
+ * Arrow geometry constants (canvas-space px, 1920×1080).
+ * Single node (280px) and single VM (280px) both centered in the 1720px content area.
+ * The dashed-zone has padding=24 on each side, so inner = 1720-48 = 1672px.
+ *
+ * Node-1 left = 100 + 24 + (1672-280)/2 = 820
+ * service-80 YAML block: node padding=18, minWidth=210, center = 820+18+105 = 943
+ *
+ * VM left = 100 + 24 + (1672-280)/2 = 820
+ * :80 chip (44px wide) centered in VM inner (232px): chip left=820+24+94=938, center=960
  */
-const SVC_80_X  = 247;  // service-80 bottom-center in canvas px
-const PORT_80_X = 925;  // :80 port chip center on exit VM (single VM)
+const SVC_80_X  = 943;  // service-80 bottom-center in canvas px
+const PORT_80_X = 960;  // :80 port chip center on single exit VM
 const ZONE_LEFT = 100;
 const ZONE_W    = 1720;
 
@@ -65,11 +80,10 @@ export default function Scene1() {
   const frame = useCurrentFrame();
 
   // Phase timings (frames)
-  const yamlAppear = 0;
-  const operatorHighlight = 30;
+  const yamlAppear    = 0;
   const vmAppearStart = 60;
-  const vmAppearEnd = 100;
-  const trafficStart = 120;
+  const vmAppearEnd   = 100;
+  const trafficStart  = 120;
 
   const yamlOpacity = interpolate(frame, [yamlAppear, yamlAppear + 15], [0, 1], {
     extrapolateLeft: 'clamp',
@@ -83,10 +97,9 @@ export default function Scene1() {
     easing: Easing.out(Easing.back(1.5)),
   });
 
-  const operatorActive = frame >= operatorHighlight && frame < trafficStart;
   const vmVisible = frame >= vmAppearStart;
 
-  // Cluster column shows pod appearing after vm ready
+  // Cluster column shows service-80 after VM is ready
   const tunnelCount = frame >= trafficStart ? 1 : 0;
 
   return (
@@ -101,11 +114,6 @@ export default function Scene1() {
         gap: 0,
       }}
     >
-      {/* Operator corner indicator */}
-      <div style={{ position: 'absolute', top: 32, right: 32, zIndex: 20 }}>
-        <OperatorBox highlight={operatorActive} />
-      </div>
-
       {/* PUBLIC INTERNET block — TOP */}
       <ExitColumn
         exits={
@@ -143,16 +151,11 @@ export default function Scene1() {
         />
       </div>
 
-      {/* LAN / Kubernetes block — BOTTOM */}
-      <ClusterColumn tunnelCount={tunnelCount} />
+      {/* LAN / Kubernetes block — BOTTOM (single node) */}
+      <ClusterColumn tunnelCount={tunnelCount} singleNode />
 
       {/* YAML badge */}
       <YAMLBadge opacity={yamlOpacity} />
-
-      {/* Caption */}
-      <Sequence from={trafficStart} layout="none">
-        <Caption text="Tunnel created — traffic flows through exit VM" />
-      </Sequence>
     </AbsoluteFill>
   );
 }

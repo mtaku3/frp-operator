@@ -8,25 +8,34 @@
  * Layout: PUBLIC INTERNET (top) → arrow zone → LAN/Kubernetes (bottom)
  * Arrow direction: BOTTOM (service) → TOP (exit VM port)
  *
- * Arrow geometry (1920×1080, 100px padding each side):
- *   node-1: center≈537; service-80 block center≈247
- *   node-2: center≈1383; service-443 block center≈1093
- *   Single exit VM: port :80 chip≈910, port :443 chip≈1010
+ * Arrow geometry (1920×1080, 100px side padding → content 1720px):
+ *   Dashed zone padding=24 → inner=1672px.
+ *   Two nodes (280px each) with gap=20: total=580px, each side margin=(1672-580)/2=546px.
+ *   node-1 left = 100+24+546 = 670; node-1 center = 670+140 = 810
+ *   node-2 left = 670+280+20 = 970; node-2 center = 970+140 = 1110
+ *
+ *   service-80 in node-1: left edge=670, padding=18, minWidth=210, center=670+18+105=793
+ *   service-443 in node-2: left edge=970, padding=18, minWidth=210, center=970+18+105=1093
+ *
+ *   Single exit VM (280px) centered in 1672px inner:
+ *     VM left = 100+24+(1672-280)/2 = 820
+ *     VM inner width = 280-48 = 232px
+ *     2 chips: :80(44px) + gap(8px) + :443(52px) = 104px total
+ *     chip group left offset = (232-104)/2 = 64px
+ *     :80  chip center = 820+24+64+22 = 930
+ *     :443 chip center = 930+22+8+26  = 986
  */
 import React from 'react';
 import {
   AbsoluteFill,
-  Sequence,
   useCurrentFrame,
   interpolate,
   Easing,
 } from 'remotion';
 import { theme, font } from '../theme';
 import { ClusterColumn } from '../components/ClusterColumn';
-import { OperatorBox } from '../components/OperatorBox';
 import { ExitColumn } from '../components/ExitColumn';
 import { TrafficArrow } from '../components/TrafficArrow';
-import { Caption } from '../components/Caption';
 
 const YAMLBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
   <div
@@ -52,18 +61,20 @@ const YAMLBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
   </div>
 );
 
-const SVC_80_X   = 247;   // service-80 on node-1
-const SVC_443_X  = 1093;  // service-443 on node-2 (node2 left≈970, padding 18, svc left≈988, center≈988+105=1093)
-const PORT_80_X  = 910;   // :80 chip on single exit VM
-const PORT_443_X = 1010;  // :443 chip on single exit VM
+// Service source X positions (two-node layout with 280px boxes)
+const SVC_80_X   = 793;   // service-80 on node-1
+const SVC_443_X  = 1093;  // service-443 on node-2
+
+// Single exit VM (280px fixed width), centered in 1672px inner:
+const PORT_80_X  = 930;
+const PORT_443_X = 986;
 const ZONE_LEFT  = 100;
 const ZONE_W     = 1720;
 
 export default function Scene2() {
   const frame = useCurrentFrame();
 
-  const yamlAppear = 0;
-  const schedulerStart = 25;
+  const yamlAppear       = 0;
   const secondArrowStart = 110;
 
   const yamlOpacity = interpolate(frame, [yamlAppear, 15], [0, 1], {
@@ -71,8 +82,6 @@ export default function Scene2() {
     extrapolateRight: 'clamp',
     easing: Easing.out(Easing.quad),
   });
-
-  const operatorActive = frame >= schedulerStart && frame < secondArrowStart;
 
   return (
     <AbsoluteFill
@@ -86,11 +95,6 @@ export default function Scene2() {
         gap: 0,
       }}
     >
-      {/* Operator corner indicator */}
-      <div style={{ position: 'absolute', top: 32, right: 32, zIndex: 20 }}>
-        <OperatorBox highlight={operatorActive} />
-      </div>
-
       {/* PUBLIC INTERNET block — TOP */}
       <ExitColumn
         exits={[
@@ -132,16 +136,11 @@ export default function Scene2() {
         />
       </div>
 
-      {/* LAN / Kubernetes block — BOTTOM */}
+      {/* LAN / Kubernetes block — BOTTOM (two nodes) */}
       <ClusterColumn tunnelCount={2} />
 
       {/* YAML badge */}
       <YAMLBadge opacity={yamlOpacity} />
-
-      {/* Caption */}
-      <Sequence from={secondArrowStart} layout="none">
-        <Caption text="Bin-packed onto existing exit — no new VM provisioned" />
-      </Sequence>
     </AbsoluteFill>
   );
 }

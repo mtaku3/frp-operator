@@ -1,30 +1,37 @@
 /**
  * Scene 3: Drain a Kubernetes node
  * - node-2 cordoned, pods evicted
- * - Service rescheduled onto node-1
+ * - service-443 rescheduled onto node-1
  * - Exit unchanged — traffic continues
  * Duration: 180 frames @ 30fps = 6s
  *
  * Layout: PUBLIC INTERNET (top) → arrow zone → LAN/Kubernetes (bottom)
  * Arrow direction: BOTTOM (service) → TOP (exit VM port)
  *
- * When node2 drained both services move to node-1 horizontally:
- *   service-80 center ≈ 247, service-443 center ≈ 469 (within node-1)
- * Undrained: service-80 on node-1 at 247, service-443 on node-2 at 1093
+ * Arrow geometry (1920×1080, 100px side padding → content 1720px):
+ *   Two-node layout (280px each, gap=20):
+ *     node-1 left=670; service-80 center=793
+ *     node-2 left=970; service-443 center=1093
+ *
+ *   After drain (both services on node-1):
+ *     service-80 first block: center=793
+ *     service-443 second block: node padding=18, gap=12, first block=210px wide
+ *       => center = 670+18+210+12+105 = 1015
+ *
+ *   Single exit VM (280px) centered:
+ *     :80  chip center ≈ 930
+ *     :443 chip center ≈ 986
  */
 import React from 'react';
 import {
   AbsoluteFill,
-  Sequence,
   useCurrentFrame,
   interpolate,
 } from 'remotion';
 import { theme, font } from '../theme';
 import { ClusterColumn } from '../components/ClusterColumn';
-import { OperatorBox } from '../components/OperatorBox';
 import { ExitColumn } from '../components/ExitColumn';
 import { TrafficArrow } from '../components/TrafficArrow';
-import { Caption } from '../components/Caption';
 
 const DrainBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
   <div
@@ -49,22 +56,21 @@ const DrainBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
 );
 
 // X positions for arrow anchors
-const SVC_80_X_NODE1  = 247;   // service-80 on node-1 (single service)
-const SVC_80_X_DRAINED = 247;  // service-80 on node-1 when drained (same, first block)
-const SVC_443_X_NODE2  = 1093; // service-443 on node-2 (pre-drain)
-const SVC_443_X_DRAINED = 469; // service-443 on node-1 after drain (second horizontal block)
-const PORT_80_X  = 910;
-const PORT_443_X = 1010;
+const SVC_80_X_NODE1    = 793;   // service-80 on node-1 (pre and post drain)
+const SVC_443_X_NODE2   = 1093;  // service-443 on node-2 (pre-drain)
+const SVC_443_X_DRAINED = 1015;  // service-443 on node-1 after drain (second YAML block)
+
+// Single exit VM (280px fixed width), centered:
+const PORT_80_X  = 930;
+const PORT_443_X = 986;
 const ZONE_LEFT  = 100;
 const ZONE_W     = 1720;
 
 export default function Scene3() {
   const frame = useCurrentFrame();
 
-  const drainBadgeStart = 10;
-  const drainStart = 40;
-  const rescheduleBadgeStart = 80;
-  const trafficStable = 100;
+  const drainBadgeStart     = 10;
+  const drainStart          = 40;
 
   const drainBadgeOpacity = interpolate(
     frame,
@@ -74,9 +80,7 @@ export default function Scene3() {
   );
 
   const node2Drained = frame >= drainStart;
-  const operatorActive = frame >= rescheduleBadgeStart;
 
-  const src80X  = node2Drained ? SVC_80_X_DRAINED  : SVC_80_X_NODE1;
   const src443X = node2Drained ? SVC_443_X_DRAINED : SVC_443_X_NODE2;
 
   return (
@@ -91,11 +95,6 @@ export default function Scene3() {
         gap: 0,
       }}
     >
-      {/* Operator corner indicator */}
-      <div style={{ position: 'absolute', top: 32, right: 32, zIndex: 20 }}>
-        <OperatorBox highlight={operatorActive} />
-      </div>
-
       {/* PUBLIC INTERNET block — TOP */}
       <ExitColumn
         exits={[
@@ -119,7 +118,7 @@ export default function Scene3() {
           startFrame={0}
           label=":80"
           color={theme.amber}
-          sourceX={src80X}
+          sourceX={SVC_80_X_NODE1}
           targetX={PORT_80_X}
           zoneLeft={ZONE_LEFT}
           zoneWidth={ZONE_W}
@@ -140,11 +139,6 @@ export default function Scene3() {
 
       {/* Drain command badge */}
       <DrainBadge opacity={drainBadgeOpacity} />
-
-      {/* Caption */}
-      <Sequence from={trafficStable} layout="none">
-        <Caption text="Node drained — Service rescheduled, exit unchanged" />
-      </Sequence>
     </AbsoluteFill>
   );
 }

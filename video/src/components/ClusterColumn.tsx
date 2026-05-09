@@ -119,9 +119,10 @@ interface NodeProps {
   pods: string[];
   drained?: boolean;
   podsMigrated?: boolean;
+  svcOpacities?: Record<string, number>;
 }
 
-const Node: React.FC<NodeProps> = ({ label, pods, drained = false, podsMigrated = false }) => {
+const Node: React.FC<NodeProps> = ({ label, pods, drained = false, podsMigrated = false, svcOpacities = {} }) => {
   const isEmpty = pods.length === 0;
 
   return (
@@ -196,15 +197,17 @@ const Node: React.FC<NodeProps> = ({ label, pods, drained = false, podsMigrated 
           <div style={{ display: 'flex', flexDirection: 'row', gap: 12, flexWrap: 'nowrap' }}>
             {pods.map((pod) => {
               const meta = POD_META[pod];
+              const podOpacity = svcOpacities[pod] ?? 1;
               if (meta) {
                 return (
-                  <ServiceYAML
-                    key={pod}
-                    name={meta.name}
-                    port={meta.port}
-                    targetPort={meta.targetPort}
-                    faded={drained || podsMigrated}
-                  />
+                  <div key={pod} style={{ opacity: podOpacity }}>
+                    <ServiceYAML
+                      name={meta.name}
+                      port={meta.port}
+                      targetPort={meta.targetPort}
+                      faded={drained || podsMigrated}
+                    />
+                  </div>
                 );
               }
               return (
@@ -218,7 +221,7 @@ const Node: React.FC<NodeProps> = ({ label, pods, drained = false, podsMigrated 
                     fontFamily: font.mono,
                     fontSize: 13,
                     color: drained || podsMigrated ? theme.inkMuted : theme.amberDark,
-                    opacity: drained ? 0.4 : 1,
+                    opacity: (drained ? 0.4 : 1) * podOpacity,
                   }}
                 >
                   {pod}
@@ -238,12 +241,15 @@ interface ClusterColumnProps {
   tunnelCount?: number;
   /** When true, render only node-1 (no node-2) — used in Scene 1 */
   singleNode?: boolean;
+  /** Per-service opacity overrides for fade-in animations, keyed by pod name */
+  svcOpacities?: Record<string, number>;
 }
 
 export const ClusterColumn: React.FC<ClusterColumnProps> = ({
   node2Drained = false,
   tunnelCount = 0,
   singleNode = false,
+  svcOpacities = {},
 }) => {
   const node1Pods: string[] = [];
   const node2Pods: string[] = [];
@@ -307,6 +313,7 @@ export const ClusterColumn: React.FC<ClusterColumnProps> = ({
           pods={node1Pods}
           drained={false}
           podsMigrated={false}
+          svcOpacities={svcOpacities}
         />
         {!singleNode && (
           <Node
@@ -314,6 +321,7 @@ export const ClusterColumn: React.FC<ClusterColumnProps> = ({
             pods={node2Drained ? [] : node2Pods}
             drained={node2Drained}
             podsMigrated={node2Drained && tunnelCount >= 2}
+            svcOpacities={svcOpacities}
           />
         )}
       </div>

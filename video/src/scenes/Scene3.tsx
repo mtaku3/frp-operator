@@ -1,11 +1,13 @@
 /**
  * Scene 3: Drain a Kubernetes node
- * - node-2 cordoned, pods evicted
- * - service-443 rescheduled onto node-1
- * - Exit unchanged — traffic continues
+ * Animation order (carries Scene2 state):
+ *   Frame  0–30:  DrainBadge appears.
+ *   Frame 30–80:  node-2 transitions to DRAINED; services migrate to node-1.
+ *   Frame 80+:    Arrows shift to match new service positions. Tunnel blocks stay (exit unchanged).
+ *
  * Duration: 180 frames @ 30fps = 6s
  *
- * Layout: PUBLIC INTERNET (top) → arrow zone → LAN/Kubernetes (bottom)
+ * Layout: PUBLIC INTERNET (top) → middle band (TunnelYAML × 2) → LAN/Kubernetes (bottom)
  * Arrow direction: BOTTOM (service) → TOP (exit VM port)
  *
  * Arrow geometry (1920×1080, 100px side padding → content 1720px):
@@ -32,6 +34,7 @@ import { theme, font } from '../theme';
 import { ClusterColumn } from '../components/ClusterColumn';
 import { ExitColumn } from '../components/ExitColumn';
 import { TrafficArrow } from '../components/TrafficArrow';
+import { MiddleZone } from '../components/TunnelYAML';
 
 const DrainBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
   <div
@@ -106,13 +109,12 @@ export default function Scene3() {
         ]}
       />
 
-      {/* Arrow zone */}
-      <div
-        style={{
-          position: 'relative',
-          height: 120,
-          alignSelf: 'stretch',
-        }}
+      {/* Middle band: both Tunnel CR YAML blocks + arrow overlays — unchanged during drain */}
+      <MiddleZone
+        tunnels={[
+          { name: 'tunnel-80',  publicPort: 80,  servicePort: 80,  opacity: 1 },
+          { name: 'tunnel-443', publicPort: 443, servicePort: 443, opacity: 1 },
+        ]}
       >
         <TrafficArrow
           startFrame={0}
@@ -132,7 +134,7 @@ export default function Scene3() {
           zoneLeft={ZONE_LEFT}
           zoneWidth={ZONE_W}
         />
-      </div>
+      </MiddleZone>
 
       {/* LAN / Kubernetes block — BOTTOM */}
       <ClusterColumn tunnelCount={2} node2Drained={node2Drained} />

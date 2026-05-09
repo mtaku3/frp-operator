@@ -1,11 +1,14 @@
 /**
  * Scene 1: First Tunnel (port 80)
- * - User applies Tunnel kind:Tunnel publicPort 80
- * - Operator provisions ExitClaim → VM appears
- * - VM becomes Ready, traffic arrow appears
+ * Animation order:
+ *   Frame  0–30:  Service YAML fades in inside node-1.
+ *   Frame 30–60:  Exit VM appears in PUBLIC INTERNET zone.
+ *   Frame 60–90:  Tunnel CR YAML block fades in (middle band).
+ *   Frame 90+:    Traffic arrow draws from Service block → Exit VM :80 port chip.
+ *
  * Duration: 180 frames @ 30fps = 6s
  *
- * Layout: PUBLIC INTERNET (top) → arrow zone → LAN/Kubernetes (bottom)
+ * Layout: PUBLIC INTERNET (top) → middle band (TunnelYAML) → LAN/Kubernetes (bottom)
  * Arrow direction: BOTTOM (service) → TOP (exit VM port)
  *
  * Single node + single VM, both centered.
@@ -30,46 +33,15 @@ import {
   interpolate,
   Easing,
 } from 'remotion';
-import { theme, font } from '../theme';
+import { theme } from '../theme';
 import { ClusterColumn } from '../components/ClusterColumn';
 import { ExitColumn } from '../components/ExitColumn';
 import { TrafficArrow } from '../components/TrafficArrow';
-
-const YAMLBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
-  <div
-    style={{
-      position: 'absolute',
-      top: 120,
-      right: 120,
-      opacity,
-      background: theme.ink,
-      color: '#a5f3fc',
-      fontFamily: font.mono,
-      fontSize: 14,
-      padding: '14px 18px',
-      borderRadius: 10,
-      lineHeight: 1.7,
-      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-      zIndex: 10,
-      whiteSpace: 'pre',
-    }}
-  >
-    <span style={{ color: theme.amber }}>kind</span>{': Tunnel\n'}
-    <span style={{ color: theme.amber }}>publicPort</span>{': 80\n'}
-    <span style={{ color: theme.amber }}>service</span>{': service-80'}
-  </div>
-);
+import { MiddleZone } from '../components/TunnelYAML';
 
 /**
  * Arrow geometry constants (canvas-space px, 1920×1080).
  * Single node (280px) and single VM (280px) both centered in the 1720px content area.
- * The dashed-zone has padding=24 on each side, so inner = 1720-48 = 1672px.
- *
- * Node-1 left = 100 + 24 + (1672-280)/2 = 820
- * service-80 YAML block: node padding=18, minWidth=210, center = 820+18+105 = 943
- *
- * VM left = 100 + 24 + (1672-280)/2 = 820
- * :80 chip (44px wide) centered in VM inner (232px): chip left=820+24+94=938, center=960
  */
 const SVC_80_X  = 943;  // service-80 bottom-center in canvas px
 const PORT_80_X = 960;  // :80 port chip center on single exit VM
@@ -79,13 +51,14 @@ const ZONE_W    = 1720;
 export default function Scene1() {
   const frame = useCurrentFrame();
 
-  // Phase timings (frames)
-  const yamlAppear    = 0;
-  const vmAppearStart = 60;
-  const vmAppearEnd   = 100;
-  const trafficStart  = 120;
+  // Phase timings (frames) — Service → VM → Tunnel → Arrow
+  const svcAppearStart  = 0;
+  const vmAppearStart   = 30;
+  const vmAppearEnd     = 60;
+  const tunnelAppearStart = 60;
+  const trafficStart    = 90;
 
-  const yamlOpacity = interpolate(frame, [yamlAppear, yamlAppear + 15], [0, 1], {
+  const svcOpacity = interpolate(frame, [svcAppearStart, svcAppearStart + 20], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
     easing: Easing.out(Easing.quad),
@@ -99,8 +72,19 @@ export default function Scene1() {
 
   const vmVisible = frame >= vmAppearStart;
 
-  // Cluster column shows service-80 after VM is ready
-  const tunnelCount = frame >= trafficStart ? 1 : 0;
+  const tunnelOpacity = interpolate(
+    frame,
+    [tunnelAppearStart, tunnelAppearStart + 20],
+    [0, 1],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+      easing: Easing.out(Easing.quad),
+    }
+  );
+
+  // tunnelCount drives which services are rendered inside the cluster
+  const tunnelCount = frame >= svcAppearStart ? 1 : 0;
 
   return (
     <AbsoluteFill
@@ -131,15 +115,18 @@ export default function Scene1() {
         }
       />
 
-      {/* Arrow zone — vertical, between PUBLIC INTERNET (top) and LAN (bottom) */}
-      <div
-        style={{
-          position: 'relative',
-          height: 120,
-          alignSelf: 'stretch',
-        }}
+      {/* Middle band: Tunnel CR YAML blocks + traffic arrow overlay */}
+      <MiddleZone
+        tunnels={[
+          {
+            name: 'tunnel-80',
+            publicPort: 80,
+            servicePort: 80,
+            opacity: tunnelOpacity,
+          },
+        ]}
       >
-        {/* Single arrow: service-80 → exit :80 */}
+        {/* Single arrow: service-80 → exit :80, drawn through middle zone */}
         <TrafficArrow
           startFrame={trafficStart}
           label=":80"
@@ -149,13 +136,14 @@ export default function Scene1() {
           zoneLeft={ZONE_LEFT}
           zoneWidth={ZONE_W}
         />
-      </div>
+      </MiddleZone>
 
       {/* LAN / Kubernetes block — BOTTOM (single node) */}
-      <ClusterColumn tunnelCount={tunnelCount} singleNode />
-
-      {/* YAML badge */}
-      <YAMLBadge opacity={yamlOpacity} />
+      <ClusterColumn
+        tunnelCount={tunnelCount}
+        singleNode
+        svcOpacities={{ 'service-80': svcOpacity }}
+      />
     </AbsoluteFill>
   );
 }

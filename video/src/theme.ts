@@ -14,6 +14,10 @@ export const theme = {
   border: '#e2e8f0',
   white: '#ffffff',
   shadow: 'rgba(15,23,42,0.08)',
+  // Code block tokens for YAML preview
+  codeKey: '#d97706',       // amber — YAML keys
+  codeValue: '#e2e8f0',     // light cream — YAML values
+  codeBg: '#0f172a',        // same as ink — dark code surface
 } as const;
 
 export const font = {

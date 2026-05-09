@@ -40,7 +40,7 @@ const YAMLBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
   >
     <span style={{ color: theme.amber }}>kind</span>: Tunnel{'\n'}
     <span style={{ color: theme.amber }}>publicPort</span>: 80{'\n'}
-    <span style={{ color: theme.amber }}>service</span>: nginx-80
+    <span style={{ color: theme.amber }}>service</span>: service-80
   </div>
 );
 

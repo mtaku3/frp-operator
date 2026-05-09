@@ -3,12 +3,12 @@ import { theme, font } from '../theme';
 
 const CloudIcon: React.FC<{ faded?: boolean }> = ({ faded = false }) => (
   <svg
-    width="22"
-    height="22"
+    width="36"
+    height="36"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth={faded ? 1.5 : 2}
+    strokeWidth={faded ? 1.5 : 2.5}
     strokeLinecap="round"
     strokeLinejoin="round"
     strokeDasharray={faded ? '4 2' : undefined}
@@ -134,15 +134,32 @@ export const ExitColumn: React.FC<ExitColumnProps> = ({ exits }) => {
         alignItems: 'center',
       }}
     >
+      {/* Zone label */}
       <div
         style={{
           fontFamily: font.body,
-          fontSize: 15,
+          fontSize: 11,
           fontWeight: 700,
           color: theme.inkMuted,
-          marginBottom: 16,
           textTransform: 'uppercase',
-          letterSpacing: 1.2,
+          letterSpacing: 2,
+          marginBottom: 6,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 6,
+          padding: '2px 10px',
+        }}
+      >
+        Public Internet
+      </div>
+      {/* Column title */}
+      <div
+        style={{
+          fontFamily: font.body,
+          fontSize: 13,
+          fontWeight: 600,
+          color: theme.inkMuted,
+          marginBottom: 14,
+          letterSpacing: 0.5,
         }}
       >
         Exit VMs (Cloud)

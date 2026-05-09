@@ -1,6 +1,23 @@
 import React from 'react';
 import { theme, font } from '../theme';
 
+const CloudIcon: React.FC<{ faded?: boolean }> = ({ faded = false }) => (
+  <svg
+    width="22"
+    height="22"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={faded ? 1.5 : 2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeDasharray={faded ? '4 2' : undefined}
+    style={{ opacity: faded ? 0.4 : 1 }}
+  >
+    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+  </svg>
+);
+
 interface ExitVMProps {
   ip: string;
   ports: number[];
@@ -16,7 +33,6 @@ export const ExitVM: React.FC<ExitVMProps> = ({
   appearing = false,
   appearProgress = 1,
   disrupted = false,
-  label = 'Exit VM',
 }) => {
   const opacity = appearing ? appearProgress : 1;
   const scale = appearing ? 0.6 + 0.4 * appearProgress : 1;
@@ -57,24 +73,13 @@ export const ExitVM: React.FC<ExitVMProps> = ({
       )}
       <div
         style={{
-          fontFamily: font.body,
-          fontSize: 13,
-          fontWeight: 700,
           color: disrupted ? theme.red : theme.green,
           marginBottom: 6,
+          display: 'flex',
+          alignItems: 'center',
         }}
       >
-        {label}
-      </div>
-      <div
-        style={{
-          fontFamily: font.mono,
-          fontSize: 12,
-          color: theme.inkMuted,
-          marginBottom: 8,
-        }}
-      >
-        frps
+        <CloudIcon />
       </div>
       <div
         style={{
@@ -153,9 +158,12 @@ export const ExitColumn: React.FC<ExitColumnProps> = ({ exits }) => {
             fontSize: 13,
             minWidth: 180,
             textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
-          No exits yet
+          <CloudIcon faded />
         </div>
       )}
       {exits.map((exit, i) => (

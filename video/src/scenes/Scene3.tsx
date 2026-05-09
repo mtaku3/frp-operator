@@ -1,7 +1,7 @@
 /**
  * Scene 3: Drain a Kubernetes node
- * - worker-2 cordoned, pods evicted
- * - Service rescheduled onto worker-1
+ * - node-2 cordoned, pods evicted
+ * - Service rescheduled onto node-1
  * - Exit unchanged — traffic continues
  * Duration: 180 frames @ 30fps = 6s
  */
@@ -37,37 +37,9 @@ const DrainBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
       zIndex: 10,
     }}
   >
-    $ kubectl drain worker-2{'\n'}
+    $ kubectl drain node-2{'\n'}
     {'  '}--ignore-daemonsets{'\n'}
     {'  '}--delete-emptydir-data
-  </div>
-);
-
-const EventBadge: React.FC<{ opacity: number; text: string; top: number }> = ({
-  opacity,
-  text,
-  top,
-}) => (
-  <div
-    style={{
-      position: 'absolute',
-      top,
-      left: '50%',
-      transform: 'translateX(-50%)',
-      opacity,
-      background: theme.blueLight,
-      color: theme.blue,
-      border: `1px solid ${theme.blue}`,
-      fontFamily: font.body,
-      fontSize: 13,
-      fontWeight: 600,
-      padding: '6px 14px',
-      borderRadius: 8,
-      whiteSpace: 'nowrap',
-      zIndex: 10,
-    }}
-  >
-    {text}
   </div>
 );
 
@@ -87,28 +59,9 @@ export default function Scene3() {
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
 
-  const rescheduleOpacity = interpolate(
-    frame,
-    [rescheduleBadgeStart, rescheduleBadgeStart + 15, reconnectBadgeStart - 10, reconnectBadgeStart],
-    [0, 1, 1, 0],
-    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-  );
+  const node2Drained = frame >= drainStart;
 
-  const reconnectOpacity = interpolate(
-    frame,
-    [reconnectBadgeStart, reconnectBadgeStart + 15],
-    [0, 1],
-    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-  );
-
-  const worker2Drained = frame >= drainStart;
-
-  const operatorMessage =
-    frame >= rescheduleBadgeStart && frame < reconnectBadgeStart
-      ? 'Service endpoints\nupdated'
-      : frame >= reconnectBadgeStart
-      ? 'frpc reconnected\nExit unchanged ✓'
-      : undefined;
+  const operatorActive = frame >= rescheduleBadgeStart;
 
   return (
     <AbsoluteFill
@@ -155,7 +108,7 @@ export default function Scene3() {
       >
         {/* Cluster */}
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-          <ClusterColumn tunnelCount={2} worker2Drained={worker2Drained} />
+          <ClusterColumn tunnelCount={2} node2Drained={node2Drained} />
         </div>
 
         {/* Arrow zone left */}
@@ -166,7 +119,7 @@ export default function Scene3() {
 
         {/* Operator */}
         <div style={{ flex: 0, display: 'flex', justifyContent: 'center' }}>
-          <OperatorBox message={operatorMessage} highlight={frame >= rescheduleBadgeStart} />
+          <OperatorBox highlight={operatorActive} />
         </div>
 
         {/* Arrow zone right */}
@@ -192,38 +145,10 @@ export default function Scene3() {
       {/* Drain command badge */}
       <DrainBadge opacity={drainBadgeOpacity} />
 
-      {/* Event badges */}
-      <EventBadge
-        opacity={rescheduleOpacity}
-        text="Service endpoints updated — pods rescheduled to worker-1"
-        top={100}
-      />
-      <EventBadge
-        opacity={reconnectOpacity}
-        text="frpc reconnected — same exit, same IP, traffic uninterrupted"
-        top={100}
-      />
-
       {/* Caption */}
       <Sequence from={trafficStable} layout="none">
         <Caption text="Node drained — Service rescheduled, exit unchanged" />
       </Sequence>
-
-      {/* State summary */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 120,
-          right: 80,
-          fontFamily: font.mono,
-          fontSize: 12,
-          color: theme.inkMuted,
-          textAlign: 'right',
-          lineHeight: 1.8,
-        }}
-      >
-        exits: 1 | tunnels: 2 | worker-2: {worker2Drained ? 'DRAINED' : 'Ready'}
-      </div>
     </AbsoluteFill>
   );
 }

@@ -1,6 +1,15 @@
 import React from 'react';
 import { theme, font } from '../theme';
 
+const ServerIcon: React.FC = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="6" rx="1"/>
+    <rect x="3" y="14" width="18" height="6" rx="1"/>
+    <line x1="6" y1="7" x2="6.01" y2="7"/>
+    <line x1="6" y1="17" x2="6.01" y2="17"/>
+  </svg>
+);
+
 interface NodeProps {
   label: string;
   pods: string[];
@@ -39,6 +48,9 @@ const Node: React.FC<NodeProps> = ({ label, pods, drained = false, podsMigrated 
             DRAINED
           </span>
         )}
+        <span style={{ color: drained ? theme.red : theme.inkMuted }}>
+          <ServerIcon />
+        </span>
         {label}
       </div>
       {pods.map((pod) => (
@@ -64,24 +76,24 @@ const Node: React.FC<NodeProps> = ({ label, pods, drained = false, podsMigrated 
 };
 
 interface ClusterColumnProps {
-  worker2Drained?: boolean;
+  node2Drained?: boolean;
   tunnelCount?: number;
 }
 
 export const ClusterColumn: React.FC<ClusterColumnProps> = ({
-  worker2Drained = false,
+  node2Drained = false,
   tunnelCount = 0,
 }) => {
-  const worker1Pods: string[] = [];
-  const worker2Pods: string[] = [];
+  const node1Pods: string[] = [];
+  const node2Pods: string[] = [];
 
   if (tunnelCount >= 1) {
-    if (worker2Drained) {
-      worker1Pods.push('nginx-80', 'nginx-443');
+    if (node2Drained) {
+      node1Pods.push('nginx-80', 'nginx-443');
     } else {
-      worker1Pods.push('nginx-80');
+      node1Pods.push('nginx-80');
       if (tunnelCount >= 2) {
-        worker2Pods.push('nginx-443');
+        node2Pods.push('nginx-443');
       }
     }
   }
@@ -117,32 +129,17 @@ export const ClusterColumn: React.FC<ClusterColumnProps> = ({
         }}
       >
         <Node
-          label="worker-1"
-          pods={worker1Pods}
+          label="node-1"
+          pods={node1Pods}
           drained={false}
           podsMigrated={false}
         />
         <Node
-          label="worker-2"
-          pods={worker2Drained ? [] : worker2Pods}
-          drained={worker2Drained}
-          podsMigrated={worker2Drained && tunnelCount >= 2}
+          label="node-2"
+          pods={node2Drained ? [] : node2Pods}
+          drained={node2Drained}
+          podsMigrated={node2Drained && tunnelCount >= 2}
         />
-        <div
-          style={{
-            marginTop: 8,
-            padding: '6px 10px',
-            background: theme.amberLight,
-            borderRadius: 8,
-            fontFamily: font.mono,
-            fontSize: 11,
-            color: theme.amberDark,
-            border: `1px solid ${theme.amber}`,
-            textAlign: 'center',
-          }}
-        >
-          kube-apiserver
-        </div>
       </div>
     </div>
   );

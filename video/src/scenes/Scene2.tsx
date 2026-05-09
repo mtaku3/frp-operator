@@ -43,38 +43,11 @@ const YAMLBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
   </div>
 );
 
-const BinPackBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
-  <div
-    style={{
-      position: 'absolute',
-      top: 80,
-      left: '50%',
-      transform: 'translateX(-50%)',
-      opacity,
-      background: theme.green,
-      color: '#fff',
-      fontFamily: font.body,
-      fontSize: 14,
-      fontWeight: 700,
-      padding: '8px 18px',
-      borderRadius: 8,
-      letterSpacing: 0.2,
-      boxShadow: '0 4px 16px rgba(22,163,74,0.25)',
-      zIndex: 10,
-      whiteSpace: 'nowrap',
-    }}
-  >
-    ✓ Free port 443 available — bin-packing onto existing exit
-  </div>
-);
-
 export default function Scene2() {
   const frame = useCurrentFrame();
 
   const yamlAppear = 0;
   const schedulerStart = 25;
-  const binPackBadgeStart = 50;
-  const binPackBadgeEnd = 110;
   const secondArrowStart = 110;
 
   const yamlOpacity = interpolate(frame, [yamlAppear, 15], [0, 1], {
@@ -83,23 +56,7 @@ export default function Scene2() {
     easing: Easing.out(Easing.quad),
   });
 
-  const binPackOpacity = interpolate(
-    frame,
-    [binPackBadgeStart, binPackBadgeStart + 15, binPackBadgeEnd - 15, binPackBadgeEnd],
-    [0, 1, 1, 0],
-    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-  );
-
   const operatorActive = frame >= schedulerStart && frame < secondArrowStart;
-
-  const operatorMessage =
-    frame >= schedulerStart && frame < binPackBadgeStart
-      ? 'Scheduling...\nChecking exits...'
-      : frame >= binPackBadgeStart && frame < secondArrowStart
-      ? 'Bin-packing ✓\nSame exit reused'
-      : frame >= secondArrowStart
-      ? '2 tunnels active ✓'
-      : undefined;
 
   return (
     <AbsoluteFill
@@ -164,7 +121,7 @@ export default function Scene2() {
 
         {/* Operator */}
         <div style={{ flex: 0, display: 'flex', justifyContent: 'center' }}>
-          <OperatorBox message={operatorMessage} highlight={operatorActive} />
+          <OperatorBox highlight={operatorActive} />
         </div>
 
         {/* Arrow zone right */}
@@ -195,29 +152,10 @@ export default function Scene2() {
       {/* YAML badge */}
       <YAMLBadge opacity={yamlOpacity} />
 
-      {/* Bin-pack badge */}
-      <BinPackBadge opacity={binPackOpacity} />
-
       {/* Caption */}
       <Sequence from={secondArrowStart} layout="none">
         <Caption text="Bin-packed onto existing exit — no new VM provisioned" />
       </Sequence>
-
-      {/* State summary */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 120,
-          right: 80,
-          fontFamily: font.mono,
-          fontSize: 12,
-          color: theme.inkMuted,
-          textAlign: 'right',
-          lineHeight: 1.8,
-        }}
-      >
-        exits: 1 | tunnels: {frame >= secondArrowStart ? 2 : 1}
-      </div>
     </AbsoluteFill>
   );
 }

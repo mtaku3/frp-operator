@@ -69,15 +69,6 @@ export default function Scene1() {
   const operatorActive = frame >= operatorHighlight && frame < trafficStart;
   const vmVisible = frame >= vmAppearStart;
 
-  const operatorMessage =
-    frame >= operatorHighlight && frame < vmAppearStart
-      ? 'Scheduling...\nNo exits found\nProvisioning ExitClaim'
-      : frame >= vmAppearStart && frame < trafficStart
-      ? 'ExitClaim Ready\nAssigning exit...'
-      : frame >= trafficStart
-      ? 'Tunnel active ✓'
-      : undefined;
-
   // Cluster column shows pod appearing after vm ready
   const tunnelCount = frame >= trafficStart ? 1 : 0;
 
@@ -136,7 +127,7 @@ export default function Scene1() {
 
         {/* Operator */}
         <div style={{ flex: 0, display: 'flex', justifyContent: 'center' }}>
-          <OperatorBox message={operatorMessage} highlight={operatorActive} />
+          <OperatorBox highlight={operatorActive} />
         </div>
 
         {/* Arrow zone (operator → exit) */}
@@ -171,22 +162,6 @@ export default function Scene1() {
       <Sequence from={trafficStart} layout="none">
         <Caption text="Tunnel created — traffic flows through exit VM" />
       </Sequence>
-
-      {/* State summary */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 120,
-          right: 80,
-          fontFamily: font.mono,
-          fontSize: 12,
-          color: theme.inkMuted,
-          textAlign: 'right',
-          lineHeight: 1.8,
-        }}
-      >
-        exits: {vmVisible ? 1 : 0} | tunnels: {tunnelCount}
-      </div>
     </AbsoluteFill>
   );
 }

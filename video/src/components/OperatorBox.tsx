@@ -6,7 +6,7 @@ interface OperatorBoxProps {
   highlight?: boolean;
 }
 
-export const OperatorBox: React.FC<OperatorBoxProps> = ({ message, highlight = false }) => {
+export const OperatorBox: React.FC<OperatorBoxProps> = ({ highlight = false }) => {
   return (
     <div
       style={{
@@ -47,26 +47,6 @@ export const OperatorBox: React.FC<OperatorBoxProps> = ({ message, highlight = f
       >
         frp-operator
       </div>
-
-      {/* Message bubble */}
-      {message && (
-        <div
-          style={{
-            background: theme.ink,
-            color: theme.bg,
-            fontFamily: font.mono,
-            fontSize: 11,
-            padding: '6px 12px',
-            borderRadius: 8,
-            textAlign: 'center',
-            maxWidth: 160,
-            lineHeight: 1.5,
-            whiteSpace: 'pre-line',
-          }}
-        >
-          {message}
-        </div>
-      )}
     </div>
   );
 };

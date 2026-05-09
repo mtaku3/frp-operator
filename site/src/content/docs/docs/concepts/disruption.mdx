@@ -1,8 +1,137 @@
 ---
-title: "Disruption methods"
-description: Drift, emptiness, expiration, single-node + multi-node consolidation.
+title: Disruption
+description: How frp-operator replaces or removes ExitClaims—the five disruption methods, their priority order, budget gate, and cordon-before-replace flow.
+sidebar:
+  order: 4
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full explanation lands in a follow-up.</Aside>
+Disruption is the operator's mechanism for keeping the fleet of ExitClaims aligned with declared intent. Rather
+than treating every running exit as permanent, the disruption controller continuously evaluates each claim against
+a set of conditions. When a condition is met, the controller selects a disruption *method*, gates it against a
+budget, and executes a cordon-then-replace sequence.
+
+## The five disruption methods
+
+Methods are evaluated in a fixed priority order on every reconcile loop. The controller stops after the first
+method that produces at least one command. The ordering is: **Emptiness → Drift → Expiration →
+MultiNodeConsolidation → SingleNodeConsolidation**.
+
+### Emptiness
+
+An exit is *empty* when it has no bound tunnels. Idle exits still consume cloud cost, so the Emptiness method
+reclaims them after a configurable idle window.
+
+The window is set by `spec.disruption.consolidateAfter` on the ExitPool. When unset, the default is **5
+minutes** (`DefaultConsolidateAfter`). The method tracks `LastBindingChange`—the last time the exit gained or
+lost a tunnel—and marks the exit for termination once `Now - LastBindingChange >= consolidateAfter`.
+
+Emptiness does **not** emit a replacement claim. The exit is simply deleted, reducing pool size by one. The
+scheduler will mint a new claim the next time a tunnel needs placement.
+
+### Drifted
+
+An exit is *drifted* when its configuration no longer matches the current state of its pool template or provider
+class. The Drift method compares two hash annotations on the ExitClaim against the corresponding annotations on
+the ExitPool. A mismatch on either annotation marks the claim for replacement.
+
+This mechanism is described in detail on the [Hash drift](/docs/concepts/hash-drift/) page.
+
+Unlike Emptiness, Drift always emits a replacement claim. The new claim is stamped with the pool's current hash
+so it starts life as "fresh" and will not be immediately re-flagged.
+
+### Expiration
+
+An exit is *expired* when its age since creation exceeds `spec.template.spec.expireAfter` on the pool template.
+Expiration is designed for environments that require periodic VM rotation—for security hardening, image
+freshness, or compliance.
+
+Expiration is the only **forceful** method: it bypasses disruption budgets. The controller injects an effective
+unlimited budget for forceful methods, ensuring that expired exits are always replaced regardless of how many
+concurrent disruptions are already in flight.
+
+Like Drift, Expiration emits a replacement claim so pool capacity is preserved across the cycle.
+
+### MultiNodeConsolidation
+
+MultiNodeConsolidation evaluates pairs of exits and attempts to drain both by re-packing their tunnels onto the
+remaining exits in the cluster. It is only active when the pool's `consolidationPolicy` is set to
+`WhenEmptyOrUnderutilized` (the `WhenEmpty` policy limits the pool to Emptiness-only reclamation).
+
+For each pair of eligible candidates, the simulator tries two strategies in order:
+
+1. **Repack onto existing exits** — if all tunnels from the pair can be scheduled onto other Ready exits without
+   creating a new claim, emit a command to delete both exits with no replacement.
+2. **Replace with a cheaper instance** — if repacking is not possible but a single cheaper-or-smaller instance
+   type could host all of the pair's tunnels, emit a command to delete the pair and provision one replacement.
+
+The v1 implementation evaluates adjacent pairs `(i, i+1)` rather than all possible subsets. This is a documented
+limitation that reduces computational cost at the expense of finding the globally optimal consolidation in some
+configurations.
+
+### SingleNodeConsolidation
+
+SingleNodeConsolidation evaluates exits one at a time. Like its multi-node counterpart it requires
+`WhenEmptyOrUnderutilized` and only considers exits that have at least one bound tunnel (empty exits belong to
+the Emptiness method). For each candidate, the simulator checks whether all of its tunnels can be re-packed onto
+other existing exits. If so, it emits a delete command with no replacement.
+
+SingleNodeConsolidation runs after MultiNodeConsolidation in the priority order, so pair-wise consolidation
+opportunities are always taken first.
+
+## Disruption budgets
+
+Every method except Expiration consults `spec.disruption.budgets` before emitting commands. A budget is a
+concurrency cap expressed as either an absolute count or a percentage of pool size:
+
+```yaml
+spec:
+  disruption:
+    budgets:
+      - nodes: "10%"        # at most 10% of exits disrupted at once
+      - nodes: "2"          # or at most 2 exits, whichever rule applies
+        reasons:
+          - Drifted         # this budget applies only to the Drifted reason
+        schedule: "0 2 * * *"   # and only during a maintenance window
+        duration: 1h
+```
+
+The `reasons` filter lets operators apply different concurrency limits per disruption type. A budget without
+`reasons` applies to all methods. The `schedule` and `duration` fields (cron-style) restrict a budget to a
+maintenance window; outside that window the budget is treated as zero, blocking disruption for that reason.
+
+The budget gate fires per pool per reason. The controller counts how many claims in the pool already carry a
+`Disrupted=True` condition and subtracts that from the budget's limit to determine how many additional disruptions
+are allowed in the current reconcile pass.
+
+## Cordon-before-replace
+
+Regardless of which method fires, the execution sequence in the disruption queue is always:
+
+1. **Cordon** — for each candidate, stamp `Disrupted=True` on its `status.conditions`. The scheduler refuses to
+   bind new tunnels to any claim with `Disrupted=True`. The condition survives operator restart because it is
+   persisted in the API server.
+
+2. **Launch replacements** — if the method emits replacement claims (Drift, Expiration, and some consolidation
+   paths do), submit them to the provisioner. The replacements begin booting while the candidates continue
+   serving existing tunnels.
+
+3. **Wait for replacements to be Ready** — the queue polls until all replacement claims reach `Ready=True`, or a
+   timeout of **5 minutes** (`DefaultReplacementReadyTimeout`) fires.
+
+4. **Delete candidates** — once replacements are Ready (or if no replacements were needed), mark the candidates
+   for deletion and call the API server. The lifecycle finalizer takes over to drain tunnel bindings and call
+   the cloud provider's `Delete`.
+
+<Aside type="caution">
+  The `frp.operator.io/do-not-disrupt` annotation on an ExitClaim opts it out of all disruption methods for the
+  current reconcile pass. The claim remains as a candidate in future passes once the annotation is removed.
+</Aside>
+
+## Interaction with liveness
+
+When the [Liveness](/docs/concepts/liveness/) controller determines that an exit's frps admin API is
+unreachable, it sets both `Ready=False` and `Disrupted=True` directly on the claim's conditions, bypassing the
+disruption method priority order. The disruption queue then picks up the pre-cordoned claim and launches a
+replacement without waiting for a method evaluation.

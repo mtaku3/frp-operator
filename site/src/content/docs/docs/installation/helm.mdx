@@ -1,0 +1,138 @@
+---
+title: Helm
+description: Install frp-operator using the OCI Helm charts.
+sidebar:
+  order: 2
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Installing with Helm
+
+frp-operator provides Helm charts as the primary installation method for Kubernetes clusters.
+
+frp-operator ships as **two charts** that must be installed in order:
+
+1. `frp-operator-crd` — installs the five CRDs. CRDs carry `helm.sh/resource-policy: keep` so they survive a `helm uninstall` and protect your data.
+2. `frp-operator` — installs the controller. Its bundled `crds/` directory acts as a fallback and only provisions CRDs when they do not already exist, so running both charts together is safe.
+
+### Prerequisites
+
+- [Helm v3.8 or later](https://helm.sh/docs/intro/install/) (required for OCI registry support).
+- A running Kubernetes cluster.
+
+### Step 1 — Install the CRD chart
+
+```bash
+helm install frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+  --version 0.0.1 \
+  --namespace frp-operator \
+  --create-namespace
+```
+
+This installs the following CRDs:
+
+- `tunnels.frp.operator.io`
+- `exitpools.frp.operator.io`
+- `exitclaims.frp.operator.io`
+- `localdockerproviderclasses.frp.operator.io`
+- `digitaloceanproviderclasses.frp.operator.io`
+
+### Step 2 — Install the operator chart
+
+```bash
+helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --version 0.0.1 \
+  --namespace frp-operator
+```
+
+### Verify the installation
+
+Check that the controller pod is running:
+
+```bash
+kubectl get pods -n frp-operator
+```
+
+You should see a `frp-operator-*` pod in the `Running` state.
+
+## Installation options
+
+The full list of available Helm values is documented in the [Helm values reference](/docs/reference/helm-values/).
+
+The example below shows how to tune the installation by overriding default values:
+
+```bash
+helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --version 0.0.1 \
+  --namespace frp-operator \
+  --set logLevel=debug \
+  --set leaderElection.enabled=true \
+  --set metrics.service.enabled=true
+```
+
+## Output YAML
+
+Instead of installing directly, you can render a static manifest with `helm template` and pipe it to your preferred deployment tool:
+
+```bash
+helm template frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+  --version 0.0.1 \
+  --namespace frp-operator \
+  > frp-operator-crd.yaml
+
+helm template frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --version 0.0.1 \
+  --namespace frp-operator \
+  >> frp-operator.yaml
+```
+
+<Aside>
+`helm template` does not output a `Namespace` resource and ignores `--create-namespace`. Ensure the `frp-operator` namespace exists before applying the rendered YAML.
+</Aside>
+
+## Uninstalling
+
+<Aside type="caution">
+Always delete all Tunnel, ExitPool, ExitClaim, and ProviderClass resources before uninstalling. The operator is responsible for cleaning up cloud provider resources, so removing it first can leave orphaned infrastructure behind.
+</Aside>
+
+Check for existing resources:
+
+```bash
+kubectl get tunnels,exitpools,exitclaims,localdockerproviderclasses,digitaloceanproviderclasses \
+  --all-namespaces
+```
+
+Once all user-created resources are gone, uninstall both charts:
+
+```bash
+helm uninstall frp-operator -n frp-operator
+helm uninstall frp-operator-crd -n frp-operator
+```
+
+Because the CRDs carry `helm.sh/resource-policy: keep`, `helm uninstall` will report them as retained:
+
+```
+These resources were kept due to the resource policy:
+[CustomResourceDefinition] tunnels.frp.operator.io
+[CustomResourceDefinition] exitpools.frp.operator.io
+[CustomResourceDefinition] exitclaims.frp.operator.io
+[CustomResourceDefinition] localdockerproviderclasses.frp.operator.io
+[CustomResourceDefinition] digitaloceanproviderclasses.frp.operator.io
+```
+
+To remove the CRDs (and all associated custom resources) explicitly:
+
+```bash
+kubectl delete crd \
+  tunnels.frp.operator.io \
+  exitpools.frp.operator.io \
+  exitclaims.frp.operator.io \
+  localdockerproviderclasses.frp.operator.io \
+  digitaloceanproviderclasses.frp.operator.io
+```
+
+<Aside type="danger">
+Deleting the CRDs will immediately destroy all Tunnel, ExitPool, ExitClaim, and ProviderClass objects in the cluster. Ensure provider resources have been cleaned up by the operator before running this command.
+</Aside>

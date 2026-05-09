@@ -1,0 +1,96 @@
+---
+title: DigitalOcean
+description: Provision frps exits as DigitalOcean Droplets.
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`DigitalOceanProviderClass` lets frp-operator provision Droplets via the [DigitalOcean API](https://docs.digitalocean.com/reference/api/) and run frps on each one via cloud-init. The droplet size and region come from the `ExitPool` requirements; this resource defines the credentials and the discovery rules for which images, VPCs, and SSH keys to use.
+
+## Prerequisites
+
+- A [DigitalOcean API token](https://docs.digitalocean.com/reference/api/create-personal-access-token/) with read/write scope on Droplets and (if you set `vpcUUID`) on VPCs.
+- (Optional) An SSH key registered in DigitalOcean if you want shell access to the provisioned exits.
+
+## Storing the API token
+
+Create a `Secret` in any namespace, then reference it from the ProviderClass:
+
+```bash
+kubectl create secret generic do-credentials \
+  --namespace frp-operator \
+  --from-literal=token=dop_v1_...
+```
+
+## Example
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: DigitalOceanProviderClass
+metadata:
+  name: do-prod
+spec:
+  apiTokenSecretRef:
+    namespace: frp-operator
+    name: do-credentials
+    key: token
+  imageSelectorTerms:
+    - slug: ubuntu-22-04-x64
+  vpcUUID: 8a9b1234-...
+  sshKeyIDs:
+    - "12345678"
+  monitoring: true
+  defaultImage: "https://github.com/fatedier/frp/releases/download/%s/frp_%s_linux_amd64.tar.gz"
+```
+
+## Fields
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `apiTokenSecretRef` | object | yes | Reference to the Secret holding the DigitalOcean API token. See [Secret reference](#secret-reference) below. |
+| `imageSelectorTerms` | list | yes (≥1) | Discovery set of acceptable Droplet base images. The operator picks one per claim. |
+| `vpcUUID` | string | no | UUID of the VPC to place Droplets in. Defaults to the region's default VPC. |
+| `sshKeyIDs` | list of strings | no | DigitalOcean SSH key IDs to inject into provisioned Droplets. |
+| `monitoring` | bool | no | Enable the DigitalOcean monitoring agent on each Droplet. |
+| `defaultImage` | string | no | Template URL or container reference for the frps binary used by cloud-init. The `%s` placeholder is replaced with the frps version. For Droplets this should be a binary URL such as `https://github.com/fatedier/frp/releases/download/%s/frp_%s_linux_amd64.tar.gz`. |
+
+### Secret reference
+
+`apiTokenSecretRef` points to the `Secret` containing the DigitalOcean API token:
+
+```yaml
+apiTokenSecretRef:
+  namespace: frp-operator   # any namespace; the operator reads cross-namespace
+  name: do-credentials
+  key: token                # which key in the Secret holds the token
+```
+
+### Image selector terms
+
+Each entry matches one DigitalOcean image. Today only `slug` is supported; `alias` is reserved for future use. At least one of `slug` or `alias` must be set per term.
+
+```yaml
+imageSelectorTerms:
+  - slug: ubuntu-22-04-x64
+  - slug: ubuntu-24-04-x64
+```
+
+When more than one term matches, the operator picks the first.
+
+<Aside type="note">
+The shape mirrors Karpenter's `amiSelectorTerms` so additional match modes (alias, labels, tags) can be added in future without a CRD bump.
+</Aside>
+
+## Status
+
+```yaml
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: APIReachable
+```
+
+The `Ready` condition reflects whether the operator can reach the DigitalOcean API with the configured token and resolve the requested image, VPC, and SSH-key references.

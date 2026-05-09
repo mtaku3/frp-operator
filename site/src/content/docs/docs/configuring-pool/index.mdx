@@ -1,0 +1,47 @@
+---
+title: Introduction
+description: An overview of ExitPool and how to configure one.
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## What is an ExitPool?
+
+An `ExitPool` is a cluster-scoped resource that tells frp-operator how to provision and manage a group of frps exit nodes. It holds a **claim template** — the desired configuration for every `ExitClaim` the operator creates from this pool — plus policies for disruption (consolidation and rotation) and optional resource limits.
+
+Each pool references a `ProviderClass` that supplies cloud-specific provisioning logic. The operator's scheduler reads the pool's requirements, finds matching instance types offered by the provider, and provisions exits accordingly. Once provisioned, each exit runs an frps daemon configured from `spec.template.spec.frps`.
+
+## Minimal example
+
+The YAML below creates a pool backed by a `LocalDockerProviderClass` named `dev`. It exposes ports 1024–65535 to frpc clients, authenticates with a generated token, and consolidates idle exits after 30 minutes.
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: dev-pool
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: LocalDockerProviderClass
+        name: dev
+      frps:
+        version: "v0.68.1"
+        allowPorts:
+          - "1024-65535"
+        auth:
+          method: token
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 30m
+```
+
+<Aside type="note">
+`auth.tokenSecretRef` is omitted here. The operator generates a random token at provision time and writes it to a managed Secret. See [frps configuration](/docs/configuring-pool/frps/) for how to supply your own token.
+</Aside>
+
+See [Requirements](/docs/configuring-pool/requirements/), [frps configuration](/docs/configuring-pool/frps/), [Disruption](/docs/configuring-pool/disruption/), and [Limits](/docs/configuring-pool/limits/) for the full field reference for each subsection.

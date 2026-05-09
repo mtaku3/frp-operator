@@ -1,0 +1,140 @@
+---
+title: frps configuration
+description: Configure the frps daemon that runs on each provisioned exit node.
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`spec.template.spec.frps` controls the frps daemon that the operator starts on every exit provisioned from this pool. The operator renders the values here into the frps TOML config file at provision time.
+
+## Fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `version` | string | — | frps binary version, e.g. `"v0.68.1"`. Drives the container image tag (LocalDocker) or binary download URL (DigitalOcean cloud-init). **Required.** |
+| `bindPort` | integer | `7000` | TCP port frpc clients connect to on the control plane. |
+| `adminPort` | integer | `7400` | frps admin HTTP API port, used by the operator for health checks and metrics. |
+| `vhostHTTPPort` | integer | — | Optional HTTP virtual-host listener port. |
+| `vhostHTTPSPort` | integer | — | Optional HTTPS virtual-host listener port. |
+| `kcpBindPort` | integer | — | Optional KCP transport listener port. |
+| `quicBindPort` | integer | — | Optional QUIC transport listener port. |
+| `allowPorts` | list of strings | — | Public port slots frpc clients may claim. See [allowPorts syntax](#allowports-syntax). **Required.** |
+| `reservedPorts` | list of integers | — | Ports subtracted from `allowPorts`. The operator also auto-merges `bindPort` and `adminPort` into the reserved set. |
+| `auth` | object | — | Authentication config. See [Authentication](#authentication). **Required.** |
+| `tls` | object | — | Optional TLS material for the frpc–frps control plane. See [TLS](#tls). |
+
+## allowPorts syntax
+
+`allowPorts` is a list of strings where each entry is either a single port number or an inclusive range:
+
+```yaml
+allowPorts:
+  - "80"
+  - "443"
+  - "1024-65535"
+```
+
+The scheduler uses this list for port-conflict bin-packing: it will not place two `ExitClaims` that need the same public port on the same exit.
+
+## Authentication
+
+`auth.method` must be `"token"` (the only mode in v1).
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `method` | string | yes | Must be `"token"`. |
+| `tokenSecretRef` | object | no | Reference to a `Secret` holding the shared token. If omitted, the operator generates a token at provision time and writes it to a managed `Secret`. |
+
+`tokenSecretRef` has the shape:
+
+```yaml
+auth:
+  method: token
+  tokenSecretRef:
+    name: my-frps-token
+    key: token
+```
+
+The referenced `Secret` must exist in the same namespace as the `ExitClaim` that is created from the pool template.
+
+<Aside type="note">
+If you omit `tokenSecretRef`, the operator writes the generated token back as a managed `Secret` alongside each `ExitClaim`. You can read it from there to configure frpc clients.
+</Aside>
+
+## TLS
+
+| Field | Type | Description |
+|---|---|---|
+| `force` | bool | When `true`, frps rejects frpc connections that do not use TLS. |
+| `certSecret` | object (`name`, `key`) | `Secret` key holding the PEM-encoded server certificate. |
+| `keySecret` | object (`name`, `key`) | `Secret` key holding the PEM-encoded server private key. |
+| `caSecret` | object (`name`, `key`) | `Secret` key holding the PEM-encoded CA certificate. When set, frps requires frpc to present a client certificate signed by this CA (mutual TLS). |
+
+## Minimal example
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: simple
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: LocalDockerProviderClass
+        name: dev
+      frps:
+        version: "v0.68.1"
+        allowPorts:
+          - "1024-65535"
+        auth:
+          method: token
+```
+
+## Full example with TLS and custom ports
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: production
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-prod
+      frps:
+        version: "v0.68.1"
+        bindPort: 7000
+        adminPort: 7400
+        vhostHTTPPort: 80
+        vhostHTTPSPort: 443
+        allowPorts:
+          - "80"
+          - "443"
+          - "10000-20000"
+        reservedPorts:
+          - 22
+          - 8080
+        auth:
+          method: token
+          tokenSecretRef:
+            name: frps-shared-token
+            key: token
+        tls:
+          force: true
+          certSecret:
+            name: frps-tls
+            key: tls.crt
+          keySecret:
+            name: frps-tls
+            key: tls.key
+          caSecret:
+            name: frps-ca
+            key: ca.crt
+```

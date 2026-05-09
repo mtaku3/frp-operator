@@ -1,0 +1,37 @@
+---
+title: Introduction
+description: An overview of the Tunnel resource and how it exposes a Kubernetes Service through frp-operator.
+sidebar:
+  order: 1
+---
+
+## What is a Tunnel?
+
+A `Tunnel` is a namespaced custom resource that asks frp-operator to expose one or more ports of an in-cluster Kubernetes Service to the public internet. The Tunnel does not reference a provider or an ExitPool directly — it describes *what* you want exposed and lets the operator's scheduler pick a suitable exit node.
+
+When you create a Tunnel, the operator:
+
+1. Selects an `ExitClaim` that satisfies your placement requirements and has enough free port capacity.
+2. Provisions that exit (if it is not already running).
+3. Deploys an frpc client in your namespace and writes the public IP and port numbers back to `status`.
+
+## Minimal example
+
+The YAML below exposes port 8080 of the `my-app` Service on a dynamically assigned public TCP port.
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: Tunnel
+metadata:
+  name: my-app-tunnel
+  namespace: default
+spec:
+  ports:
+    - name: http
+      servicePort: 8080
+      protocol: TCP
+```
+
+Once the operator processes the resource, `status.assignedIP` contains the public IP and `status.assignedPorts[0]` contains the chosen port number.
+
+See [Ports](/docs/tunnels/ports/), [Placement](/docs/tunnels/placement/), and [Status](/docs/tunnels/status/) for details on every field.

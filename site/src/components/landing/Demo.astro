@@ -1,0 +1,26 @@
+---
+const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+---
+<section class="demo">
+  <div class="wrap">
+    <div class="frame">
+      <video autoplay loop muted playsinline preload="metadata" poster={`${BASE}video/main.gif`}>
+        <source src={`${BASE}video/main.mp4`} type="video/mp4" />
+        <img src={`${BASE}video/main.gif`} alt="frp-operator demo: tunnel created, bin-packed, node drained, exit replaced" />
+      </video>
+    </div>
+  </div>
+</section>
+
+<style>
+  .demo { padding: 24px 0 64px; }
+  .frame { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+  .frame video, .frame img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--line);
+  }
+</style>

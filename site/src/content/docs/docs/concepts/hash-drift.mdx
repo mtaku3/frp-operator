@@ -1,8 +1,106 @@
 ---
-title: "Hash-based drift detection"
-description: Two-level pool-hash + providerclass-hash annotations on ExitClaims.
+title: Hash drift
+description: How frp-operator detects configuration changes to ExitPool templates and ProviderClass specs using two independent hash annotations.
+sidebar:
+  order: 6
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution">Stub page — full explanation lands in a follow-up.</Aside>
+When a cluster operator updates an ExitPool's template—changing the frps version, adjusting `allowPorts`, or
+modifying requirements—the existing ExitClaims were provisioned from the old template. They are now *drifted*:
+their configuration no longer matches the declared intent of the pool. The same problem arises when a ProviderClass
+changes—for example, when an API token is rotated or a base image is updated.
+
+frp-operator detects both classes of change through a two-level hash scheme. Two independent hash annotations are
+maintained on every ExitClaim, and the Drift disruption method compares them against the corresponding annotations
+on the pool to determine whether a claim needs replacement.
+
+## The two hashes
+
+### Pool template hash (`frp.operator.io/pool-hash`)
+
+This annotation holds a SHA-256 hash (first 16 hex characters) of `ExitPool.Spec.Template.Spec`. It covers
+everything the pool template declares: the `providerClassRef`, requirements, frps configuration (`version`,
+`bindPort`, `adminPort`, `allowPorts`, `auth`, `tls`, …), and expiry settings.
+
+Before hashing, the controller *canonicalizes* the template to remove ordering ambiguity:
+- `spec.requirements` are sorted by `Key` (stable sort).
+- Each requirement's `Values` list is sorted alphabetically.
+- `frps.allowPorts` and `frps.reservedPorts` are sorted.
+
+This ensures that reordering requirements or port ranges does not produce a hash change, preventing spurious
+drift signals from cosmetic edits.
+
+### ProviderClass hash (`frp.operator.io/providerclass-hash`)
+
+This annotation holds a SHA-256 hash (first 16 hex characters) of the ProviderClass object's `Spec` field. The
+hash is computed via reflection—the controller finds the `Spec` struct on any ProviderClass kind and marshals it
+to JSON before hashing. This means the mechanism works uniformly across `DigitalOceanProviderClass`,
+`LocalDockerProviderClass`, and any future provider.
+
+## How hashes are propagated
+
+Two separate controllers maintain the two hash chains:
+
+**ExitPool hash controller** (`pkg/controllers/exitpool/hash`):
+On every ExitPool reconcile, it computes `PoolTemplateHash` and:
+1. Writes it to the ExitPool's own `frp.operator.io/pool-hash` annotation.
+2. Writes the same value to the `frp.operator.io/pool-hash` annotation on every ExitClaim that belongs to this
+   pool (identified via the `frp.operator.io/exitpool` label).
+
+The controller watches both `ExitPool` and `ExitClaim` resources. When a new ExitClaim is created after the
+pool's last reconcile, the claim-watch triggers a re-enqueue of the pool so the hash is stamped on the new
+claim promptly.
+
+**ProviderClass hash controller** (`pkg/controllers/providerclass/hash`):
+One instance per ProviderClass kind. On every ProviderClass reconcile, it computes `SpecHash` and:
+1. Writes it to the ProviderClass's own `frp.operator.io/providerclass-hash` annotation.
+2. Writes the same value to the `frp.operator.io/providerclass-hash` annotation on every ExitPool whose
+   `providerClassRef` points at this ProviderClass.
+3. Writes the same value to the `frp.operator.io/providerclass-hash` annotation on every ExitClaim whose
+   `spec.providerClassRef` points at this ProviderClass.
+
+## How the Drift method reads the hashes
+
+The Drift disruption method (`pkg/controllers/disruption/methods/drift.go`) calls `hashesDiffer` twice per
+candidate—once for each annotation key:
+
+```go
+if hashesDiffer(c.Claim, c.Pool, v1alpha1.AnnotationPoolHash) {
+    return true
+}
+if hashesDiffer(c.Claim, c.Pool, v1alpha1.AnnotationProviderClassHash) {
+    return true
+}
+```
+
+`hashesDiffer` reads the annotation from both the ExitClaim and the ExitPool and returns `true` only when
+**both** carry the annotation and the values differ. If either annotation is missing—for example, because the
+hash controller has not yet reconciled a freshly created resource—the mismatch is treated as "not drifted." This
+safe-by-default behavior ensures that hash controllers catching up after a restart do not trigger a wave of
+spurious replacements.
+
+A claim flagged as drifted by either hash check is passed to `computePerPoolWithReplacements`, which caps the
+number of concurrent replacements by the pool's disruption budget and emits one replacement ExitClaim per
+candidate. The replacement is stamped with the current pool hash annotations so it starts life as fresh.
+
+## Why two hashes instead of one
+
+Combining the pool template hash and the ProviderClass hash into a single value would produce a simpler
+comparison, but would lose information about the *cause* of drift. The two hashes serve different change cadences:
+
+- **Pool template changes** are initiated by the cluster operator (e.g. bumping the frps version, adjusting
+  `allowPorts`). These changes affect how frps runs on the VM.
+- **ProviderClass changes** are typically infrastructure-level events (API token rotation, base image update,
+  VPC change). These affect how the VM itself is configured at boot time.
+
+Separate hashes let the system report which dimension changed, and they allow future policy controls—such as
+"suppress drift replacements for ProviderClass-only changes during business hours"—to be applied at the
+per-annotation level without rewriting the hashing logic.
+
+<Aside type="note">
+  The hash comparison is pool-side: `c.Pool` carries the current hash, `c.Claim` carries the at-creation hash.
+  This means that a claim's hash is effectively frozen at the time it was stamped, and the pool's hash advances
+  with every template change. A claim is drifted for as long as its stored hash lags behind the pool's current one.
+</Aside>

@@ -1,0 +1,136 @@
+---
+title: Configuring Components
+description: Configure the frp-operator controller using CLI flags, environment variables, and Helm values.
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+To configure the frp-operator controller, you can use CLI flags or their corresponding environment variables. When installed with Helm, most settings are also exposed as chart values.
+
+## CLI flags
+
+An overview of all available CLI flags is in the [flags reference](/docs/reference/flags/).
+
+When using the Helm chart, CLI flags can be passed via the `extraArgs` value:
+
+```bash
+helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --version 0.0.1 \
+  --namespace frp-operator \
+  --set-json 'extraArgs=["--log-level=debug","--disable-profiling=true"]'
+```
+
+Or in a `values.yaml` file:
+
+```yaml
+extraArgs:
+  - --log-level=debug
+  - --disable-profiling=true
+```
+
+## Environment variables
+
+Every flag has a corresponding environment variable. Environment variables are applied before flags, so flags always take precedence. Pass environment variables via the `extraEnv` chart value:
+
+```yaml
+extraEnv:
+  - name: LOG_LEVEL
+    value: debug
+  - name: LEADER_ELECT
+    value: "true"
+```
+
+## Common settings
+
+### Log level
+
+Controls the verbosity of the controller logs. Accepted values are `debug`, `info`, `warn`, and `error`. The default is `info`.
+
+```bash
+helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --version 0.0.1 \
+  --namespace frp-operator \
+  --set logLevel=debug
+```
+
+### Leader election
+
+Leader election ensures that only one controller replica is active at a time. It is enabled by default when the Helm chart sets `leaderElection.enabled: true`.
+
+```yaml
+leaderElection:
+  enabled: true
+  leaseNamespace: ""   # defaults to the release namespace
+```
+
+The underlying flags are `--leader-elect` and `--leader-election-namespace`.
+
+### Metrics
+
+The controller exposes a Prometheus-compatible metrics endpoint. It is disabled by default. Enable it and expose a `Service` via:
+
+```yaml
+metrics:
+  service:
+    enabled: true
+    annotations: {}
+```
+
+The bind address defaults to `:8080` and can be overridden with `--metrics-bind-address`.
+
+### Health probes
+
+The health probe server listens on `:8081` by default and can be changed with `--health-probe-bind-address`.
+
+## Feature gates
+
+Feature gates enable or disable experimental controller behaviour. They are set with the `--feature-gates` flag as a comma-separated list of `Name=bool` pairs. All gates default to `false`.
+
+| Gate | Default | Description |
+|---|---|---|
+| `StaticReplicas` | `false` | Bypass the dynamic scheduler and treat `ExitPool.Spec.Replicas` as a fixed target. |
+| `ExitRepair` | `false` | Auto-replace exits whose admin-API liveness probe fails for the configured threshold. |
+| `InterruptionHandling` | `false` | React to provider-level instance interruption signals (e.g. spot reclaim). |
+| `ConsolidationDryRun` | `false` | Run the consolidation simulator without acting on the result; useful for safe verification. |
+| `MultiPoolBinpacking` | `false` | Allow a single Tunnel to bin-pack across exits from more than one ExitPool. |
+
+Example:
+
+```bash
+--feature-gates=ExitRepair=true,ConsolidationDryRun=true
+```
+
+When using Helm, pass this through `extraArgs`:
+
+```yaml
+extraArgs:
+  - --feature-gates=ExitRepair=true,ConsolidationDryRun=true
+```
+
+## Scheduler tuning
+
+The operator's exit scheduler is tunable for environments with specific placement requirements.
+
+| Flag | Description |
+|---|---|
+| `--preference-policy` | How node preferences are handled: `Respect` or `Ignore`. |
+| `--min-values-policy` | Policy for minimum scheduling values: `Strict` or `BestEffort`. |
+| `--batch-idle-duration` | Idle window before a scheduling batch fires. |
+| `--batch-max-duration` | Maximum time a scheduling batch stays open. |
+| `--registration-ttl` | How long to wait for a fresh exit to register before treating it as failed. |
+| `--drift-ttl` | How long a placement drift must persist before disruption fires. |
+| `--disruption-poll-period` | How often the disruption controller checks for drift. |
+
+## Kubernetes client tuning
+
+For large clusters with many Tunnel or ExitPool objects, you may need to increase client-side rate limits:
+
+```yaml
+extraArgs:
+  - --kube-client-qps=50
+  - --kube-client-burst=100
+```
+
+The full Helm values reference is available at [Helm values](/docs/reference/helm-values/).

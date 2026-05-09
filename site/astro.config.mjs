@@ -1,11 +1,17 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import tailwind from '@astrojs/tailwind';
+import rehypeBaseUrl from './rehype-base-url.mjs';
+
+const BASE = '/frp-operator/';
 
 export default defineConfig({
   site: 'https://mtaku3.github.io',
-  base: '/frp-operator/',
+  base: BASE,
   trailingSlash: 'always',
+  markdown: {
+    rehypePlugins: [[rehypeBaseUrl, { base: BASE }]],
+  },
   integrations: [
     tailwind({ applyBaseStyles: false }),
     starlight({
@@ -15,10 +21,12 @@ export default defineConfig({
         './src/styles/starlight-overrides.css',
       ],
       sidebar: [
-        { label: 'Getting started', collapsed: false, autogenerate: { directory: 'docs/getting-started', collapsed: false } },
-        { label: 'Guides',          collapsed: true,  autogenerate: { directory: 'docs/guides',          collapsed: true } },
-        { label: 'Concepts',        collapsed: true,  autogenerate: { directory: 'docs/concepts',        collapsed: true } },
-        { label: 'Reference',       collapsed: true,  autogenerate: { directory: 'docs/reference',       collapsed: true } },
+        { label: 'Installation',         collapsed: false, autogenerate: { directory: 'docs/installation' } },
+        { label: 'Configuring Provider', collapsed: false, autogenerate: { directory: 'docs/configuring-provider' } },
+        { label: 'Configuring Pool',     collapsed: false, autogenerate: { directory: 'docs/configuring-pool' } },
+        { label: 'Tunnels',              collapsed: false, autogenerate: { directory: 'docs/tunnels' } },
+        { label: 'Concepts',             collapsed: false, autogenerate: { directory: 'docs/concepts' } },
+        { label: 'Reference',            collapsed: true,  autogenerate: { directory: 'docs/reference', collapsed: true } },
       ],
       social: { github: 'https://github.com/mtaku3/frp-operator' },
     }),

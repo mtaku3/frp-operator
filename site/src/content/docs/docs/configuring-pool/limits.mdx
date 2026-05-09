@@ -1,0 +1,52 @@
+---
+title: Limits
+description: Cap aggregate resource usage for an ExitPool to control cost and capacity.
+sidebar:
+  order: 5
+---
+
+`spec.limits` is a `ResourceList` that sets hard ceilings on the total resources the operator may consume for this pool. When usage approaches a limit the operator stops provisioning new exits until consumption drops back below the ceiling.
+
+## Recognized keys
+
+| Key | Unit | Description |
+|---|---|---|
+| `cpu` | cores (standard k8s quantity) | Aggregate CPU across all exits in the pool. |
+| `memory` | bytes (standard k8s quantity) | Aggregate memory across all exits in the pool. |
+| `frp.operator.io/exits` | count | Maximum number of `ExitClaims` the pool may hold simultaneously. |
+| `frp.operator.io/bandwidthMbps` | Mbps (integer quantity) | Aggregate outbound bandwidth ceiling across all exits. |
+| `frp.operator.io/monthlyTrafficGB` | GB (integer quantity) | Aggregate monthly traffic budget across all exits. |
+
+## Per-claim resource requests
+
+Per-claim CPU and memory **requests** are set by the scheduler at provision time based on the chosen instance type — they are not configured on the pool template. This follows the Karpenter convention: the pool declares ceilings; the scheduler fills in the per-claim capacity from the instance catalog.
+
+## Example
+
+Cap the pool to 10 exits, 100 aggregate CPUs, and a 5000 GB monthly traffic budget:
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: do-prod
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-prod
+      frps:
+        version: "v0.68.1"
+        allowPorts:
+          - "1024-65535"
+        auth:
+          method: token
+  limits:
+    frp.operator.io/exits: "10"
+    cpu: "100"
+    frp.operator.io/monthlyTrafficGB: "5000"
+```
+
+Quantities follow standard Kubernetes resource notation: `"100"` means 100 cores, `"16Gi"` means 16 gibibytes, `"5000"` means 5000 GB.

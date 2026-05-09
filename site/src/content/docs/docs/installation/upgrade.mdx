@@ -1,0 +1,68 @@
+---
+title: Upgrade
+description: Upgrade frp-operator to a newer release using Helm.
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+In the [releases section](https://github.com/mtaku3/frp-operator/releases) of the repository, you can find release notes and upgrade instructions for each version of frp-operator. Release notes contain information about breaking changes and things to look out for when upgrading.
+
+We recommend upgrading one minor version at a time and always choosing the latest patch version for each minor release.
+
+<Aside>
+Before upgrading, take a note of any custom Tunnel, ExitPool, or ProviderClass resources you have deployed. While upgrading does not remove custom resources, it is good practice to verify your cluster state before proceeding.
+</Aside>
+
+## Upgrading with Helm
+
+If you installed frp-operator using Helm, you can upgrade using the Helm CLI.
+
+Because frp-operator uses two charts, always upgrade the CRD chart before the operator chart. This ensures that new schema versions are registered before the controller that depends on them starts.
+
+### Step 1 — Upgrade the CRD chart
+
+```bash
+helm upgrade frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+  --version <new-version> \
+  --namespace frp-operator \
+  --reuse-values
+```
+
+### Step 2 — Upgrade the operator chart
+
+```bash
+helm upgrade frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --version <new-version> \
+  --namespace frp-operator \
+  --reuse-values
+```
+
+Replace `<new-version>` with the target version, for example `0.1.0`.
+
+<Aside>
+You can find your current release versions with:
+
+```bash
+helm list -n frp-operator
+```
+</Aside>
+
+### Preserving your values
+
+The `--reuse-values` flag carries forward all previously set values. If you are also changing values as part of the upgrade, use `--reset-then-reuse-values` to merge cleanly against the new chart defaults and then apply your overrides:
+
+```bash
+helm upgrade frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+  --version <new-version> \
+  --namespace frp-operator \
+  --reset-then-reuse-values \
+  --set logLevel=debug
+```
+
+## Reinstalling for large version jumps
+
+In some cases — for example, when upgrading across many minor versions — it may be easier to do a full uninstall and reinstall rather than upgrading one step at a time.
+
+See [Reinstalling frp-operator](/docs/installation/reinstall/) for a guide on how to do this without losing your configuration.

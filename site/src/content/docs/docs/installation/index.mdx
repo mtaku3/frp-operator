@@ -1,0 +1,13 @@
+---
+title: Introduction
+description: How to install frp-operator.
+sidebar:
+  order: 1
+---
+
+frp-operator is installed with [Helm](https://helm.sh/). Two OCI charts are published — one for the CRDs and one for the controller — so schema upgrades can be managed independently from controller upgrades.
+
+You can install the charts directly with the `helm` CLI, or drive them through a GitOps tool such as [Flux](https://fluxcd.io/) or [Argo CD](https://argo-cd.readthedocs.io/).
+
+- [Install with Helm](/docs/installation/helm/)
+- [Continuous Deployment and GitOps](/docs/installation/continuous-deployment-and-gitops/)

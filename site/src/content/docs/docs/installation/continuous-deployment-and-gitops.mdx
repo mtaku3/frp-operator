@@ -1,0 +1,129 @@
+---
+title: Continuous Deployment and GitOps
+description: Automate frp-operator installation and upgrades with Flux and OCI Helm sources.
+sidebar:
+  order: 3
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+## Introduction
+
+You can drive the frp-operator Helm charts directly from Flux or any other GitOps tool that supports OCI Helm sources. Because both charts are published to an OCI registry, no separate Helm repository registration is needed.
+
+This page covers Flux. The same pattern applies to any tool that can consume OCI Helm charts.
+
+## Using the Flux Helm Controller
+
+The frp-operator charts can be installed and upgraded by the Flux Helm Controller. The CRD chart and the operator chart are managed as separate `HelmRelease` resources so that CRD upgrades can be sequenced before controller upgrades.
+
+### Prerequisites
+
+You'll need the [`flux` CLI](https://fluxcd.io/flux/installation/) and a Kubernetes cluster with Flux installed. See the [Flux installation guide](https://fluxcd.io/flux/installation/) for full instructions.
+
+### Create an OCI `HelmRepository` source for the CRD chart
+
+```bash
+flux create source helm frp-operator-crd \
+  --url oci://ghcr.io/mtaku3/charts \
+  --namespace flux-system
+```
+
+### Create an OCI `HelmRepository` source for the operator chart
+
+```bash
+flux create source helm frp-operator \
+  --url oci://ghcr.io/mtaku3/charts \
+  --namespace flux-system
+```
+
+### Create the CRD `HelmRelease`
+
+Create a `values.yaml` file (it can be empty for the CRD chart, but a file is required by the `flux create` command):
+
+```yaml
+# crd-values.yaml
+# No values to set for the CRD chart.
+```
+
+```bash
+flux create helmrelease frp-operator-crd \
+  --chart frp-operator-crd \
+  --source HelmRepository/frp-operator-crd.flux-system \
+  --release-name frp-operator-crd \
+  --target-namespace frp-operator \
+  --create-target-namespace \
+  --chart-version 0.0.1
+```
+
+### Create the operator `HelmRelease`
+
+Put your operator values in a `values.yaml` file:
+
+```yaml
+# operator-values.yaml
+logLevel: info
+leaderElection:
+  enabled: true
+```
+
+```bash
+flux create helmrelease frp-operator \
+  --chart frp-operator \
+  --source HelmRepository/frp-operator.flux-system \
+  --release-name frp-operator \
+  --target-namespace frp-operator \
+  --create-target-namespace \
+  --values operator-values.yaml \
+  --chart-version 0.0.1
+```
+
+<Aside>
+To ensure CRDs are in place before the controller starts, add a `dependsOn` entry to the operator `HelmRelease` that references `frp-operator-crd`. With the Flux CLI you can do this by editing the generated `HelmRelease` manifest and adding:
+
+```yaml
+spec:
+  dependsOn:
+    - name: frp-operator-crd
+      namespace: flux-system
+```
+</Aside>
+
+### Upgrades
+
+To upgrade to a new version, update the `--chart-version` for each release. Always upgrade the CRD chart before the operator chart:
+
+```bash
+flux create helmrelease frp-operator-crd \
+  --chart frp-operator-crd \
+  --source HelmRepository/frp-operator-crd.flux-system \
+  --release-name frp-operator-crd \
+  --target-namespace frp-operator \
+  --chart-version 0.1.0   # new version
+
+flux create helmrelease frp-operator \
+  --chart frp-operator \
+  --source HelmRepository/frp-operator.flux-system \
+  --release-name frp-operator \
+  --target-namespace frp-operator \
+  --values operator-values.yaml \
+  --chart-version 0.1.0   # new version
+```
+
+### Troubleshooting
+
+Check Flux events and logs for warnings and errors:
+
+```bash
+flux events
+
+flux logs
+```
+
+Check the frp-operator controller logs directly:
+
+```bash
+kubectl logs -n frp-operator \
+  -l app.kubernetes.io/name=frp-operator \
+  --prefix --all-containers
+```

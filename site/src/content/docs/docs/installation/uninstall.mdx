@@ -1,0 +1,84 @@
+---
+title: Uninstall
+description: Remove frp-operator from your cluster safely.
+sidebar:
+  order: 7
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution">
+Always use the same process for uninstalling as you did for installing, but in reverse. Deviating from this process — for example, deleting the namespace before removing Helm releases — can leave orphaned cloud resources or a namespace stuck in a `Terminating` state.
+</Aside>
+
+Before continuing, ensure that all frp-operator resources created by users have been deleted. This allows the controller to clean up cloud provider resources (frps exit nodes) before it is removed.
+
+Check for existing resources:
+
+```bash
+kubectl get tunnels,exitpools,exitclaims,localdockerproviderclasses,digitaloceanproviderclasses \
+  --all-namespaces
+```
+
+Once all those resources are gone, proceed with the uninstall.
+
+## Uninstalling with Helm
+
+Uninstall the operator chart first, then the CRD chart:
+
+```bash
+helm uninstall frp-operator -n frp-operator
+helm uninstall frp-operator-crd -n frp-operator
+```
+
+Because the CRDs carry `helm.sh/resource-policy: keep`, the `helm uninstall` command will not delete them. You will see output similar to:
+
+```
+These resources were kept due to the resource policy:
+[CustomResourceDefinition] tunnels.frp.operator.io
+[CustomResourceDefinition] exitpools.frp.operator.io
+[CustomResourceDefinition] exitclaims.frp.operator.io
+[CustomResourceDefinition] localdockerproviderclasses.frp.operator.io
+[CustomResourceDefinition] digitaloceanproviderclasses.frp.operator.io
+```
+
+This is intentional. The CRDs are kept to prevent accidental data loss.
+
+To remove the CRDs and any remaining custom resource instances, run:
+
+```bash
+kubectl delete crd \
+  tunnels.frp.operator.io \
+  exitpools.frp.operator.io \
+  exitclaims.frp.operator.io \
+  localdockerproviderclasses.frp.operator.io \
+  digitaloceanproviderclasses.frp.operator.io
+```
+
+<Aside type="danger">
+Deleting the CRDs immediately destroys all Tunnel, ExitPool, ExitClaim, and ProviderClass objects. Only run this command after you have verified that the controller has finished cleaning up all cloud provider resources.
+</Aside>
+
+Finally, delete the namespace if it is no longer needed:
+
+```bash
+kubectl delete namespace frp-operator
+```
+
+## Namespace stuck in Terminating
+
+If the `frp-operator` namespace is stuck in a `Terminating` state, there are likely finalizers on custom resources that the controller can no longer process. Check for remaining resources with finalizers:
+
+```bash
+kubectl get tunnels,exitpools,exitclaims --all-namespaces -o json \
+  | jq '.items[] | select(.metadata.finalizers != null) | .metadata | {name, namespace, finalizers}'
+```
+
+Remove stuck finalizers manually only after confirming that the associated cloud resources have been cleaned up or no longer exist:
+
+```bash
+kubectl patch tunnel <name> -n <namespace> \
+  --type=json -p='[{"op":"remove","path":"/metadata/finalizers"}]'
+```
+
+Repeat for each stuck resource, then the namespace should complete termination.

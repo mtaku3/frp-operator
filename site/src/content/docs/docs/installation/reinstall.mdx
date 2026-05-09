@@ -1,0 +1,90 @@
+---
+title: Reinstall
+description: Perform a full uninstall and reinstall of frp-operator for large version jumps.
+sidebar:
+  order: 6
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+In certain situations, a complete uninstall and reinstall of frp-operator may be necessary. A common scenario is updating from a significantly older version when incremental minor-version upgrades are not practical.
+
+## Key concerns with CRD removal
+
+Uninstalling the frp-operator CRDs will destroy all custom resources in the cluster — Tunnels, ExitPools, ExitClaims, and ProviderClasses. This means:
+
+- Active tunnels will stop functioning immediately.
+- Cloud provider resources (frps exit nodes) that have not already been cleaned up by the controller will become orphaned.
+
+## Before you begin
+
+Work through the following checklist before proceeding:
+
+- **Verify no active tunnels need traffic.** Deleting Tunnel objects causes frp forwarding rules to be removed. Schedule a maintenance window if needed.
+- **Back up your manifests.** Export all Tunnel, ExitPool, and ProviderClass resources to YAML so you can re-apply them after reinstalling.
+
+  ```bash
+  kubectl get tunnels,exitpools,exitclaims,localdockerproviderclasses,digitaloceanproviderclasses \
+    --all-namespaces -o yaml > frp-operator-backup.yaml
+  ```
+
+- **Check for in-progress operations.** If any Tunnel is currently being reconciled (e.g. an exit node is being provisioned), wait for it to reach a stable state before deleting it.
+
+## Reinstall procedure
+
+<Steps>
+1. Delete all Tunnel, ExitPool, ExitClaim, and ProviderClass resources. The controller must be running at this point so it can clean up cloud provider resources.
+
+   ```bash
+   kubectl delete tunnels,exitpools,exitclaims,localdockerproviderclasses,digitaloceanproviderclasses \
+     --all-namespaces --all
+   ```
+
+   Wait until the controller has finished cleanup (watch `kubectl get exitclaims --all-namespaces` until the list is empty).
+
+2. Uninstall the operator chart:
+
+   ```bash
+   helm uninstall frp-operator -n frp-operator
+   ```
+
+3. Uninstall the CRD chart and explicitly delete the retained CRDs:
+
+   ```bash
+   helm uninstall frp-operator-crd -n frp-operator
+
+   kubectl delete crd \
+     tunnels.frp.operator.io \
+     exitpools.frp.operator.io \
+     exitclaims.frp.operator.io \
+     localdockerproviderclasses.frp.operator.io \
+     digitaloceanproviderclasses.frp.operator.io
+   ```
+
+4. Install the new CRD chart version:
+
+   ```bash
+   helm install frp-operator-crd oci://ghcr.io/mtaku3/charts/frp-operator-crd \
+     --version <new-version> \
+     --namespace frp-operator \
+     --create-namespace
+   ```
+
+5. Install the new operator chart version:
+
+   ```bash
+   helm install frp-operator oci://ghcr.io/mtaku3/charts/frp-operator \
+     --version <new-version> \
+     --namespace frp-operator
+   ```
+
+6. Re-apply your backed-up resources. Review the backup YAML for any API changes called out in the release notes before applying:
+
+   ```bash
+   kubectl apply -f frp-operator-backup.yaml
+   ```
+</Steps>
+
+<Aside type="caution">
+Review the release notes for every version you are skipping. Breaking changes in intermediate releases may require you to modify your Tunnel or ExitPool manifests before re-applying them.
+</Aside>

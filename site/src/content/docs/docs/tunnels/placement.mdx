@@ -1,0 +1,91 @@
+---
+title: Placement
+description: Control which exit node a Tunnel binds to using requirements, hard-pin references, and resource requests.
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## How the scheduler places a Tunnel
+
+When a Tunnel needs an exit, the scheduler runs the following steps in order:
+
+1. **ExitClaimRef** — if set, skip all scheduling logic and bind to the named ExitClaim directly.
+2. **Requirements** — filter the candidate ExitClaims to those whose labels satisfy every requirement.
+3. **Resources** — among the remaining candidates, bin-pack by resource requests and pick the cheapest fit.
+
+The three `spec` fields that drive this flow are described below.
+
+## `spec.exitClaimRef`
+
+`exitClaimRef` is a `LocalObjectReference` (`{name: string}`). It hard-pins the Tunnel to a specific ExitClaim in the same namespace, bypassing the scheduler entirely.
+
+Use this for testing or when you need guaranteed co-location with a particular exit.
+
+```yaml
+spec:
+  exitClaimRef:
+    name: my-exit-claim
+```
+
+<Aside type="caution">
+Hard-pinning ties the Tunnel's availability to a single exit node. If that exit fails, the Tunnel will not be automatically rescheduled to another exit.
+</Aside>
+
+## `spec.requirements`
+
+`requirements` is a list of `NodeSelectorRequirementWithMinValues`. Each entry filters which ExitClaims the scheduler may consider for this Tunnel. The scheduler only selects exits whose labels satisfy *all* requirements.
+
+Each requirement has the following fields:
+
+| Field | Description |
+|---|---|
+| `key` | The label key to match against. |
+| `operator` | One of `In`, `NotIn`, `Exists`, `DoesNotExist`, `Gt`, `Lt`. |
+| `values` | Operand list. Required for `In`, `NotIn`, `Gt`, `Lt`; must be empty for `Exists`, `DoesNotExist`. |
+| `minValues` | Optional. Forces the scheduler to consider at least N distinct values for this key when packing. |
+
+Requirements on a Tunnel work the same way as requirements on an ExitPool. See [Configuring Pool — Requirements](/docs/configuring-pool/requirements/) for the full semantics and operator reference.
+
+### Example: pin to a specific region
+
+Only schedule this Tunnel onto exits in the `nyc3` region.
+
+```yaml
+spec:
+  requirements:
+    - key: topology.kubernetes.io/region
+      operator: In
+      values:
+        - nyc3
+```
+
+### Example: exclude a specific instance type
+
+```yaml
+spec:
+  requirements:
+    - key: node.kubernetes.io/instance-type
+      operator: NotIn
+      values:
+        - s-1vcpu-512mb-10gb
+```
+
+## `spec.resources.requests`
+
+`resources.requests` is a `ResourceList` (the same shape as `Pod.spec.containers[].resources.requests`). It is the bin-pack input: the scheduler picks an exit that has at least this much free capacity remaining.
+
+Omitting `resources` means the Tunnel fits on any exit with a free port slot.
+
+```yaml
+spec:
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+```
+
+<Aside type="note">
+Recognized resource keys are defined by the ExitPool template. Refer to the pool configuration for the specific keys your provider exposes.
+</Aside>

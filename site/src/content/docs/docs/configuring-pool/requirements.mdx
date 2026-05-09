@@ -1,0 +1,73 @@
+---
+title: Requirements
+description: Constrain which instance types, regions, and zones the scheduler may use for an ExitPool.
+sidebar:
+  order: 2
+---
+
+`spec.template.spec.requirements` is a list of label-selector constraints the scheduler must satisfy when choosing an instance type and region for a new `ExitClaim`. If the list is empty the scheduler picks the cheapest available offering from the pool's provider.
+
+## Field shape
+
+Each entry is a `NodeSelectorRequirementWithMinValues`:
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `key` | string | yes | The label key to match against (see [Well-known keys](#well-known-keys) below). |
+| `operator` | string | yes | One of `In`, `NotIn`, `Exists`, `DoesNotExist`, `Gt`, `Lt`. |
+| `values` | list of strings | yes for `In`, `NotIn`, `Gt`, `Lt` | The operand values. Must be empty for `Exists` and `DoesNotExist`. |
+| `minValues` | integer | no | Forces the scheduler to consider at least N distinct values for this key when bin-packing. See [MinValues](#minvalues) below. |
+
+## Well-known keys
+
+| Key | Description |
+|---|---|
+| `node.kubernetes.io/instance-type` | Provider-specific instance shape (e.g. `s-1vcpu-1gb` for DigitalOcean). |
+| `topology.kubernetes.io/region` | Provisioning region (e.g. `nyc3`, `fra1`). |
+| `topology.kubernetes.io/zone` | Availability zone within a region, if the provider supports zones. |
+| `frp.operator.io/capacity-type` | Capacity purchasing model (e.g. `on-demand`, `spot`), if supported by the provider. |
+
+## MinValues
+
+The `minValues` knob tells the scheduler to keep at least N distinct values for the given key in its candidate set when it bin-packs port assignments. Use it to maintain spread across regions or instance types even when cost alone would collapse the selection to a single value.
+
+```yaml
+requirements:
+  - key: topology.kubernetes.io/region
+    operator: In
+    values: ["nyc3", "fra1", "sgp1"]
+    minValues: 2   # always spread across at least 2 regions
+```
+
+## Example: pin to two regions and two instance families
+
+```yaml
+apiVersion: frp.operator.io/v1alpha1
+kind: ExitPool
+metadata:
+  name: do-prod
+spec:
+  template:
+    spec:
+      providerClassRef:
+        group: frp.operator.io
+        kind: DigitalOceanProviderClass
+        name: do-prod
+      requirements:
+        - key: topology.kubernetes.io/region
+          operator: In
+          values:
+            - nyc3
+            - fra1
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - s-1vcpu-1gb
+            - s-2vcpu-2gb
+      frps:
+        version: "v0.68.1"
+        allowPorts:
+          - "1024-65535"
+        auth:
+          method: token
+```

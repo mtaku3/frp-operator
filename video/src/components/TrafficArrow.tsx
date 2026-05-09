@@ -3,15 +3,28 @@ import { interpolate, useCurrentFrame } from 'remotion';
 import { theme, font } from '../theme';
 
 /**
- * Vertical traffic arrow — flows top → bottom.
- * Used in the arrow zone between LAN and PUBLIC INTERNET blocks.
+ * Vertical traffic arrow — flows BOTTOM → TOP (Service → Exit VM).
+ * Positioned absolutely within the arrow-zone container.
+ *
+ * sourceX / targetX: horizontal center of the service block and exit-port chip
+ * respectively, measured from the left edge of the full 1920px canvas.
+ * The arrow zone itself is left-positioned at `zoneLeft` (default 0).
+ * If sourceX / targetX are omitted the arrow draws straight vertically at xOffset.
  */
 interface TrafficArrowProps {
   startFrame: number;
   label?: string;
   color?: string;
-  /** Horizontal offset in px so multiple arrows don't overlap */
+  /** Fallback horizontal offset in px for simple centered arrows */
   xOffset?: number;
+  /** Absolute canvas X of the service block bottom-center (arrow source, bottom) */
+  sourceX?: number;
+  /** Absolute canvas X of the exit-port chip center (arrow target, top) */
+  targetX?: number;
+  /** Left edge of the arrow-zone container in canvas px (to localise absolute coords) */
+  zoneLeft?: number;
+  /** Width of the arrow-zone container */
+  zoneWidth?: number;
 }
 
 export const TrafficArrow: React.FC<TrafficArrowProps> = ({
@@ -19,6 +32,10 @@ export const TrafficArrow: React.FC<TrafficArrowProps> = ({
   label = ':80',
   color = theme.amber,
   xOffset = 0,
+  sourceX,
+  targetX,
+  zoneLeft = 0,
+  zoneWidth = 1720,
 }) => {
   const frame = useCurrentFrame();
   const localFrame = frame - startFrame;
@@ -28,61 +45,69 @@ export const TrafficArrow: React.FC<TrafficArrowProps> = ({
     extrapolateRight: 'clamp',
   });
 
-  // Animated dash offset for flowing effect (top → bottom)
-  const dashOffset = interpolate(localFrame, [0, 60], [60, 0], {
+  // Animated dash offset for flowing effect (bottom → top = decreasing offset)
+  const dashOffset = interpolate(localFrame, [0, 60], [0, 60], {
     extrapolateRight: 'wrap' as never,
   });
 
   if (localFrame < 0) return null;
 
-  // Vertical SVG: 40px wide × 200px tall
-  const svgW = 40;
+  // SVG dimensions — full container width, fixed height
+  const svgW = zoneWidth;
   const svgH = 200;
-  const cx = svgW / 2;
+
+  // X coords: if precise positions supplied, use them (relative to zone); else use xOffset
+  const x1 = sourceX !== undefined ? sourceX - zoneLeft : svgW / 2 + xOffset;
+  const x2 = targetX !== undefined ? targetX - zoneLeft : svgW / 2 + xOffset;
+
+  // Arrow goes from BOTTOM (y = svgH - 10) up to TOP (y = 10)
+  // Arrowhead points UP (toward exit VM)
+  const yBottom = svgH - 10; // source (service)
+  const yTop = 10;           // target (exit VM port)
+
+  // Label position at midpoint
+  const labelX = (x1 + x2) / 2;
+  const labelY = svgH / 2;
 
   return (
     <div
       style={{
         position: 'absolute',
         top: 0,
-        bottom: 0,
-        left: '50%',
-        transform: `translateX(calc(-50% + ${xOffset}px))`,
+        left: 0,
         width: svgW,
+        height: svgH,
         opacity,
         pointerEvents: 'none',
-        display: 'flex',
-        alignItems: 'stretch',
       }}
     >
       <svg
         width={svgW}
-        height="100%"
+        height={svgH}
         viewBox={`0 0 ${svgW} ${svgH}`}
-        preserveAspectRatio="none"
-        style={{ overflow: 'visible', flex: 1 }}
+        style={{ overflow: 'visible' }}
       >
-        {/* Animated flowing vertical line */}
+        {/* Diagonal or straight line from bottom-source to top-target */}
         <line
-          x1={cx}
-          y1="10"
-          x2={cx}
-          y2={svgH - 20}
+          x1={x1}
+          y1={yBottom}
+          x2={x2}
+          y2={yTop + 14}
           stroke={color}
           strokeWidth="3"
           strokeDasharray="12,8"
           strokeDashoffset={dashOffset}
           strokeLinecap="round"
         />
-        {/* Arrowhead pointing down */}
+        {/* Arrowhead pointing UP */}
         <polygon
-          points={`${cx - 8},${svgH - 20} ${cx + 8},${svgH - 20} ${cx},${svgH - 4}`}
+          points={`${x2 - 8},${yTop + 14} ${x2 + 8},${yTop + 14} ${x2},${yTop}`}
           fill={color}
         />
-        {/* Port label — centered in the arrow */}
+        {/* Port label — at midpoint */}
         <rect
-          x={cx - 24}
-          y={svgH / 2 - 14}
+          x={labelX - 24}
+          y={labelY - 14}
           width={48}
           height={22}
           rx={5}
@@ -90,8 +115,8 @@ export const TrafficArrow: React.FC<TrafficArrowProps> = ({
           opacity={0.15}
         />
         <text
-          x={cx}
-          y={svgH / 2}
+          x={labelX}
+          y={labelY}
           textAnchor="middle"
           dominantBaseline="middle"
           fontFamily="ui-monospace, monospace"

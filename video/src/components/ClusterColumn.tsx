@@ -20,44 +20,88 @@ const ServerIcon: React.FC<{ faded?: boolean }> = ({ faded = false }) => (
   </svg>
 );
 
+// Full Kubernetes Service YAML — one line per entry, color-coded
 interface ServiceYAMLProps {
   name: string;
   port: number;
+  targetPort?: number;
   faded?: boolean;
 }
 
-const ServiceYAML: React.FC<ServiceYAMLProps> = ({ name, port, faded = false }) => (
-  <div
-    style={{
-      background: theme.codeBg,
-      borderRadius: 6,
-      padding: '10px 14px',
-      fontFamily: font.mono,
-      fontSize: 14,
-      lineHeight: 1.7,
-      marginBottom: 8,
-      opacity: faded ? 0.35 : 1,
-    }}
-  >
-    <div>
-      <span style={{ color: theme.codeKey }}>kind</span>
-      <span style={{ color: theme.codeValue }}>: Service</span>
-    </div>
-    <div>
-      <span style={{ color: theme.codeKey }}>name</span>
-      <span style={{ color: theme.codeValue }}>: {name}</span>
-    </div>
-    <div>
-      <span style={{ color: theme.codeKey }}>port</span>
-      <span style={{ color: theme.codeValue }}>: {port}</span>
-    </div>
-  </div>
-);
+const ServiceYAML: React.FC<ServiceYAMLProps> = ({
+  name,
+  port,
+  targetPort,
+  faded = false,
+}) => {
+  const tp = targetPort ?? port + 7000; // e.g. 80 → 8080, 443 → 8443 (approx)
+  const K = theme.codeKey;   // amber
+  const V = theme.codeValue; // cream
 
-// Map pod name → {name, port} for the YAML block
-const POD_META: Record<string, { name: string; port: number }> = {
-  'service-80':  { name: 'service-80',  port: 80 },
-  'service-443': { name: 'service-443', port: 443 },
+  const line = (key: string, value: string, indent = 0) => (
+    <div key={key + value} style={{ paddingLeft: indent * 14, whiteSpace: 'pre' }}>
+      <span style={{ color: K }}>{key}</span>
+      <span style={{ color: V }}>{value}</span>
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        background: theme.codeBg,
+        borderRadius: 7,
+        padding: '10px 14px',
+        fontFamily: font.mono,
+        fontSize: 11,
+        lineHeight: 1.75,
+        opacity: faded ? 0.35 : 1,
+        minWidth: 210,
+        flexShrink: 0,
+      }}
+    >
+      {line('apiVersion', ': v1')}
+      {line('kind', ': Service')}
+      {line('metadata', ':')}
+      <div style={{ paddingLeft: 14, whiteSpace: 'pre' }}>
+        <span style={{ color: K }}>{'  name'}</span>
+        <span style={{ color: V }}>{`: ${name}`}</span>
+      </div>
+      {line('spec', ':')}
+      <div style={{ paddingLeft: 14, whiteSpace: 'pre' }}>
+        <span style={{ color: K }}>{'  type'}</span>
+        <span style={{ color: V }}>{': LoadBalancer'}</span>
+      </div>
+      <div style={{ paddingLeft: 14, whiteSpace: 'pre' }}>
+        <span style={{ color: K }}>{'  ports'}</span>
+        <span style={{ color: V }}>{':'}</span>
+      </div>
+      <div style={{ paddingLeft: 28, whiteSpace: 'pre' }}>
+        <span style={{ color: V }}>{'- '}</span>
+        <span style={{ color: K }}>{'port'}</span>
+        <span style={{ color: V }}>{`: ${port}`}</span>
+      </div>
+      <div style={{ paddingLeft: 28, whiteSpace: 'pre' }}>
+        {'  '}
+        <span style={{ color: K }}>{'targetPort'}</span>
+        <span style={{ color: V }}>{`: ${tp}`}</span>
+      </div>
+      <div style={{ paddingLeft: 14, whiteSpace: 'pre' }}>
+        <span style={{ color: K }}>{'  selector'}</span>
+        <span style={{ color: V }}>{':'}</span>
+      </div>
+      <div style={{ paddingLeft: 28, whiteSpace: 'pre' }}>
+        {'  '}
+        <span style={{ color: K }}>{'app'}</span>
+        <span style={{ color: V }}>{`: ${name}`}</span>
+      </div>
+    </div>
+  );
+};
+
+// Map pod name → Service YAML props
+const POD_META: Record<string, { name: string; port: number; targetPort: number }> = {
+  'service-80':  { name: 'service-80',  port: 80,  targetPort: 8080 },
+  'service-443': { name: 'service-443', port: 443, targetPort: 8443 },
 };
 
 interface NodeProps {
@@ -80,13 +124,14 @@ const Node: React.FC<NodeProps> = ({ label, pods, drained = false, podsMigrated 
         flex: 1,
       }}
     >
+      {/* Node header */}
       <div
         style={{
           fontFamily: font.mono,
           fontSize: 15,
           fontWeight: 700,
           color: drained ? theme.red : theme.ink,
-          marginBottom: 10,
+          marginBottom: 12,
           display: 'flex',
           alignItems: 'center',
           gap: 8,
@@ -98,43 +143,57 @@ const Node: React.FC<NodeProps> = ({ label, pods, drained = false, podsMigrated 
         <div>
           {label}
           {drained && (
-            <div style={{ fontSize: 11, background: theme.red, color: '#fff', borderRadius: 4, padding: '1px 6px', display: 'inline-block', marginLeft: 8 }}>
+            <div
+              style={{
+                fontSize: 11,
+                background: theme.red,
+                color: '#fff',
+                borderRadius: 4,
+                padding: '1px 6px',
+                display: 'inline-block',
+                marginLeft: 8,
+              }}
+            >
               DRAINED
             </div>
           )}
         </div>
       </div>
-      {pods.map((pod) => {
-        const meta = POD_META[pod];
-        if (meta) {
+
+      {/* Services — horizontal row */}
+      <div style={{ display: 'flex', flexDirection: 'row', gap: 12, flexWrap: 'nowrap' }}>
+        {pods.map((pod) => {
+          const meta = POD_META[pod];
+          if (meta) {
+            return (
+              <ServiceYAML
+                key={pod}
+                name={meta.name}
+                port={meta.port}
+                targetPort={meta.targetPort}
+                faded={drained || podsMigrated}
+              />
+            );
+          }
           return (
-            <ServiceYAML
+            <div
               key={pod}
-              name={meta.name}
-              port={meta.port}
-              faded={drained || podsMigrated}
-            />
+              style={{
+                background: drained || podsMigrated ? theme.border : theme.amberLight,
+                border: `1px solid ${drained || podsMigrated ? theme.border : theme.amber}`,
+                borderRadius: 6,
+                padding: '6px 10px',
+                fontFamily: font.mono,
+                fontSize: 13,
+                color: drained || podsMigrated ? theme.inkMuted : theme.amberDark,
+                opacity: drained ? 0.4 : 1,
+              }}
+            >
+              {pod}
+            </div>
           );
-        }
-        return (
-          <div
-            key={pod}
-            style={{
-              background: drained || podsMigrated ? theme.border : theme.amberLight,
-              border: `1px solid ${drained || podsMigrated ? theme.border : theme.amber}`,
-              borderRadius: 6,
-              padding: '6px 10px',
-              fontFamily: font.mono,
-              fontSize: 13,
-              color: drained || podsMigrated ? theme.inkMuted : theme.amberDark,
-              marginBottom: 6,
-              opacity: drained ? 0.4 : 1,
-            }}
-          >
-            {pod}
-          </div>
-        );
-      })}
+        })}
+      </div>
     </div>
   );
 };

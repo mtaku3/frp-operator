@@ -4,6 +4,9 @@
  * - Operator provisions ExitClaim → VM appears
  * - VM becomes Ready, traffic arrow appears
  * Duration: 180 frames @ 30fps = 6s
+ *
+ * Layout: PUBLIC INTERNET (top) → arrow zone → LAN/Kubernetes (bottom)
+ * Arrow direction: BOTTOM (service) → TOP (exit VM port)
  */
 import React from 'react';
 import {
@@ -44,6 +47,19 @@ const YAMLBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
     <span style={{ color: theme.amber }}>service</span>{': service-80'}
   </div>
 );
+
+/**
+ * Arrow geometry constants (approximate canvas-space px, 1920×1080).
+ * Content area: 100px side padding → 1720px wide.
+ * Cluster zone inner: 1672px; two nodes each ~826px wide.
+ *   node-1 left=124; node-1 center=537
+ * service-80 on node-1: left=142, center=247
+ * Single exit VM center: ~960; port :80 chip center: ~925
+ */
+const SVC_80_X  = 247;  // service-80 bottom-center in canvas px
+const PORT_80_X = 925;  // :80 port chip center on exit VM (single VM)
+const ZONE_LEFT = 100;
+const ZONE_W    = 1720;
 
 export default function Scene1() {
   const frame = useCurrentFrame();
@@ -90,22 +106,7 @@ export default function Scene1() {
         <OperatorBox highlight={operatorActive} />
       </div>
 
-      {/* LAN / Kubernetes block */}
-      <ClusterColumn tunnelCount={tunnelCount} />
-
-      {/* Arrow zone — vertical, between LAN and PUBLIC INTERNET */}
-      <div
-        style={{
-          position: 'relative',
-          height: 120,
-          alignSelf: 'stretch',
-        }}
-      >
-        {/* Single arrow from node-1 → exit (centered since 1 tunnel) */}
-        <TrafficArrow startFrame={trafficStart} label=":80" color={theme.amber} xOffset={0} />
-      </div>
-
-      {/* PUBLIC INTERNET block */}
+      {/* PUBLIC INTERNET block — TOP */}
       <ExitColumn
         exits={
           vmVisible
@@ -121,6 +122,29 @@ export default function Scene1() {
             : []
         }
       />
+
+      {/* Arrow zone — vertical, between PUBLIC INTERNET (top) and LAN (bottom) */}
+      <div
+        style={{
+          position: 'relative',
+          height: 120,
+          alignSelf: 'stretch',
+        }}
+      >
+        {/* Single arrow: service-80 → exit :80 */}
+        <TrafficArrow
+          startFrame={trafficStart}
+          label=":80"
+          color={theme.amber}
+          sourceX={SVC_80_X}
+          targetX={PORT_80_X}
+          zoneLeft={ZONE_LEFT}
+          zoneWidth={ZONE_W}
+        />
+      </div>
+
+      {/* LAN / Kubernetes block — BOTTOM */}
+      <ClusterColumn tunnelCount={tunnelCount} />
 
       {/* YAML badge */}
       <YAMLBadge opacity={yamlOpacity} />

@@ -4,6 +4,13 @@
  * - Service rescheduled onto node-1
  * - Exit unchanged — traffic continues
  * Duration: 180 frames @ 30fps = 6s
+ *
+ * Layout: PUBLIC INTERNET (top) → arrow zone → LAN/Kubernetes (bottom)
+ * Arrow direction: BOTTOM (service) → TOP (exit VM port)
+ *
+ * When node2 drained both services move to node-1 horizontally:
+ *   service-80 center ≈ 247, service-443 center ≈ 469 (within node-1)
+ * Undrained: service-80 on node-1 at 247, service-443 on node-2 at 1093
  */
 import React from 'react';
 import {
@@ -41,6 +48,16 @@ const DrainBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
   </div>
 );
 
+// X positions for arrow anchors
+const SVC_80_X_NODE1  = 247;   // service-80 on node-1 (single service)
+const SVC_80_X_DRAINED = 247;  // service-80 on node-1 when drained (same, first block)
+const SVC_443_X_NODE2  = 1093; // service-443 on node-2 (pre-drain)
+const SVC_443_X_DRAINED = 469; // service-443 on node-1 after drain (second horizontal block)
+const PORT_80_X  = 910;
+const PORT_443_X = 1010;
+const ZONE_LEFT  = 100;
+const ZONE_W     = 1720;
+
 export default function Scene3() {
   const frame = useCurrentFrame();
 
@@ -59,6 +76,9 @@ export default function Scene3() {
   const node2Drained = frame >= drainStart;
   const operatorActive = frame >= rescheduleBadgeStart;
 
+  const src80X  = node2Drained ? SVC_80_X_DRAINED  : SVC_80_X_NODE1;
+  const src443X = node2Drained ? SVC_443_X_DRAINED : SVC_443_X_NODE2;
+
   return (
     <AbsoluteFill
       style={{
@@ -76,33 +96,7 @@ export default function Scene3() {
         <OperatorBox highlight={operatorActive} />
       </div>
 
-      {/* LAN / Kubernetes block */}
-      <ClusterColumn tunnelCount={2} node2Drained={node2Drained} />
-
-      {/* Arrow zone — after drain both services on node-1, both arrows cluster center */}
-      <div
-        style={{
-          position: 'relative',
-          height: 120,
-          alignSelf: 'stretch',
-        }}
-      >
-        {/* Both arrows originate from node-1 (left) when drained, otherwise spread */}
-        <TrafficArrow
-          startFrame={0}
-          label=":80"
-          color={theme.amber}
-          xOffset={node2Drained ? -30 : -120}
-        />
-        <TrafficArrow
-          startFrame={0}
-          label=":443"
-          color={theme.blue}
-          xOffset={node2Drained ? 30 : 120}
-        />
-      </div>
-
-      {/* PUBLIC INTERNET block */}
+      {/* PUBLIC INTERNET block — TOP */}
       <ExitColumn
         exits={[
           {
@@ -112,6 +106,37 @@ export default function Scene3() {
           },
         ]}
       />
+
+      {/* Arrow zone */}
+      <div
+        style={{
+          position: 'relative',
+          height: 120,
+          alignSelf: 'stretch',
+        }}
+      >
+        <TrafficArrow
+          startFrame={0}
+          label=":80"
+          color={theme.amber}
+          sourceX={src80X}
+          targetX={PORT_80_X}
+          zoneLeft={ZONE_LEFT}
+          zoneWidth={ZONE_W}
+        />
+        <TrafficArrow
+          startFrame={0}
+          label=":443"
+          color={theme.blue}
+          sourceX={src443X}
+          targetX={PORT_443_X}
+          zoneLeft={ZONE_LEFT}
+          zoneWidth={ZONE_W}
+        />
+      </div>
+
+      {/* LAN / Kubernetes block — BOTTOM */}
+      <ClusterColumn tunnelCount={2} node2Drained={node2Drained} />
 
       {/* Drain command badge */}
       <DrainBadge opacity={drainBadgeOpacity} />

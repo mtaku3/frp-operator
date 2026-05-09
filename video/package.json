@@ -1,0 +1,20 @@
+{
+  "name": "frp-operator-video",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "remotion studio",
+    "render:mp4": "remotion render src/index.ts Main out/main.mp4",
+    "render:gif": "remotion render src/index.ts Main out/main.gif --codec=gif --image-format=png --width=960"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "typescript": "^5.6.0"
+  }
+}

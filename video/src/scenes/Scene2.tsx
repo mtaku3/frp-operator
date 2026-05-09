@@ -24,22 +24,23 @@ const YAMLBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
   <div
     style={{
       position: 'absolute',
-      top: 140,
-      left: 160,
+      top: 120,
+      right: 120,
       opacity,
       background: theme.ink,
       color: '#a5f3fc',
       fontFamily: font.mono,
-      fontSize: 13,
-      padding: '12px 16px',
+      fontSize: 14,
+      padding: '14px 18px',
       borderRadius: 10,
       lineHeight: 1.7,
       zIndex: 10,
+      whiteSpace: 'pre',
     }}
   >
-    <span style={{ color: theme.amber }}>kind</span>: Tunnel{'\n'}
-    <span style={{ color: theme.amber }}>publicPort</span>: 443{'\n'}
-    <span style={{ color: theme.amber }}>service</span>: service-443
+    <span style={{ color: theme.amber }}>kind</span>{': Tunnel\n'}
+    <span style={{ color: theme.amber }}>publicPort</span>{': 443\n'}
+    <span style={{ color: theme.amber }}>service</span>{': service-443'}
   </div>
 );
 
@@ -64,90 +65,49 @@ export default function Scene2() {
         background: theme.bg,
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
+        alignItems: 'stretch',
         justifyContent: 'center',
+        padding: '60px 100px',
+        gap: 0,
       }}
     >
-      {/* Title */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 48,
-          left: 0,
-          right: 0,
-          textAlign: 'center',
-          fontFamily: font.body,
-          fontSize: 28,
-          fontWeight: 800,
-          color: theme.ink,
-          letterSpacing: -0.5,
-        }}
-      >
-        Scene 2 — Bin-Packing Second Tunnel
+      {/* Operator corner indicator */}
+      <div style={{ position: 'absolute', top: 32, right: 32, zIndex: 20 }}>
+        <OperatorBox highlight={operatorActive} />
       </div>
 
-      {/* 3-column layout */}
+      {/* LAN / Kubernetes block */}
+      <ClusterColumn tunnelCount={2} />
+
+      {/* Arrow zone — 2 vertical arrows: one from node-1 (:80), one from node-2 (:443) */}
       <div
         style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 0,
-          width: '100%',
-          paddingLeft: 80,
-          paddingRight: 80,
-          marginTop: 40,
           position: 'relative',
+          height: 120,
+          alignSelf: 'stretch',
         }}
       >
-        {/* Cluster */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-          <ClusterColumn tunnelCount={2} />
-        </div>
-
-        {/* Arrow zone left */}
-        <div style={{ width: 200, position: 'relative', height: 160 }}>
-          {/* Port 80 arrow (already active from scene 1) */}
-          <TrafficArrow startFrame={0} label="port 80" color={theme.amber} yOffset={-20} />
-          {/* Port 443 arrow (appears in this scene) */}
-          <TrafficArrow
-            startFrame={secondArrowStart}
-            label="port 443"
-            color={theme.blue}
-            yOffset={20}
-          />
-        </div>
-
-        {/* Operator */}
-        <div style={{ flex: 0, display: 'flex', justifyContent: 'center' }}>
-          <OperatorBox highlight={operatorActive} />
-        </div>
-
-        {/* Arrow zone right */}
-        <div style={{ width: 200, position: 'relative', height: 160 }}>
-          <TrafficArrow startFrame={0} label="port 80" color={theme.amber} yOffset={-20} />
-          <TrafficArrow
-            startFrame={secondArrowStart}
-            label="port 443"
-            color={theme.blue}
-            yOffset={20}
-          />
-        </div>
-
-        {/* Exit */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-          <ExitColumn
-            exits={[
-              {
-                ip: '203.0.113.10',
-                ports: frame >= secondArrowStart ? [80, 443] : [80],
-                label: 'Exit VM #1',
-              },
-            ]}
-          />
-        </div>
+        {/* Port 80 arrow (node-1 side — left half) */}
+        <TrafficArrow startFrame={0} label=":80" color={theme.amber} xOffset={-120} />
+        {/* Port 443 arrow (node-2 side — right half), appears in this scene */}
+        <TrafficArrow
+          startFrame={secondArrowStart}
+          label=":443"
+          color={theme.blue}
+          xOffset={120}
+        />
       </div>
+
+      {/* PUBLIC INTERNET block */}
+      <ExitColumn
+        exits={[
+          {
+            ip: '203.0.113.10',
+            ports: frame >= secondArrowStart ? [80, 443] : [80],
+            label: 'Exit VM #1',
+          },
+        ]}
+      />
 
       {/* YAML badge */}
       <YAMLBadge opacity={yamlOpacity} />

@@ -14,7 +14,7 @@ import {
   interpolate,
   Easing,
 } from 'remotion';
-import { theme, font } from '../theme';
+import { theme } from '../theme';
 import { ClusterColumn } from '../components/ClusterColumn';
 import { OperatorBox } from '../components/OperatorBox';
 import { ExitColumn } from '../components/ExitColumn';
@@ -84,93 +84,47 @@ export default function Scene4() {
         background: theme.bg,
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
+        alignItems: 'stretch',
         justifyContent: 'center',
+        padding: '60px 100px',
+        gap: 0,
       }}
     >
-      {/* Title */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 48,
-          left: 0,
-          right: 0,
-          textAlign: 'center',
-          fontFamily: font.body,
-          fontSize: 28,
-          fontWeight: 800,
-          color: theme.ink,
-          letterSpacing: -0.5,
-        }}
-      >
-        Scene 4 — Exit Drain
+      {/* Operator corner indicator */}
+      <div style={{ position: 'absolute', top: 32, right: 32, zIndex: 20 }}>
+        <OperatorBox highlight={operatorActive} />
       </div>
 
-      {/* 3-column layout */}
+      {/* LAN / Kubernetes block (node-2 drained from previous scene) */}
+      <ClusterColumn tunnelCount={2} node2Drained />
+
+      {/* Arrow zone — arrows rebind from old VM → new VM */}
       <div
         style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 0,
-          width: '100%',
-          paddingLeft: 80,
-          paddingRight: 80,
-          marginTop: 40,
           position: 'relative',
+          height: 120,
+          alignSelf: 'stretch',
+          // Apply fade-out to old arrows when old exit is fading
+          opacity: tunnelsRebound ? 1 : (oldExitVisible ? oldExitOpacity : 0),
         }}
       >
-        {/* Cluster */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-          <ClusterColumn tunnelCount={2} node2Drained />
-        </div>
+        {!tunnelsRebound && (
+          <>
+            <TrafficArrow startFrame={0} label=":80" color={theme.amber} xOffset={-30} />
+            <TrafficArrow startFrame={0} label=":443" color={theme.blue} xOffset={30} />
+          </>
+        )}
+        {tunnelsRebound && (
+          <>
+            <TrafficArrow startFrame={rebindStart} label=":80" color={theme.green} xOffset={-30} />
+            <TrafficArrow startFrame={rebindStart} label=":443" color={theme.green} xOffset={30} />
+          </>
+        )}
+      </div>
 
-        {/* Arrow zone left */}
-        <div style={{ width: 200, position: 'relative', height: 200 }}>
-          {/* Old arrows */}
-          {!tunnelsRebound && (
-            <>
-              <TrafficArrow startFrame={0} label="port 80" color={theme.amber} yOffset={-20} />
-              <TrafficArrow startFrame={0} label="port 443" color={theme.blue} yOffset={20} />
-            </>
-          )}
-          {/* New arrows after rebind */}
-          {tunnelsRebound && (
-            <>
-              <TrafficArrow startFrame={rebindStart} label="port 80" color={theme.green} yOffset={-20} />
-              <TrafficArrow startFrame={rebindStart} label="port 443" color={theme.green} yOffset={20} />
-            </>
-          )}
-        </div>
-
-        {/* Operator */}
-        <div style={{ flex: 0, display: 'flex', justifyContent: 'center' }}>
-          <OperatorBox highlight={operatorActive} />
-        </div>
-
-        {/* Arrow zone right */}
-        <div style={{ width: 200, position: 'relative', height: 200 }}>
-          {!tunnelsRebound && (
-            <>
-              <TrafficArrow startFrame={0} label="port 80" color={theme.amber} yOffset={-20} />
-              <TrafficArrow startFrame={0} label="port 443" color={theme.blue} yOffset={20} />
-            </>
-          )}
-          {tunnelsRebound && (
-            <>
-              <TrafficArrow startFrame={rebindStart} label="port 80" color={theme.green} yOffset={-20} />
-              <TrafficArrow startFrame={rebindStart} label="port 443" color={theme.green} yOffset={20} />
-            </>
-          )}
-        </div>
-
-        {/* Exit */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-          <div style={{ opacity: oldExitVisible ? oldExitOpacity : undefined }}>
-            <ExitColumn exits={exits} />
-          </div>
-        </div>
+      {/* PUBLIC INTERNET block */}
+      <div style={{ opacity: oldExitVisible && !tunnelsRebound ? oldExitOpacity : 1 }}>
+        <ExitColumn exits={exits} />
       </div>
 
       {/* Caption */}

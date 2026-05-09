@@ -2,18 +2,23 @@ import React from 'react';
 import { interpolate, useCurrentFrame } from 'remotion';
 import { theme, font } from '../theme';
 
+/**
+ * Vertical traffic arrow — flows top → bottom.
+ * Used in the arrow zone between LAN and PUBLIC INTERNET blocks.
+ */
 interface TrafficArrowProps {
   startFrame: number;
   label?: string;
   color?: string;
-  yOffset?: number;
+  /** Horizontal offset in px so multiple arrows don't overlap */
+  xOffset?: number;
 }
 
 export const TrafficArrow: React.FC<TrafficArrowProps> = ({
   startFrame,
   label = ':80',
   color = theme.amber,
-  yOffset = 0,
+  xOffset = 0,
 }) => {
   const frame = useCurrentFrame();
   const localFrame = frame - startFrame;
@@ -23,54 +28,70 @@ export const TrafficArrow: React.FC<TrafficArrowProps> = ({
     extrapolateRight: 'clamp',
   });
 
-  // Animated dash offset for flowing effect
+  // Animated dash offset for flowing effect (top → bottom)
   const dashOffset = interpolate(localFrame, [0, 60], [60, 0], {
     extrapolateRight: 'wrap' as never,
   });
 
   if (localFrame < 0) return null;
 
+  // Vertical SVG: 40px wide × 200px tall
+  const svgW = 40;
+  const svgH = 200;
+  const cx = svgW / 2;
+
   return (
     <div
       style={{
         position: 'absolute',
-        top: '50%',
-        left: 0,
-        right: 0,
-        transform: `translateY(calc(-50% + ${yOffset}px))`,
+        top: 0,
+        bottom: 0,
+        left: '50%',
+        transform: `translateX(calc(-50% + ${xOffset}px))`,
+        width: svgW,
         opacity,
         pointerEvents: 'none',
+        display: 'flex',
+        alignItems: 'stretch',
       }}
     >
       <svg
-        width="100%"
-        height="40"
-        viewBox="0 0 600 40"
+        width={svgW}
+        height="100%"
+        viewBox={`0 0 ${svgW} ${svgH}`}
         preserveAspectRatio="none"
-        style={{ overflow: 'visible' }}
+        style={{ overflow: 'visible', flex: 1 }}
       >
-        {/* Animated flowing line */}
+        {/* Animated flowing vertical line */}
         <line
-          x1="10"
-          y1="20"
-          x2="580"
-          y2="20"
+          x1={cx}
+          y1="10"
+          x2={cx}
+          y2={svgH - 20}
           stroke={color}
           strokeWidth="3"
           strokeDasharray="12,8"
           strokeDashoffset={dashOffset}
           strokeLinecap="round"
         />
-        {/* Arrowhead pointing right (cluster → exit) */}
+        {/* Arrowhead pointing down */}
         <polygon
-          points="580,14 596,20 580,26"
+          points={`${cx - 8},${svgH - 20} ${cx + 8},${svgH - 20} ${cx},${svgH - 4}`}
           fill={color}
         />
-        {/* Port label */}
-        <rect x="270" y="4" width="60" height="22" rx="5" fill={color} opacity="0.15" />
+        {/* Port label — centered in the arrow */}
+        <rect
+          x={cx - 24}
+          y={svgH / 2 - 14}
+          width={48}
+          height={22}
+          rx={5}
+          fill={color}
+          opacity={0.15}
+        />
         <text
-          x="300"
-          y="20"
+          x={cx}
+          y={svgH / 2}
           textAnchor="middle"
           dominantBaseline="middle"
           fontFamily="ui-monospace, monospace"
@@ -85,6 +106,9 @@ export const TrafficArrow: React.FC<TrafficArrowProps> = ({
   );
 };
 
+/**
+ * Horizontal external internet arrow — kept for potential future use.
+ */
 interface ExternalArrowProps {
   startFrame: number;
   label?: string;

@@ -3,12 +3,12 @@ import { theme, font } from '../theme';
 
 const CloudIcon: React.FC<{ faded?: boolean }> = ({ faded = false }) => (
   <svg
-    width="36"
-    height="36"
+    width="80"
+    height="80"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth={faded ? 1.5 : 2.5}
+    strokeWidth={faded ? 1.5 : 2}
     strokeLinecap="round"
     strokeLinejoin="round"
     strokeDasharray={faded ? '4 2' : undefined}
@@ -42,27 +42,30 @@ export const ExitVM: React.FC<ExitVMProps> = ({
       style={{
         opacity,
         transform: `scale(${scale})`,
-        transformOrigin: 'center',
+        transformOrigin: 'center top',
         border: `2px solid ${disrupted ? theme.red : theme.green}`,
-        borderRadius: 14,
-        padding: '14px 18px',
+        borderRadius: 16,
+        padding: '18px 24px',
         background: disrupted ? theme.redLight : theme.greenLight,
-        minWidth: 180,
-        marginBottom: 16,
+        minWidth: 220,
         position: 'relative',
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
       }}
     >
       {disrupted && (
         <div
           style={{
             position: 'absolute',
-            top: 6,
-            right: 8,
+            top: 8,
+            right: 10,
             background: theme.red,
             color: '#fff',
-            fontSize: 10,
+            fontSize: 11,
             fontWeight: 700,
-            padding: '2px 6px',
+            padding: '2px 8px',
             borderRadius: 4,
             fontFamily: font.body,
             letterSpacing: 0.5,
@@ -74,9 +77,7 @@ export const ExitVM: React.FC<ExitVMProps> = ({
       <div
         style={{
           color: disrupted ? theme.red : theme.green,
-          marginBottom: 6,
-          display: 'flex',
-          alignItems: 'center',
+          marginBottom: 8,
         }}
       >
         <CloudIcon />
@@ -84,25 +85,25 @@ export const ExitVM: React.FC<ExitVMProps> = ({
       <div
         style={{
           fontFamily: font.mono,
-          fontSize: 13,
+          fontSize: 15,
           fontWeight: 600,
           color: theme.ink,
-          marginBottom: 8,
+          marginBottom: 10,
         }}
       >
         {ip}
       </div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
         {ports.map((port) => (
           <div
             key={port}
             style={{
               background: theme.amberLight,
               border: `1px solid ${theme.amber}`,
-              borderRadius: 5,
-              padding: '2px 7px',
+              borderRadius: 6,
+              padding: '3px 10px',
               fontFamily: font.mono,
-              fontSize: 11,
+              fontSize: 13,
               color: theme.amberDark,
             }}
           >
@@ -131,61 +132,62 @@ export const ExitColumn: React.FC<ExitColumnProps> = ({ exits }) => {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
+        alignItems: 'stretch',
+        width: '100%',
       }}
     >
       {/* Zone label */}
       <div
         style={{
           fontFamily: font.body,
-          fontSize: 11,
+          fontSize: 13,
           fontWeight: 700,
           color: theme.inkMuted,
           textTransform: 'uppercase',
           letterSpacing: 2,
-          marginBottom: 6,
+          marginBottom: 10,
           border: `1px solid ${theme.border}`,
           borderRadius: 6,
-          padding: '2px 10px',
+          padding: '3px 12px',
+          alignSelf: 'center',
         }}
       >
         Public Internet
       </div>
-      {/* Column title */}
+
+      {/* Exit VMs side-by-side inside a dashed zone */}
       <div
         style={{
-          fontFamily: font.body,
-          fontSize: 13,
-          fontWeight: 600,
-          color: theme.inkMuted,
-          marginBottom: 14,
-          letterSpacing: 0.5,
+          border: `2px dashed ${theme.border}`,
+          borderRadius: 20,
+          padding: 24,
+          background: 'rgba(220,252,231,0.3)',
+          display: 'flex',
+          flexDirection: 'row',
+          gap: 20,
+          alignItems: 'stretch',
+          minHeight: 180,
         }}
       >
-        Exit VMs (Cloud)
+        {exits.length === 0 && (
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: theme.inkMuted,
+              fontFamily: font.body,
+              fontSize: 14,
+            }}
+          >
+            <CloudIcon faded />
+          </div>
+        )}
+        {exits.map((exit, i) => (
+          <ExitVM key={i} {...exit} />
+        ))}
       </div>
-      {exits.length === 0 && (
-        <div
-          style={{
-            border: `2px dashed ${theme.border}`,
-            borderRadius: 14,
-            padding: '24px 32px',
-            color: theme.inkMuted,
-            fontFamily: font.body,
-            fontSize: 13,
-            minWidth: 180,
-            textAlign: 'center',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <CloudIcon faded />
-        </div>
-      )}
-      {exits.map((exit, i) => (
-        <ExitVM key={i} {...exit} />
-      ))}
     </div>
   );
 };

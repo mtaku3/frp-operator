@@ -24,23 +24,24 @@ const YAMLBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
   <div
     style={{
       position: 'absolute',
-      top: 140,
-      left: 160,
+      top: 120,
+      right: 120,
       opacity,
       background: theme.ink,
       color: '#a5f3fc',
       fontFamily: font.mono,
-      fontSize: 13,
-      padding: '12px 16px',
+      fontSize: 14,
+      padding: '14px 18px',
       borderRadius: 10,
       lineHeight: 1.7,
       boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
       zIndex: 10,
+      whiteSpace: 'pre',
     }}
   >
-    <span style={{ color: theme.amber }}>kind</span>: Tunnel{'\n'}
-    <span style={{ color: theme.amber }}>publicPort</span>: 80{'\n'}
-    <span style={{ color: theme.amber }}>service</span>: service-80
+    <span style={{ color: theme.amber }}>kind</span>{': Tunnel\n'}
+    <span style={{ color: theme.amber }}>publicPort</span>{': 80\n'}
+    <span style={{ color: theme.amber }}>service</span>{': service-80'}
   </div>
 );
 
@@ -78,82 +79,48 @@ export default function Scene1() {
         background: theme.bg,
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
+        alignItems: 'stretch',
         justifyContent: 'center',
+        padding: '60px 100px',
+        gap: 0,
       }}
     >
-      {/* Title */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 48,
-          left: 0,
-          right: 0,
-          textAlign: 'center',
-          fontFamily: font.body,
-          fontSize: 28,
-          fontWeight: 800,
-          color: theme.ink,
-          letterSpacing: -0.5,
-        }}
-      >
-        Scene 1 — First Tunnel
+      {/* Operator corner indicator */}
+      <div style={{ position: 'absolute', top: 32, right: 32, zIndex: 20 }}>
+        <OperatorBox highlight={operatorActive} />
       </div>
 
-      {/* 3-column layout */}
+      {/* LAN / Kubernetes block */}
+      <ClusterColumn tunnelCount={tunnelCount} />
+
+      {/* Arrow zone — vertical, between LAN and PUBLIC INTERNET */}
       <div
         style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 0,
-          width: '100%',
-          paddingLeft: 80,
-          paddingRight: 80,
-          marginTop: 40,
           position: 'relative',
+          height: 120,
+          alignSelf: 'stretch',
         }}
       >
-        {/* Cluster */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-          <ClusterColumn tunnelCount={tunnelCount} />
-        </div>
-
-        {/* Arrow zone (cluster → operator) */}
-        <div style={{ width: 200, position: 'relative', height: 120 }}>
-          <TrafficArrow startFrame={trafficStart} label="port 80" yOffset={-10} />
-        </div>
-
-        {/* Operator */}
-        <div style={{ flex: 0, display: 'flex', justifyContent: 'center' }}>
-          <OperatorBox highlight={operatorActive} />
-        </div>
-
-        {/* Arrow zone (operator → exit) */}
-        <div style={{ width: 200, position: 'relative', height: 120 }}>
-          <TrafficArrow startFrame={trafficStart} label="port 80" yOffset={-10} />
-        </div>
-
-        {/* Exit */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-          <ExitColumn
-            exits={
-              vmVisible
-                ? [
-                    {
-                      ip: '203.0.113.10',
-                      ports: [80],
-                      appearing: true,
-                      appearProgress: vmAppearProgress,
-                      label: 'Exit VM #1',
-                    },
-                  ]
-                : []
-            }
-          />
-        </div>
+        {/* Single arrow from node-1 → exit (centered since 1 tunnel) */}
+        <TrafficArrow startFrame={trafficStart} label=":80" color={theme.amber} xOffset={0} />
       </div>
+
+      {/* PUBLIC INTERNET block */}
+      <ExitColumn
+        exits={
+          vmVisible
+            ? [
+                {
+                  ip: '203.0.113.10',
+                  ports: [80],
+                  appearing: true,
+                  appearProgress: vmAppearProgress,
+                  label: 'Exit VM #1',
+                },
+              ]
+            : []
+        }
+      />
 
       {/* YAML badge */}
       <YAMLBadge opacity={yamlOpacity} />

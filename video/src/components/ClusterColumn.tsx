@@ -1,5 +1,6 @@
 import React from 'react';
 import { theme, font } from '../theme';
+import { TunnelYAML } from './TunnelYAML';
 
 const ServerIcon: React.FC<{ faded?: boolean }> = ({ faded = false }) => (
   <svg
@@ -103,15 +104,22 @@ const ServiceYAML: React.FC<ServiceYAMLProps> = ({
   );
 };
 
-// Map pod name → Service YAML props
-const POD_META: Record<string, { name: string; port: number; targetPort: number }> = {
-  'service-80':  { name: 'service-80',  port: 80,  targetPort: 8080 },
-  'service-443': { name: 'service-443', port: 443, targetPort: 8443 },
-  'service-80b': { name: 'service-80b', port: 80,  targetPort: 8081 },
+// Map pod name → Service YAML props + matching Tunnel YAML props
+const POD_META: Record<string, {
+  name: string;
+  port: number;
+  targetPort: number;
+  tunnelName: string;
+  publicPort: number;
+  servicePort: number;
+}> = {
+  'service-80':  { name: 'service-80',  port: 80,  targetPort: 8080, tunnelName: 'tunnel-80',  publicPort: 80,  servicePort: 80  },
+  'service-443': { name: 'service-443', port: 443, targetPort: 8443, tunnelName: 'tunnel-443', publicPort: 443, servicePort: 443 },
+  'service-80b': { name: 'service-80b', port: 80,  targetPort: 8081, tunnelName: 'tunnel-80b', publicPort: 80,  servicePort: 80  },
 };
 
-// Fixed box dimensions for equal-size node and VM boxes
-export const NODE_WIDTH  = 280;
+// Node uses fit-content width so pairs don't overflow.
+export const NODE_WIDTH  = 540; // kept for reference; Node itself uses fit-content
 export const NODE_HEIGHT = 200;
 
 interface NodeProps {
@@ -119,10 +127,20 @@ interface NodeProps {
   pods: string[];
   drained?: boolean;
   podsMigrated?: boolean;
+  /** Per-service opacity for fade-in of entire pair (service + tunnel). Keyed by pod name. */
   svcOpacities?: Record<string, number>;
+  /** Per-service tunnel opacity for the Tunnel YAML block. Keyed by pod name. */
+  tunnelOpacities?: Record<string, number>;
 }
 
-const Node: React.FC<NodeProps> = ({ label, pods, drained = false, podsMigrated = false, svcOpacities = {} }) => {
+const Node: React.FC<NodeProps> = ({
+  label,
+  pods,
+  drained = false,
+  podsMigrated = false,
+  svcOpacities = {},
+  tunnelOpacities = {},
+}) => {
   const isEmpty = pods.length === 0;
 
   return (
@@ -130,10 +148,11 @@ const Node: React.FC<NodeProps> = ({ label, pods, drained = false, podsMigrated 
       style={{
         border: `2px solid ${drained ? theme.red : theme.border}`,
         borderRadius: 12,
-        padding: '14px 18px',
+        padding: '14px 16px',
         background: 'transparent',
         opacity: drained ? 0.6 : 1,
-        width: NODE_WIDTH,
+        width: 'fit-content',
+        minWidth: NODE_WIDTH,
         minHeight: NODE_HEIGHT,
         flex: '0 0 auto',
         display: 'flex',
@@ -193,19 +212,36 @@ const Node: React.FC<NodeProps> = ({ label, pods, drained = false, podsMigrated 
             </div>
           </div>
 
-          {/* Services — horizontal row */}
-          <div style={{ display: 'flex', flexDirection: 'row', gap: 12, flexWrap: 'nowrap' }}>
+          {/* Service+Tunnel pairs — horizontal row of vertical columns, centered */}
+          <div style={{ display: 'flex', flexDirection: 'row', gap: 16, flexWrap: 'nowrap', justifyContent: 'center' }}>
             {pods.map((pod) => {
               const meta = POD_META[pod];
-              const podOpacity = svcOpacities[pod] ?? 1;
+              const pairOpacity = svcOpacities[pod] ?? 1;
+              const tunnelOpacity = tunnelOpacities[pod] ?? 1;
               if (meta) {
                 return (
-                  <div key={pod} style={{ opacity: podOpacity }}>
+                  <div
+                    key={pod}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      opacity: pairOpacity,
+                    }}
+                  >
+                    {/* Service YAML on top */}
                     <ServiceYAML
                       name={meta.name}
                       port={meta.port}
                       targetPort={meta.targetPort}
                       faded={drained || podsMigrated}
+                    />
+                    {/* Tunnel YAML directly below */}
+                    <TunnelYAML
+                      name={meta.tunnelName}
+                      publicPort={meta.publicPort}
+                      servicePort={meta.servicePort}
+                      opacity={tunnelOpacity}
                     />
                   </div>
                 );
@@ -221,7 +257,7 @@ const Node: React.FC<NodeProps> = ({ label, pods, drained = false, podsMigrated 
                     fontFamily: font.mono,
                     fontSize: 13,
                     color: drained || podsMigrated ? theme.inkMuted : theme.amberDark,
-                    opacity: (drained ? 0.4 : 1) * podOpacity,
+                    opacity: (drained ? 0.4 : 1) * pairOpacity,
                   }}
                 >
                   {pod}
@@ -243,6 +279,11 @@ interface ClusterColumnProps {
   singleNode?: boolean;
   /** Per-service opacity overrides for fade-in animations, keyed by pod name */
   svcOpacities?: Record<string, number>;
+  /**
+   * Per-service tunnel opacity overrides. Keyed by pod name.
+   * Use this to animate the Tunnel YAML block fading in independently of the Service.
+   */
+  tunnelOpacities?: Record<string, number>;
 }
 
 export const ClusterColumn: React.FC<ClusterColumnProps> = ({
@@ -250,6 +291,7 @@ export const ClusterColumn: React.FC<ClusterColumnProps> = ({
   tunnelCount = 0,
   singleNode = false,
   svcOpacities = {},
+  tunnelOpacities = {},
 }) => {
   const node1Pods: string[] = [];
   const node2Pods: string[] = [];
@@ -314,6 +356,7 @@ export const ClusterColumn: React.FC<ClusterColumnProps> = ({
           drained={false}
           podsMigrated={false}
           svcOpacities={svcOpacities}
+          tunnelOpacities={tunnelOpacities}
         />
         {!singleNode && (
           <Node
@@ -322,6 +365,7 @@ export const ClusterColumn: React.FC<ClusterColumnProps> = ({
             drained={node2Drained}
             podsMigrated={node2Drained && tunnelCount >= 2}
             svcOpacities={svcOpacities}
+            tunnelOpacities={tunnelOpacities}
           />
         )}
       </div>

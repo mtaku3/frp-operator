@@ -1,30 +1,29 @@
 /**
  * Scene 2: Second Tunnel (port 443) — bin-packs onto existing exit
  * Animation order (carries Scene1 state):
- *   Frame  0–30:  Second Service YAML block fades in (node-2).
- *   Frame 30–60:  Second Tunnel CR YAML block fades in (middle band, port 443).
- *   Frame 60+:    Second arrow draws from service-443 → same Exit VM :443 chip.
+ *   Frame  0–30:  Second Service YAML block fades in (node-2); Tunnel YAML below it animates together.
+ *   Frame 30–60:  Tunnel CR YAML for service-443 fades in (inside node-2, below Service).
+ *   Frame 60+:    Second arrow draws from tunnel-443 → same Exit VM :443 chip.
  *   The exit VM does NOT spawn another — port 443 was free, bin-packed.
  *
  * Duration: 180 frames @ 30fps = 6s
  *
- * Layout: PUBLIC INTERNET (top) → middle band (TunnelYAML × 2) → LAN/Kubernetes (bottom)
- * Arrow direction: BOTTOM (service) → TOP (exit VM port)
+ * Layout: PUBLIC INTERNET (top) → arrow zone → LAN/Kubernetes (bottom)
+ * Arrow direction: BOTTOM (node) → TOP (exit VM port)
  *
  * Arrow geometry (1920×1080, 100px side padding → content 1720px):
  *   Dashed zone padding=24 → inner=1672px.
- *   Two nodes (280px each) with gap=20: total=580px, each side margin=(1672-580)/2=546px.
- *   node-1 left = 100+24+546 = 670; node-1 center = 670+140 = 810
- *   node-2 left = 670+280+20 = 970; node-2 center = 970+140 = 1110
- *
- *   service-80 in node-1: left edge=670, padding=18, minWidth=210, center=670+18+105=793
- *   service-443 in node-2: left edge=970, padding=18, minWidth=210, center=970+18+105=1093
+ *   Two nodes (540px each, fit-content/minWidth) with gap=20:
+ *     total=1100px; each side margin=(1672-1100)/2=286px.
+ *     node-1 left = 100+24+286 = 410; node-2 left = 410+540+20 = 970.
+ *   Each node has 1 pair (210px) centered in 508px inner:
+ *     pair center = (508-210)/2 + 105 = 254 within node.
+ *     SVC_80_X  = 410 + 254 = 664
+ *     SVC_443_X = 970 + 254 = 1224
  *
  *   Single exit VM (280px) centered in 1672px inner:
- *     VM left = 100+24+(1672-280)/2 = 820
- *     VM inner width = 280-48 = 232px
- *     2 chips: :80(44px) + gap(8px) + :443(52px) = 104px total
- *     chip group left offset = (232-104)/2 = 64px
+ *     VM left = 100+24+(1672-280)/2 = 820; inner=232px.
+ *     2 chips (:80 44px + :443 52px + gap 8px = 104px total); offset=(232-104)/2=64.
  *     :80  chip center = 820+24+64+22 = 930
  *     :443 chip center = 930+22+8+26  = 986
  */
@@ -41,9 +40,9 @@ import { ExitColumn } from '../components/ExitColumn';
 import { TrafficArrow } from '../components/TrafficArrow';
 import { MiddleZone } from '../components/TunnelYAML';
 
-// Service source X positions (two-node layout with 280px boxes)
-const SVC_80_X   = 793;   // service-80 on node-1
-const SVC_443_X  = 1093;  // service-443 on node-2
+// Service/Tunnel source X positions (two-node layout, 540px nodes)
+const SVC_80_X   = 664;   // service-80 / tunnel-80 on node-1
+const SVC_443_X  = 1224;  // service-443 / tunnel-443 on node-2
 
 // Single exit VM (280px fixed width), centered in 1672px inner:
 const PORT_80_X  = 930;
@@ -99,14 +98,9 @@ export default function Scene2() {
         ]}
       />
 
-      {/* Middle band: both Tunnel CR YAML blocks + traffic arrow overlays */}
-      <MiddleZone
-        tunnels={[
-          { name: 'tunnel-80',  publicPort: 80,  servicePort: 80,  opacity: 1 },
-          { name: 'tunnel-443', publicPort: 443, servicePort: 443, opacity: tunnel443Opacity },
-        ]}
-      >
-        {/* Port 80: node-1/service-80 → exit :80 (already established) */}
+      {/* Arrow zone — Tunnel CRs are now inside the nodes */}
+      <MiddleZone>
+        {/* Port 80: node-1/tunnel-80 → exit :80 (already established) */}
         <TrafficArrow
           startFrame={0}
           label=":80"
@@ -116,7 +110,7 @@ export default function Scene2() {
           zoneLeft={ZONE_LEFT}
           zoneWidth={ZONE_W}
         />
-        {/* Port 443: node-2/service-443 → exit :443 (appears this scene) */}
+        {/* Port 443: node-2/tunnel-443 → exit :443 (appears this scene) */}
         <TrafficArrow
           startFrame={secondArrowStart}
           label=":443"
@@ -132,6 +126,7 @@ export default function Scene2() {
       <ClusterColumn
         tunnelCount={2}
         svcOpacities={{ 'service-443': svc443Opacity }}
+        tunnelOpacities={{ 'service-443': tunnel443Opacity }}
       />
     </AbsoluteFill>
   );

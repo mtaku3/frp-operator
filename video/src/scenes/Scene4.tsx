@@ -1,42 +1,42 @@
 /**
  * Scene 4: Port conflict forces a second VM
- * Starting state: 1 VM (203.0.113.10) with :80 and :443. node-2 drained, both services on node-1.
+ * Starting state: 1 VM (203.0.113.10) with :80 and :443. node-2 drained, all services on node-1.
  *
  * Animation order:
- *   Frame  0–30:  Third Service YAML appears (service-80b) in node-1.
- *   Frame 30–60:  New Tunnel CR YAML block appears in middle band (requesting port 80).
+ *   Frame  0–30:  Third Service YAML appears (service-80b) in node-1 with Tunnel below it.
+ *   Frame 30–60:  Tunnel CR YAML block for service-80b fades in (inside node-1).
  *   Frame 60–90:  Operator can't bin-pack → second Exit VM appears (203.0.113.20).
- *   Frame 90+:    Third arrow draws from service-80b → new Exit VM :80 chip.
+ *   Frame 90+:    Third arrow draws from tunnel-80b → new Exit VM :80 chip.
  *
- * End state: 2 VMs side-by-side, 3 services, 3 arrows, 3 Tunnel CRs in middle band.
+ * End state: 2 VMs side-by-side, 3 services+tunnels in node-1, 3 arrows.
  *
  * Duration: 180 frames @ 30fps = 6s
  *
  * Arrow geometry (1920×1080, 100px side padding → content 1720px):
  *   Dashed zone padding=24 → inner=1672px.
  *
- *   node-1 (280px, node-2 drained): centered in 1672px.
- *     node-1 left = 100+24+(1672-280)/2 = 820
- *     3 services in a row (gap=12, minWidth=210 each):
- *       service-80  center = 820+18+105 = 943
- *       service-443 center = 820+18+210+12+105 = 1165
- *       service-80b center = 820+18+210+12+210+12+105 = 1387
+ *   node-1 has 3 pods → fit-content width = 32 + 210+16+210+16+210 = 694px.
+ *   node-2 drained (empty) → minWidth=540px.
+ *   Total = 694+20+540 = 1254px; margin=(1672-1254)/2=209.
+ *   node-1 left = 100+24+209 = 333.
+ *
+ *   3 pairs in node-1 exactly fill inner (662px), centered = flush:
+ *     pair-0 (service-80):  center = 333+16+105        = 454
+ *     pair-1 (service-443): center = 333+16+210+16+105 = 680
+ *     pair-2 (service-80b): center = 333+16+210+16+210+16+105 = 906
  *
  *   Single-VM phase (frames 0–59):
- *     VM left = 820; inner=232px; 2 chips (104px total); offset=64px
+ *     VM left=820; inner=232px; 2 chips (104px); offset=64.
  *     :80  center = 820+24+64+22 = 930
  *     :443 center = 930+22+8+26  = 986
  *
  *   Two-VM phase (frames 60+):
- *     Each VM 280px, gap=20, total=580px; each side margin=(1672-580)/2=546px
- *     VM1 left = 100+24+546 = 670; VM1 center = 670+140 = 810
- *     VM2 left = 670+280+20 = 970; VM2 center = 970+140 = 1110
- *
- *     VM1 chips (:80, :443) in inner 232px; 2 chips 104px total; offset=64px:
+ *     Each VM 280px, gap=20; total=580px; margin=(1672-580)/2=546.
+ *     VM1 left=100+24+546=670; VM2 left=670+280+20=970.
+ *     VM1 2 chips (104px total, offset=64):
  *       :80  center = 670+24+64+22 = 780
  *       :443 center = 780+22+8+26  = 836
- *
- *     VM2 chip (:80 only) in inner 232px; 1 chip 44px; offset=94px:
+ *     VM2 1 chip (44px, offset=94):
  *       :80  center = 970+24+94+22 = 1110
  */
 import React from 'react';
@@ -52,10 +52,10 @@ import { ExitColumn } from '../components/ExitColumn';
 import { TrafficArrow } from '../components/TrafficArrow';
 import { MiddleZone } from '../components/TunnelYAML';
 
-// Service source X positions (node-1, all 3 services, node-2 drained)
-const SVC_80_X  = 943;
-const SVC_443_X = 1165;
-const SVC_80B_X = 1387;
+// Service/Tunnel source X positions (node-1, all 3 services, node-2 drained)
+const SVC_80_X  = 454;
+const SVC_443_X = 680;
+const SVC_80B_X = 906;
 
 // Single-VM port positions (frames 0–59)
 const SINGLE_PORT_80_X  = 930;
@@ -112,8 +112,8 @@ export default function Scene4() {
   const port80X  = twoVMs ? VM1_PORT_80_X  : SINGLE_PORT_80_X;
   const port443X = twoVMs ? VM1_PORT_443_X : SINGLE_PORT_443_X;
 
-  // ClusterColumn: 2 services (from scene 3), then 3 when new service appears
-  const tunnelCount = frame >= svc80bAppearStart ? 3 : 2;
+  // ClusterColumn: 3 services from the start (service-80b fades in via svcOpacities)
+  const tunnelCount = 3;
 
   return (
     <AbsoluteFill
@@ -150,15 +150,9 @@ export default function Scene4() {
         ]}
       />
 
-      {/* Middle band: all 3 Tunnel CR YAML blocks + arrow overlays */}
-      <MiddleZone
-        tunnels={[
-          { name: 'tunnel-80',  publicPort: 80,  servicePort: 80,  opacity: 1 },
-          { name: 'tunnel-443', publicPort: 443, servicePort: 443, opacity: 1 },
-          { name: 'tunnel-80b', publicPort: 80,  servicePort: 80,  opacity: tunnel80bOpacity },
-        ]}
-      >
-        {/* service-80 → VM1 :80 */}
+      {/* Arrow zone — Tunnel CRs now live inside the nodes */}
+      <MiddleZone>
+        {/* service-80 / tunnel-80 → VM1 :80 */}
         <TrafficArrow
           startFrame={0}
           label=":80"
@@ -168,7 +162,7 @@ export default function Scene4() {
           zoneLeft={ZONE_LEFT}
           zoneWidth={ZONE_W}
         />
-        {/* service-443 → VM1 :443 */}
+        {/* service-443 / tunnel-443 → VM1 :443 */}
         <TrafficArrow
           startFrame={0}
           label=":443"
@@ -178,7 +172,7 @@ export default function Scene4() {
           zoneLeft={ZONE_LEFT}
           zoneWidth={ZONE_W}
         />
-        {/* service-80b → VM2 :80 (appears at thirdArrow) */}
+        {/* service-80b / tunnel-80b → VM2 :80 (appears at thirdArrow) */}
         <TrafficArrow
           startFrame={thirdArrow}
           label=":80"
@@ -195,6 +189,7 @@ export default function Scene4() {
         tunnelCount={tunnelCount}
         node2Drained
         svcOpacities={{ 'service-80b': svc80bOpacity }}
+        tunnelOpacities={{ 'service-80b': tunnel80bOpacity }}
       />
     </AbsoluteFill>
   );

@@ -28,7 +28,7 @@ export const TunnelYAML: React.FC<TunnelYAMLProps> = ({
         fontSize: 11,
         lineHeight: 1.75,
         opacity,
-        minWidth: 230,
+        minWidth: 210,
         flexShrink: 0,
         boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
       }}
@@ -73,23 +73,13 @@ export const TunnelYAML: React.FC<TunnelYAMLProps> = ({
   );
 };
 
-interface MiddleZoneProps {
-  tunnels: Array<{
-    name: string;
-    publicPort: number;
-    servicePort?: number;
-    opacity?: number;
-  }>;
-}
-
 /**
- * Combined arrow + Tunnel YAML middle band.
+ * ArrowZone — pure arrow container between cluster and exit zones.
+ * No YAML blocks here; Tunnel CRs now live inside the node (next to their Service).
  * Height matches TrafficArrow's svgH (160px) so arrows are fully contained.
- * TunnelYAML blocks are centered vertically; arrows are drawn as absolute children
- * (passed via the `children` prop).
+ * Arrow children are absolutely positioned within this zone.
  */
-export const MiddleZone: React.FC<MiddleZoneProps & { children?: React.ReactNode }> = ({
-  tunnels,
+export const MiddleZone: React.FC<{ children?: React.ReactNode }> = ({
   children,
 }) => {
   return (
@@ -102,19 +92,8 @@ export const MiddleZone: React.FC<MiddleZoneProps & { children?: React.ReactNode
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 20,
       }}
     >
-      {tunnels.map((t) => (
-        <TunnelYAML
-          key={t.name}
-          name={t.name}
-          publicPort={t.publicPort}
-          servicePort={t.servicePort}
-          opacity={t.opacity}
-        />
-      ))}
-      {/* Arrow overlays — absolutely positioned within this zone */}
       {children}
     </div>
   );

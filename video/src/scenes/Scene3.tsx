@@ -3,22 +3,27 @@
  * Animation order (carries Scene2 state):
  *   Frame  0–30:  DrainBadge appears.
  *   Frame 30–80:  node-2 transitions to DRAINED; services migrate to node-1.
- *   Frame 80+:    Arrows shift to match new service positions. Tunnel blocks stay (exit unchanged).
+ *   Frame 80+:    Arrows shift to match new service positions. Tunnel blocks stay inside node.
  *
  * Duration: 180 frames @ 30fps = 6s
  *
- * Layout: PUBLIC INTERNET (top) → middle band (TunnelYAML × 2) → LAN/Kubernetes (bottom)
- * Arrow direction: BOTTOM (service) → TOP (exit VM port)
+ * Layout: PUBLIC INTERNET (top) → arrow zone → LAN/Kubernetes (bottom)
+ * Arrow direction: BOTTOM (node) → TOP (exit VM port)
  *
  * Arrow geometry (1920×1080, 100px side padding → content 1720px):
- *   Two-node layout (280px each, gap=20):
- *     node-1 left=670; service-80 center=793
- *     node-2 left=970; service-443 center=1093
+ *   Two-node layout (540px each, gap=20); total=1100px; margin=(1672-1100)/2=286.
+ *   node-1 left=410; node-2 left=970.
  *
- *   After drain (both services on node-1):
- *     service-80 first block: center=793
- *     service-443 second block: node padding=18, gap=12, first block=210px wide
- *       => center = 670+18+210+12+105 = 1015
+ *   Pre-drain (service-80 on node-1, service-443 on node-2):
+ *     Each node has 1 pair centered in 508px inner: pair center=254.
+ *     SVC_80_X_NODE1  = 410+254 = 664
+ *     SVC_443_X_NODE2 = 970+254 = 1224
+ *
+ *   Post-drain (both services on node-1, node-2 empty/drained):
+ *     node-1 still left=410. Inner=508px. 2 pairs (436px total) centered.
+ *     pair left=(508-436)/2=36.
+ *     service-80 pair center = 36+105=141  → canvas X = 410+141 = 551
+ *     service-443 pair center = 36+210+16+105=367 → canvas X = 410+367 = 777
  *
  *   Single exit VM (280px) centered:
  *     :80  chip center ≈ 930
@@ -59,9 +64,10 @@ const DrainBadge: React.FC<{ opacity: number }> = ({ opacity }) => (
 );
 
 // X positions for arrow anchors
-const SVC_80_X_NODE1    = 793;   // service-80 on node-1 (pre and post drain)
-const SVC_443_X_NODE2   = 1093;  // service-443 on node-2 (pre-drain)
-const SVC_443_X_DRAINED = 1015;  // service-443 on node-1 after drain (second YAML block)
+const SVC_80_X_NODE1    = 664;   // service-80 on node-1 (pre and post drain)
+const SVC_443_X_NODE2   = 1224;  // service-443 on node-2 (pre-drain)
+const SVC_80_X_DRAINED  = 551;   // service-80  on node-1 after drain (pair-0, 2-pair layout)
+const SVC_443_X_DRAINED = 777;   // service-443 on node-1 after drain (pair-1, 2-pair layout)
 
 // Single exit VM (280px fixed width), centered:
 const PORT_80_X  = 930;
@@ -84,6 +90,7 @@ export default function Scene3() {
 
   const node2Drained = frame >= drainStart;
 
+  const src80X  = node2Drained ? SVC_80_X_DRAINED  : SVC_80_X_NODE1;
   const src443X = node2Drained ? SVC_443_X_DRAINED : SVC_443_X_NODE2;
 
   return (
@@ -109,18 +116,13 @@ export default function Scene3() {
         ]}
       />
 
-      {/* Middle band: both Tunnel CR YAML blocks + arrow overlays — unchanged during drain */}
-      <MiddleZone
-        tunnels={[
-          { name: 'tunnel-80',  publicPort: 80,  servicePort: 80,  opacity: 1 },
-          { name: 'tunnel-443', publicPort: 443, servicePort: 443, opacity: 1 },
-        ]}
-      >
+      {/* Arrow zone — Tunnel CRs now inside nodes */}
+      <MiddleZone>
         <TrafficArrow
           startFrame={0}
           label=":80"
           color={theme.amber}
-          sourceX={SVC_80_X_NODE1}
+          sourceX={src80X}
           targetX={PORT_80_X}
           zoneLeft={ZONE_LEFT}
           zoneWidth={ZONE_W}
